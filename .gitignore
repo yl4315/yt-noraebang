@@ -1,0 +1,5 @@
+__pycache__/
+*.ytbackup
+.claude/
+.DS_Store
+Thumbs.db

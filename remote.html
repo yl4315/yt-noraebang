@@ -1,0 +1,339 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>YT 노래방 리모컨</title>
+<meta name="theme-color" content="#0a0e27">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Noto+Sans+KR:wght@400;500;700&display=swap">
+<style>
+/* Layout: 휴대폰 한 손 리모컨. 위에 지금 곡, 가운데 탭 내용, 아래 탭 막대 */
+:root{
+  --room:#0a0e27; --panel:#131938; --panel-2:#1b2250; --line:#2a336b;
+  --ink:#eef0ff; --muted:#9aa2d4; --pink:#ff4fa3; --amber:#ffbe3d; --cyan:#40e0d0; --rec:#ff3b4f;
+  --display:'Black Han Sans','Noto Sans KR',sans-serif;
+  --ui:'Noto Sans KR',system-ui,-apple-system,'Malgun Gothic',sans-serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{margin:0;height:100%}
+body{background:var(--room);color:var(--ink);font:15px/1.5 var(--ui);display:flex;flex-direction:column;
+  padding-top:env(safe-area-inset-top,0px)}
+button,input{font:inherit;color:inherit}
+button{cursor:pointer;-webkit-tap-highlight-color:transparent}
+.pad{padding-left:max(14px,env(safe-area-inset-left,0px));padding-right:max(14px,env(safe-area-inset-right,0px))}
+header{display:flex;align-items:center;gap:10px;padding-block:12px}
+.logo{font:400 20px/1 var(--display)}
+.logo b{color:var(--amber);font-weight:400}
+.grow{flex:1}
+.conn{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)}
+.conn i{width:8px;height:8px;border-radius:50%;background:var(--rec)}
+.conn.on i{background:var(--cyan);box-shadow:0 0 6px var(--cyan)}
+.who{display:flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--panel-2);border-radius:20px;padding:3px 10px 3px 3px;font-size:13px}
+.av{width:24px;height:24px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font:700 12px/1 var(--ui);color:#10142e;font-style:normal}
+
+.now{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px 14px;display:flex;flex-direction:column;gap:6px}
+.now .row{display:flex;align-items:baseline;gap:8px;min-width:0}
+.now .no{font:400 13px/1 var(--display);background:var(--amber);color:#1a1300;padding:4px 6px;border-radius:4px}
+.now .t{font-weight:700;font-size:17px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.now .a{color:var(--muted);font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.now .bar{height:4px;background:var(--room);border-radius:2px;overflow:hidden}
+.now .bar i{display:block;height:100%;background:var(--amber);width:0}
+.now .meta{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+
+main{flex:1;overflow:auto;padding-block:12px;display:flex;flex-direction:column;gap:12px}
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.k{border:1px solid var(--line);background:var(--panel-2);border-radius:12px;padding:12px 4px;display:flex;flex-direction:column;align-items:center;gap:2px;font-weight:700;font-size:14px;min-height:62px;justify-content:center}
+.k small{font-weight:500;font-size:11px;color:var(--muted)}
+.k:active{transform:scale(.97);border-color:var(--amber)}
+.k.start{background:var(--amber);border-color:var(--amber);color:#1a1300}
+.k.start small{color:#5a4300}
+.k.cancel{color:#ff8a96;border-color:rgba(255,59,79,.5)}
+.k.on{background:var(--rec);border-color:var(--rec);color:#fff}
+.k.on small{color:#ffe1e4}
+.sec-h{font-size:13px;font-weight:700;color:var(--muted);margin:4px 0 -2px}
+.numbox{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px;display:flex;flex-direction:column;gap:10px}
+.digits{font:400 34px/1 var(--display);letter-spacing:.12em;color:var(--amber);text-align:center;font-variant-numeric:tabular-nums;min-height:34px}
+.digits .ph{color:rgba(255,255,255,.18)}
+.numsong{text-align:center;font-size:14px;min-height:21px}
+.numsong.miss{color:var(--muted)}
+.pad3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.pad3 button{border:1px solid var(--line);background:var(--panel-2);border-radius:10px;padding:12px 0;font:400 22px/1 var(--display)}
+.pad3 button:active{border-color:var(--amber)}
+.pad3 .wide{font:700 15px var(--ui)}
+.pad3 .res{background:var(--amber);border-color:var(--amber);color:#1a1300}
+
+input[type=search],input[type=text]{width:100%;background:var(--panel);border:2px solid var(--line);border-radius:10px;padding:10px 12px;font-size:16px}
+input:focus{outline:none;border-color:var(--amber)}
+.list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.item{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px 10px}
+.item .no{font:400 13px var(--display);color:var(--amber);font-variant-numeric:tabular-nums}
+.item .t{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:700}
+.item .t small{display:block;font-weight:400;color:var(--muted);font-size:12px;overflow:hidden;text-overflow:ellipsis}
+.item .acts{display:flex;gap:6px}
+.sb{border:1px solid var(--line);background:var(--panel-2);border-radius:8px;padding:6px 10px;font-size:13px;font-weight:700;white-space:nowrap}
+.sb.p{background:var(--amber);border-color:var(--amber);color:#1a1300}
+.sb.fav{color:var(--muted);font-size:16px;padding:4px 8px}
+.sb.fav.on{color:var(--pink)}
+.sb.x{color:#ff8a96}
+.empty{color:var(--muted);text-align:center;padding:24px 8px;font-size:14px}
+.group{display:flex;flex-direction:column;gap:6px}
+.group h3{margin:6px 0 0;font-size:15px;display:flex;align-items:center;gap:8px}
+.group h3 small{color:var(--muted);font-weight:400}
+.group h3 .grow{flex:1}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{border:1px solid var(--line);background:var(--panel-2);border-radius:20px;padding:4px 12px 4px 4px;display:flex;align-items:center;gap:6px;font-size:14px}
+.chip.on{border-color:var(--amber);background:rgba(255,190,61,.14)}
+
+nav{display:grid;grid-template-columns:repeat(4,1fr);border-top:1px solid var(--line);background:var(--panel);padding-bottom:env(safe-area-inset-bottom,0px)}
+nav button{background:none;border:0;padding:10px 0 12px;font-size:13px;font-weight:700;color:var(--muted);display:flex;flex-direction:column;align-items:center;gap:2px}
+nav button b{font:400 18px/1 var(--display)}
+nav button.on{color:var(--amber)}
+nav .cnt{font-size:10px;background:var(--pink);color:#fff;border-radius:8px;padding:0 5px;margin-left:2px}
+
+.pin{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;text-align:center;padding:24px}
+.pin h1{margin:0;font:400 26px var(--display)}
+.pin p{margin:0;color:var(--muted);font-size:14px;max-width:30ch}
+.pin input{text-align:center;font:400 34px var(--display);letter-spacing:.3em;max-width:220px}
+.pin .go{background:var(--amber);border:0;border-radius:10px;padding:12px 30px;font-weight:700;color:#1a1300}
+.err{color:#ff8a96;font-size:14px;min-height:1.4em}
+.toast{position:fixed;left:50%;bottom:calc(84px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--panel-2);border:1px solid var(--line);padding:8px 14px;border-radius:10px;font-size:14px;box-shadow:0 8px 24px rgba(0,0,0,.4);max-width:calc(100vw - 32px)}
+:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
+</style>
+</head>
+<body>
+<header class="pad">
+  <div class="logo">YT <b>노래방</b> 리모컨</div>
+  <div class="grow"></div>
+  <button class="who" id="who" type="button" hidden><i class="av" id="whoAv"></i><span id="whoName"></span></button>
+  <div class="conn" id="conn"><i></i><span>연결 안 됨</span></div>
+</header>
+
+<section class="pin" id="pinView" hidden>
+  <h1>노래방 코드 입력</h1>
+  <p>PC 노래방 화면(TV 대기 화면이나 설정 창)에 보이는 4자리 코드를 넣어 주세요.</p>
+  <form id="pinForm"><input type="text" inputmode="numeric" maxlength="4" id="pinIn" autocomplete="off" aria-label="노래방 코드"></form>
+  <button class="go" id="pinGo" type="button">연결</button>
+  <div class="err" id="pinErr"></div>
+</section>
+
+<div id="app" hidden style="display:contents">
+  <div class="pad"><div class="now" id="now"></div></div>
+  <main class="pad">
+    <section id="tab-remote">
+      <div class="grid">
+        <button class="k start" data-cmd="start" type="button">▶ 시작<small>예약 곡</small></button>
+        <button class="k" data-cmd="pause" type="button">❚❚<small>일시정지</small></button>
+        <button class="k cancel" data-cmd="cancel" type="button">■ 취소<small>지금 곡</small></button>
+        <button class="k" data-cmd="jump" type="button">⏭<small>간주점프</small></button>
+        <button class="k" data-cmd="key" data-delta="-1" type="button">키 ♭<small>내리기</small></button>
+        <button class="k" data-cmd="keyReset" type="button" id="keyK">원래 키<small>키</small></button>
+        <button class="k" data-cmd="key" data-delta="1" type="button">키 ♯<small>올리기</small></button>
+        <button class="k" data-cmd="rec" type="button" id="recK">● 녹음<small>꺼짐</small></button>
+        <button class="k" data-cmd="mr" data-delta="-5" type="button">반주 −<small id="mrK">볼륨</small></button>
+        <button class="k" data-cmd="mr" data-delta="5" type="button">반주 +<small>볼륨</small></button>
+        <button class="k" data-cmd="tv" type="button" style="grid-column:span 2">TV 화면 열기<small>노래방 화면으로</small></button>
+      </div>
+      <p class="sec-h">번호로 예약</p>
+      <div class="numbox">
+        <div class="digits" id="digits"></div>
+        <div class="numsong miss" id="numSong">곡 번호를 눌러 주세요</div>
+        <div class="pad3" id="pad3">
+          <button type="button">1</button><button type="button">2</button><button type="button">3</button>
+          <button type="button">4</button><button type="button">5</button><button type="button">6</button>
+          <button type="button">7</button><button type="button">8</button><button type="button">9</button>
+          <button type="button" class="wide" data-k="del">⌫ 지우기</button><button type="button">0</button><button type="button" class="wide" data-k="clr">처음부터</button>
+          <button type="button" class="wide" data-k="pri" style="grid-column:span 1">우선예약</button><button type="button" class="wide res" data-k="res" style="grid-column:span 2">예약</button>
+        </div>
+      </div>
+    </section>
+    <section id="tab-search" hidden>
+      <input type="search" id="q" placeholder="제목 · 가수 · 번호 · 초성(ㅂㅍㅈ)" autocomplete="off" aria-label="곡 검색">
+      <ul class="list" id="results" style="margin-top:10px"></ul>
+    </section>
+    <section id="tab-queue" hidden>
+      <ul class="list" id="queue"></ul>
+    </section>
+    <section id="tab-mine" hidden>
+      <p class="sec-h">누가 부르나요?</p>
+      <div class="chips" id="profiles" style="margin-top:8px"></div>
+      <div id="mine" style="display:flex;flex-direction:column;gap:10px;margin-top:10px"></div>
+    </section>
+  </main>
+  <nav>
+    <button type="button" data-tab="remote" class="on"><b>◉</b>리모컨</button>
+    <button type="button" data-tab="search"><b>⌕</b>검색</button>
+    <button type="button" data-tab="queue"><b>☰</b><span>예약 <span class="cnt" id="qCnt" hidden></span></span></button>
+    <button type="button" data-tab="mine"><b>♥</b>내 목록</button>
+  </nav>
+</div>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+'use strict';
+const $ = s => document.querySelector(s);
+const el = (tag, cls, text) => Object.assign(document.createElement(tag), { className: cls || '', textContent: text ?? '' });
+const fmt = t => Math.floor(t / 60) + ':' + String(Math.floor(t % 60)).padStart(2, '0');
+let pin = new URLSearchParams(location.search).get('pin') || (() => { try { return localStorage.getItem('yt-remote-pin'); } catch { return null; } })() || '';
+let S = null, lastJson = '', failCount = 0;
+
+let toastT;
+function toast(m) { const t = $('#toast'); t.textContent = m; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => t.hidden = true, 1800); }
+const buzz = () => { try { navigator.vibrate?.(12); } catch {} };
+
+async function send(cmd, args = {}, msg) {
+  buzz();
+  try {
+    const r = await fetch('/api/remote/cmd', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pin, cmd, args }) });
+    if (r.status === 403) return showPin('코드가 바뀌었어요. 다시 넣어 주세요');
+    if (!r.ok) throw new Error(r.status);
+    if (msg) toast(msg);
+    setTimeout(poll, 250);
+  } catch { toast('노래방 PC에 연결하지 못했어요'); }
+}
+async function poll() {
+  if (!pin) return showPin();
+  try {
+    const r = await fetch('/api/remote/state?pin=' + encodeURIComponent(pin), { cache: 'no-store' });
+    if (r.status === 403) return showPin('코드가 맞지 않아요');
+    if (!r.ok) throw new Error(r.status);
+    const txt = await r.text(); failCount = 0; setConn(true);
+    if (txt === lastJson) return;
+    lastJson = txt; S = JSON.parse(txt);
+    try { localStorage.setItem('yt-remote-pin', pin); } catch {}
+    $('#pinView').hidden = true; $('#app').hidden = false;
+    render();
+  } catch { if (++failCount > 2) setConn(false); }
+}
+function setConn(on) { $('#conn').classList.toggle('on', on); $('#conn span').textContent = on ? '연결됨' : '연결 끊김'; }
+function showPin(err = '') {
+  $('#app').hidden = true; $('#pinView').hidden = false; $('#pinErr').textContent = err; $('#who').hidden = true;
+  setConn(false);
+}
+$('#pinGo').onclick = () => { pin = $('#pinIn').value.trim(); lastJson = ''; poll(); };
+$('#pinForm').onsubmit = e => { e.preventDefault(); $('#pinGo').click(); };
+
+/* ---- 화면 그리기 ---- */
+const byId = id => S?.songs.find(s => s.id === id);
+const me = () => S?.profiles.find(p => p.id === S.me);
+function avatar(p) { const i = el('i', 'av', (p?.name || '?').slice(0, 1)); i.style.background = p?.color || '#888'; return i; }
+function render() {
+  if (!S) return;
+  const n = S.now, box = $('#now'); box.textContent = '';
+  if (n) {
+    const row = el('div', 'row'); row.append(el('span', 'no', n.no), el('span', 't', n.title)); box.append(row, el('div', 'a', n.artist || ' '));
+    const bar = el('div', 'bar'), i = el('i'); i.style.width = (n.dur ? n.t / n.dur * 100 : 0) + '%'; bar.append(i);
+    const meta = el('div', 'meta'); meta.append(el('span', '', n.playing ? '▶ 부르는 중' : '멈춤'), el('span', '', `${fmt(n.t)} / ${fmt(n.dur)}`));
+    box.append(bar, meta);
+  } else box.append(el('div', 'a', '곡을 고르거나 예약해 주세요'));
+  $('#keyK').firstChild.textContent = n && n.key ? `키 ${n.key > 0 ? '+' : ''}${n.key}` : '원래 키';
+  $('#recK').classList.toggle('on', !!S.rec); $('#recK small').textContent = S.rec ? '켜짐' : '꺼짐';
+  $('#mrK').textContent = `볼륨 ${S.mrVol}`;
+  const c = $('#qCnt'); c.hidden = !S.queue.length; c.textContent = S.queue.length;
+  const p = me(); $('#who').hidden = !p;
+  if (p) { const av = $('#whoAv'); av.textContent = p.name.slice(0, 1); av.style.background = p.color; $('#whoName').textContent = p.name; }
+  renderNum(); renderSearch(); renderQueue(); renderMine();
+}
+function songItem(s, acts) {
+  const li = el('li', 'item'), t = el('span', 't', s.title);
+  t.append(el('small', '', (s.artist || '') + (s.video ? ' · 영상' : '') + (s.local ? '' : ' · ☁')));
+  const a = el('span', 'acts');
+  for (const [txt, cls, fn] of acts) { const b = el('button', 'sb ' + cls, txt); b.type = 'button'; b.onclick = fn; a.append(b); }
+  li.append(el('span', 'no', s.no), t, a);
+  return li;
+}
+const isFav = s => S.favorites.includes(s.id);
+const favBtn = s => [isFav(s) ? '♥' : '♡', 'fav' + (isFav(s) ? ' on' : ''), () => send('fav', { id: s.id })];
+
+/* 번호 입력 */
+let num = '';
+function renderNum() {
+  const d = $('#digits'); d.textContent = num;
+  if (num.length < 5) d.append(el('span', 'ph', '_'.repeat(5 - num.length)));
+  const s = S?.songs.find(x => String(x.no) === num), ns = $('#numSong');
+  ns.textContent = !num ? '곡 번호를 눌러 주세요' : s ? `${s.title} · ${s.artist || '가수 미상'}` : num.length >= 5 ? '없는 번호예요' : '번호를 마저 눌러 주세요';
+  ns.classList.toggle('miss', !s);
+}
+$('#pad3').onclick = e => {
+  const b = e.target.closest('button'); if (!b) return; buzz();
+  const k = b.dataset.k;
+  if (!k) { if (num.length >= 5) num = ''; num += b.textContent; }
+  else if (k === 'del') num = num.slice(0, -1);
+  else if (k === 'clr') num = '';
+  else {
+    const s = S?.songs.find(x => String(x.no) === num);
+    if (!s) { toast('없는 번호예요'); return; }
+    send('reserve', { id: s.id, priority: k === 'pri' }, `${k === 'pri' ? '우선예약' : '예약'} · ${s.title}`); num = '';
+  }
+  renderNum();
+};
+
+/* 검색 (제목·가수·번호·초성) */
+const CHO = 'ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ';
+const chosung = str => [...str].map(ch => { const c = ch.charCodeAt(0) - 0xAC00; return c >= 0 && c < 11172 ? CHO[Math.floor(c / 588)] : ch; }).join('');
+const norm = str => (str || '').toLowerCase().replace(/\s+/g, '');
+function renderSearch() {
+  const q = norm($('#q').value), onlyCho = /^[ㄱ-ㅎ]+$/.test(q), ul = $('#results'); ul.textContent = '';
+  if (!S) return;
+  const list = S.songs.map(s => {
+    const t = norm(s.title), a = norm(s.artist), no = String(s.no); let r = 99;
+    if (!q) r = 10; else if (no === q) r = 0; else if (t.startsWith(q)) r = 1; else if (t.includes(q)) r = 2; else if (a.includes(q)) r = 3;
+    else if (no.startsWith(q)) r = 4; else if (onlyCho && (chosung(t).includes(q) || chosung(a).includes(q))) r = 5;
+    return { s, r };
+  }).filter(x => x.r < 99).sort((x, y) => x.r - y.r || x.s.no - y.s.no);
+  if (!list.length) { ul.append(el('li', 'empty', '찾는 곡이 없어요')); return; }
+  for (const { s } of list.slice(0, 100)) ul.append(songItem(s, [favBtn(s), ['우선', '', () => send('reserve', { id: s.id, priority: true }, `우선예약 · ${s.title}`)], ['예약', 'p', () => send('reserve', { id: s.id }, `예약 · ${s.title}`)]]));
+}
+$('#q').addEventListener('input', renderSearch);
+
+/* 예약 목록 */
+function renderQueue() {
+  const ul = $('#queue'); ul.textContent = '';
+  if (!S.queue.length) { ul.append(el('li', 'empty', '예약된 곡이 없어요. 리모컨 탭에서 번호를 누르거나 검색에서 예약하세요')); return; }
+  S.queue.forEach((id, i) => {
+    const s = byId(id); if (!s) return;
+    const acts = [['지금', 'p', () => send('now', { id }, `지금 부르기 · ${s.title}`)]];
+    if (i > 0) acts.push(['맨 위로', '', () => send('top', { id })]);
+    acts.push(['취소', 'x', () => send('unreserve', { id }, `예약 취소 · ${s.title}`)]);
+    ul.append(songItem(s, acts));
+  });
+}
+
+/* 내 목록 + 사용자 */
+function renderMine() {
+  const pr = $('#profiles'); pr.textContent = '';
+  for (const p of S.profiles) {
+    const b = el('button', 'chip' + (p.id === S.me ? ' on' : '')); b.type = 'button'; b.append(avatar(p), p.name);
+    b.onclick = () => send('profile', { id: p.id }, `${p.name}님 차례`); pr.append(b);
+  }
+  const box = $('#mine'); box.textContent = '';
+  const groups = [{ name: '♥ 좋아요', songs: S.favorites }, ...S.playlists.map(p => ({ name: p.name, songs: p.songs }))];
+  for (const g of groups) {
+    const songs = g.songs.map(byId).filter(Boolean), grp = el('div', 'group'), h = el('h3', '', g.name);
+    h.append(el('small', '', `${songs.length}곡`), el('span', 'grow'));
+    if (songs.length) { const b = el('button', 'sb p', '전체 예약'); b.type = 'button'; b.onclick = () => send('reserveMany', { ids: songs.map(s => s.id), label: g.name }, `${g.name} · ${songs.length}곡 예약`); h.append(b); }
+    grp.append(h);
+    const ul = el('ul', 'list');
+    if (!songs.length) ul.append(el('li', 'empty', g.name.startsWith('♥') ? '검색에서 ♡를 누르면 여기에 모여요' : '비어 있어요'));
+    for (const s of songs) ul.append(songItem(s, [['예약', 'p', () => send('reserve', { id: s.id }, `예약 · ${s.title}`)]]));
+    grp.append(ul); box.append(grp);
+  }
+}
+$('#who').onclick = () => tab('mine');
+
+/* 탭 · 버튼 */
+function tab(name) {
+  for (const b of document.querySelectorAll('nav button')) b.classList.toggle('on', b.dataset.tab === name);
+  for (const t of ['remote', 'search', 'queue', 'mine']) $('#tab-' + t).hidden = t !== name;
+}
+for (const b of document.querySelectorAll('nav button')) b.onclick = () => tab(b.dataset.tab);
+for (const b of document.querySelectorAll('[data-cmd]')) b.onclick = () => send(b.dataset.cmd, b.dataset.delta ? { delta: +b.dataset.delta } : {});
+
+if (pin) { $('#pinIn').value = pin; poll(); } else showPin();
+setInterval(poll, 1000);
+</script>
+</body>
+</html>
