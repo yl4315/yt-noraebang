@@ -14,11 +14,10 @@ import sys
 import threading
 import time
 import webbrowser
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, unquote, urlparse
 
-args = sys.argv[1:]
-port = int(next((a for a in args if a.isdigit()), 5173))
-lan = '--lan' in args
+port = 5173
+lan = False
 root = os.path.dirname(os.path.abspath(__file__))
 
 PIN = f'{random.SystemRandom().randint(0, 9999):04d}'
@@ -72,7 +71,19 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def hidden(self):
+        # .git 같은 숨김 폴더와 파이썬 캐시는 내주지 않는다
+        parts = unquote(urlparse(self.path).path).replace('\\', '/').split('/')
+        return any(p.startswith('.') or p == '__pycache__' for p in parts if p)
+
+    def do_HEAD(self):
+        if self.hidden():
+            return self.send_error(404)
+        return super().do_HEAD()
+
     def do_GET(self):
+        if self.hidden():
+            return self.send_error(404)
         u = urlparse(self.path)
         q = parse_qs(u.query)
         if u.path == '/api/remote/info':
@@ -121,31 +132,43 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 return self.send_json({'error': 'json'}, 400)
             if not self.pin_ok(msg.get('pin')):
                 return self.send_json({'error': 'pin'}, 403)
-            args = msg.get('args') if isinstance(msg.get('args'), dict) else {}
+            cmd_args = msg.get('args') if isinstance(msg.get('args'), dict) else {}
             with lock:
                 seq += 1
-                cmds.append((seq, {'cmd': str(msg.get('cmd'))[:20], 'args': args}))
+                cmds.append((seq, {'cmd': str(msg.get('cmd'))[:20], 'args': cmd_args}))
                 del cmds[:-200]
             return self.send_json({'ok': True})
         return self.send_json({'error': 'not found'}, 404)
 
 
-handler = functools.partial(Handler, directory=root)
-try:
-    server = http.server.ThreadingHTTPServer(('0.0.0.0' if lan else '127.0.0.1', port), handler)
-except OSError:
-    print(f'YT 노래방이 이미 켜져 있어요. 브라우저만 열게요: http://localhost:{port}')
-    if '--open' in args:
-        webbrowser.open(f'http://localhost:{port}/')
-    sys.exit(0)
-server.daemon_threads = True
-print(f'YT 노래방: http://localhost:{port}  (이 창을 닫으면 꺼져요)')
-if lan:
-    ip = lan_ip()
-    print(f'휴대폰 리모컨: http://{ip}:{port}/remote.html  · 코드 {PIN}' if ip else '휴대폰 리모컨: 와이파이 주소를 찾지 못했어요')
-if '--open' in args:
-    threading.Timer(0.8, lambda: webbrowser.open(f'http://localhost:{port}/')).start()
-try:
-    server.serve_forever()
-except KeyboardInterrupt:
-    pass
+def make_server(host, listen_port):
+    server = http.server.ThreadingHTTPServer((host, listen_port), functools.partial(Handler, directory=root))
+    server.daemon_threads = True
+    return server
+
+
+def main(argv):
+    global port, lan
+    port = int(next((a for a in argv if a.isdigit()), 5173))
+    lan = '--lan' in argv
+    try:
+        server = make_server('0.0.0.0' if lan else '127.0.0.1', port)
+    except OSError:
+        print(f'YT 노래방이 이미 켜져 있어요. 브라우저만 열게요: http://localhost:{port}')
+        if '--open' in argv:
+            webbrowser.open(f'http://localhost:{port}/')
+        return
+    print(f'YT 노래방: http://localhost:{port}  (이 창을 닫으면 꺼져요)')
+    if lan:
+        ip = lan_ip()
+        print(f'휴대폰 리모컨: http://{ip}:{port}/remote.html  · 코드 {PIN}' if ip else '휴대폰 리모컨: 와이파이 주소를 찾지 못했어요')
+    if '--open' in argv:
+        threading.Timer(0.8, lambda: webbrowser.open(f'http://localhost:{port}/')).start()
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        pass
+
+
+if __name__ == '__main__':
+    main(sys.argv[1:])

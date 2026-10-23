@@ -58,11 +58,22 @@ GitHub Pages 주소(예: `https://아이디.github.io/yt-noraebang/`)를 휴대�
 
 | 파일 | 내용 |
 |---|---|
-| `index.html` | 노래방 앱 전체 |
+| `index.html` | 노래방 화면 뼈대 |
+| `css/app.css` | 화면 모양 |
+| `js/` | 기능별 코드 (가사, 재생, 녹음, 예약·TV, 사용자, Drive, 키, 리모컨, 백업 …). 자세한 설명은 `CLAUDE.md` |
 | `remote.html` | 휴대폰 리모컨 화면 |
 | `server.py` | 로컬 서버 (리모컨 중계 포함) |
 | `sw.js`, `manifest.webmanifest`, `icon-*.png` | 앱 설치 · 오프라인용 |
+| `tests/` | 자동 테스트 |
 | `YT 노래방 켜기.bat` | 더블클릭 실행 |
+
+## 고친 뒤 확인하기 (자동 테스트)
+
+```
+npm test
+```
+
+가사 읽기, 검색(초성 포함), Google Drive 동기화 합치기 규칙, 백업 파일 형식, 리모컨 서버(코드 확인·차단·숨김 파일)를 검사해요. Node.js와 Python이 있으면 따로 설치할 건 없어요.
 
 ## 실제 기기에서 확인할 것
 
