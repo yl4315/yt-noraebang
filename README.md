@@ -1,5 +1,7 @@
 # YT 노래방
 
+**바로 열기: https://yl4315.github.io/yt-noraebang/**
+
 집에서 쓰는 노래방 웹앱이에요. MR을 넣고 가사에 맞춰 부르고, 녹음하고, 점수를 받고, TV 화면에 띄워서 예약까지 할 수 있어요.
 
 ## 켜기
@@ -46,11 +48,11 @@ python server.py --open     # 켜면서 브라우저 열기
 앱의 `설정` → **"처음 한 번: 클라이언트 ID 만드는 방법"** 에 단계가 있어요. **승인된 JavaScript 원본**에는 이 두 주소를 넣으세요.
 
 - `http://localhost:5173`
-- GitHub Pages 주소 (예: `https://아이디.github.io`)
+- `https://yl4315.github.io` (GitHub Pages)
 
 ## 휴대폰에서 쓰기
 
-GitHub Pages 주소(예: `https://아이디.github.io/yt-noraebang/`)를 휴대폰 크롬이나 사파리에서 열고, **홈 화면에 추가**하면 앱처럼 설치돼요.
+**https://yl4315.github.io/yt-noraebang/** 를 휴대폰 크롬이나 사파리에서 열고, **홈 화면에 추가**하면 앱처럼 설치돼요.
 
 - 휴대폰 리모컨은 이 PC의 `YT 노래방 켜기`로 연 화면에서만 돼요. GitHub Pages 주소에서는 안 돼요.
 
