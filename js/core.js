@@ -105,6 +105,34 @@ function buildLibrary({ songs, tombs, profiles, recs, recTombs }, now = Date.now
 const byIdSort = a => [...(a || [])].sort((x, y) => x.id < y.id ? -1 : 1);
 const librarySig = l => JSON.stringify([byIdSort(l.songs), byIdSort(l.profiles), byIdSort(l.recs)]);
 
+/* ---------------- Drive 폴더에 직접 넣은 MR 들여오기 ---------------- */
+// 파일 이름에서 제목·가수를 뽑는다.
+// 예: "[TJ노래방] 200% - AKMU(악뮤) _ TJ Karaoke.mp3" → { title: '200%', artist: 'AKMU(악뮤)' }
+function titleFromFilename(name) {
+  let s = String(name || '').replace(/\.[a-z0-9]{2,5}$/i, '');
+  s = s.replace(/^\s*[\[【][^\]】]*[\]】]\s*/, '');                       // 앞의 [TJ노래방] 같은 꼬리표
+  s = s.replace(/[\s_\-–]*(TJ|KY|금영)\s*(Karaoke|노래방|미디어)[^]*$/i, ''); // 뒤의 "_ TJ Karaoke - (320 Kbps)" 같은 것
+  s = s.replace(/\(\s*\d+\s*kbps\s*\)/ig, '').replace(/\b(MR|Inst\.?|Instrumental)\b/ig, '');
+  s = s.replace(/[\s_\-–]+$/, '').replace(/\s{2,}/g, ' ').trim();
+  const i = s.lastIndexOf(' - ');
+  if (i > 0) return { title: s.slice(0, i).trim(), artist: s.slice(i + 3).trim() };
+  return { title: s || String(name || '제목 없음'), artist: '' };
+}
+// 폴더 파일 중 아직 어떤 곡과도 이어지지 않은 것을 새 곡으로 만든다. 곡 id를 파일 id로 정해서,
+// 두 기기가 같은 파일을 동시에 들여와도 한 곡으로 합쳐진다.
+function songsFromFolderFiles(files, knownFileIds, startNo, now = Date.now()) {
+  const out = [];
+  let no = startNo;
+  for (const f of files) {
+    if (knownFileIds.has(f.id)) continue;
+    const { title, artist } = titleFromFilename(f.name);
+    const s = { id: 'drive-' + f.id, no: no++, title, artist, lyrics: '', lyricOffset: 0, createdAt: now, updatedAt: now, fileId: f.id, mime: f.mimeType || '', video: /^video\//.test(f.mimeType || ''), blob: null };
+    if (+f.size) s.size = +f.size;
+    out.push(s);
+  }
+  return out;
+}
+
 /* ---------------- 백업 파일 (.ytbackup) ---------------- */
 // 형식: "YTNB1\n" + 머리말 길이(4바이트) + 머리말 JSON + 파일들을 차례로 이어 붙임
 const BK_MAGIC = 'YTNB1\n';

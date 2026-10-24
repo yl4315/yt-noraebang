@@ -62,11 +62,15 @@ $('#dlAllBtn').onclick = async () => {
 $('#persistBtn').onclick = async () => { await requestPersist(); renderStorage(); };
 
 /* ================= Google Drive 곡 창고 ================= */
-const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
+// drive.file: 앱이 만든 파일(곡 목록, 앱에서 올린 MR) 쓰기 · drive.readonly: 'YT 노래방' 폴더에 직접 넣은 MR 읽기
+const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive.readonly';
+// 앱에 들어 있는 클라이언트 ID (공개해도 되는 값). 설정에서 다른 ID를 넣으면 그걸 쓴다.
+const DEFAULT_CLIENT_ID = '';
 const DRIVE = 'https://www.googleapis.com/drive/v3', UPLOAD = 'https://www.googleapis.com/upload/drive/v3';
 
 const Cloud = {
-  clientId: lsGet('nb-gclient') || '',
+  clientId: lsGet('nb-gclient') || DEFAULT_CLIENT_ID,
+  canReadFolder: true,
   connected: lsGet('nb-gconnected') === '1',
   folderId: lsGet('nb-gfolder'), libId: lsGet('nb-glib'),
   lastSync: +(lsGet('nb-glast') || 0),
@@ -100,7 +104,10 @@ function getToken(interactive) {
       client_id: Cloud.clientId, scope: DRIVE_SCOPE,
       callback: r => {
         if (r.error) return rej(Object.assign(new Error(r.error), { needLogin: true }));
-        Cloud.token = r.access_token; Cloud.exp = Date.now() + (r.expires_in || 3600) * 1000; res(Cloud.token);
+        Cloud.token = r.access_token; Cloud.exp = Date.now() + (r.expires_in || 3600) * 1000;
+        // 사용자가 'Drive 파일 보기'를 체크 해제했으면 폴더에 직접 넣은 파일은 못 가져온다
+        Cloud.canReadFolder = google.accounts.oauth2.hasGrantedAllScopes(r, 'https://www.googleapis.com/auth/drive.readonly');
+        res(Cloud.token);
       },
       error_callback: e => rej(Object.assign(new Error(e?.type || 'popup'), { needLogin: true, popup: true })),
     });
@@ -123,6 +130,16 @@ const DriveApi = {
     return (await this.req('POST', `${DRIVE}/files?fields=id`, {
       body: JSON.stringify({ name: 'YT 노래방', mimeType: 'application/vnd.google-apps.folder' }), headers: { 'Content-Type': 'application/json' },
     })).id;
+  },
+  // 폴더 안의 음악·동영상 파일 목록 (직접 넣은 파일 포함)
+  async listFolderMedia(folderId) {
+    const q = encodeURIComponent(`'${folderId}' in parents and trashed=false and (mimeType contains 'audio/' or mimeType contains 'video/')`);
+    const out = []; let page = '';
+    do {
+      const r = await this.req('GET', `${DRIVE}/files?q=${q}&fields=nextPageToken,files(id,name,mimeType,size)&pageSize=1000${page ? '&pageToken=' + page : ''}`);
+      out.push(...r.files); page = r.nextPageToken || '';
+    } while (page);
+    return out;
   },
   async findLibrary(folderId) {
     const q = encodeURIComponent(`name='library.json' and '${folderId}' in parents and trashed=false`);
@@ -205,9 +222,11 @@ function renderCloudPanel() {
   $('#gClientId').value = $('#gClientId').value || Cloud.clientId;
   $('#gConnect').textContent = Cloud.connected ? '지금 동기화' : 'Google 계정 연결';
   $('#gDisconnect').hidden = !Cloud.connected;
+  // 클라이언트 ID가 앱에 들어 있으면 입력 칸은 접어 둔다
+  if (!$('#cloudDialog').open) $('#clientAdv').open = !Cloud.clientId;
   const st = $('#cloudStatus');
-  st.textContent = !Cloud.clientId ? '아직 설정 전이에요. 아래 방법대로 클라이언트 ID를 만들어 넣어 주세요.'
-    : !Cloud.connected ? '클라이언트 ID가 있어요. "Google 계정 연결"을 누르세요.'
+  st.textContent = !Cloud.clientId ? '아직 설정 전이에요. 아래 "클라이언트 ID 설정"에서 ID를 넣어 주세요.'
+    : !Cloud.connected ? '"Google 계정 연결"을 누르면 시작해요.'
     : Cloud.msg ? Cloud.msg
     : Cloud.lastSync ? `연결됨 · 마지막 동기화 ${ago(Cloud.lastSync)}` : '연결됨';
   st.classList.toggle('err', Cloud.state === 'error' || Cloud.state === 'login');
@@ -262,6 +281,17 @@ async function syncNow({ interactive = false, connect = false } = {}) {
       const l = songById(id); if (l) { l.buffer = null; l.keyCache = null; }
       for (const r of state.recs) if (r.songId === id) recCache.delete(r.id);
     }
+    // 1-1) 'YT 노래방' 폴더에 직접 넣은 MR·동영상을 새 곡으로 들여온다 (못 읽어도 동기화는 계속)
+    let imported = 0;
+    if (api.listFolderMedia && Cloud.canReadFolder) {
+      try {
+        const files = await api.listFolderMedia(Cloud.folderId);
+        const known = new Set([...state.songs, ...state.tombs].map(s => s.fileId).filter(Boolean));
+        const added = songsFromFolderFiles(files, known, Math.max(...state.songs.map(x => +x.no)) + 1);
+        for (const s of added) { state.songs.push(s); touched.add(s.id); }
+        imported = added.length;
+      } catch (e) { if (e.needLogin) throw e; console.warn('folder list', e); }
+    }
     // 2) 이 기기에서 넣거나 바꾼 MR 올리기
     for (const s of state.songs) {
       if (s.demo || !s.blob || (s.fileId && !s.mediaDirty)) continue;
@@ -315,6 +345,8 @@ async function syncNow({ interactive = false, connect = false } = {}) {
     Cloud.lastSync = Date.now(); lsSet('nb-glast', String(Cloud.lastSync));
     setCloud('ok');
     afterSync(touched);
+    if (imported) toast(`Drive 폴더에서 새 곡 ${imported}개를 가져왔어요. 가사는 곡 수정(연필)에서 '싱크 가사 찾기'로 넣을 수 있어요`, 6000);
+    else if (!Cloud.canReadFolder) toast('Drive 폴더에 직접 넣은 파일을 가져오려면, 연결할 때 "Drive 파일 보기" 권한도 허용해 주세요', 6000);
   } catch (e) {
     console.warn('sync', e);
     setCloud(e.needLogin || e.popup ? 'login' : 'error', cloudErrText(e));

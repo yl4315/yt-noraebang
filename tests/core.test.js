@@ -204,3 +204,42 @@ test('백업 파일: 끝이 잘린 파일은 잘렸다고 알려 준다', async 
   const file = C.packBackup({ songs: [] }, [new Blob([new Uint8Array(100)])]);
   await assert.rejects(C.unpackBackup(file.slice(0, file.size - 10)), /잘렸어요/);
 });
+
+/* ---------------- Drive 폴더에 직접 넣은 MR ---------------- */
+test('파일 이름에서 제목·가수 뽑기 (TJ 노래방 MR 이름)', () => {
+  const cases = [
+    ['[TJ노래방] 200% - AKMU(악뮤) _ TJ Karaoke.mp3', '200%', 'AKMU(악뮤)'],
+    ['[TJ노래방] 사랑의이름으로! - 잔나비(Feat.카리나 of aespa) _ TJ Karaoke - (320 Kbps).mp3', '사랑의이름으로!', '잔나비(Feat.카리나 of aespa)'],
+    ['[TJ노래방] 산책 - 백예린 _ TJ Karaoke - (320 Kbps).mp3', '산책', '백예린'],
+    ['[TJ노래방] romeo n juliet - 죠지(Feat.유라(youra)) _ TJ Karaoke - (320 Kbps).mp3', 'romeo n juliet', '죠지(Feat.유라(youra))'],
+    ['[TJ노래방] LOVE ATTACK - RESCENE(리센느) _ TJ Karaoke.mp3', 'LOVE ATTACK', 'RESCENE(리센느)'],
+    ['밤편지 - 아이유 MR.mp3', '밤편지', '아이유'],
+    ['그냥 제목만.m4a', '그냥 제목만', ''],
+  ];
+  for (const [name, title, artist] of cases) same(C.titleFromFilename(name), { title, artist });
+});
+
+test('폴더 파일 중 아직 곡이 아닌 것만 새 곡으로 만든다', () => {
+  const files = [
+    { id: 'f1', name: '[TJ노래방] 청혼 - 이소라 _ TJ Karaoke.mp3', mimeType: 'audio/mpeg', size: '5000' },
+    { id: 'f2', name: '이미 있는 곡.mp3', mimeType: 'audio/mpeg' },
+    { id: 'f3', name: '노래방 영상 - 가수.mp4', mimeType: 'video/mp4' },
+  ];
+  const added = C.songsFromFolderFiles(files, new Set(['f2']), 10005, 777);
+  same(added.map(s => [s.id, s.no, s.title, s.artist, s.video, s.fileId]), [
+    ['drive-f1', 10005, '청혼', '이소라', false, 'f1'],
+    ['drive-f3', 10006, '노래방 영상', '가수', true, 'f3'],
+  ]);
+  assert.equal(added[0].blob, null);          // 파일은 부를 때 받는다
+  assert.equal(added[0].size, 5000);
+  assert.equal(added[0].updatedAt, 777);
+});
+
+test('같은 파일을 두 기기가 들여와도 곡 id가 같아서 하나로 합쳐진다', () => {
+  const f = [{ id: 'same', name: 'A - B.mp3', mimeType: 'audio/mpeg' }];
+  const a = C.songsFromFolderFiles(f, new Set(), 10002, 1)[0];
+  const b = C.songsFromFolderFiles(f, new Set(), 10009, 2)[0];
+  assert.equal(a.id, b.id);
+  const r = C.mergeRemoteInto([a], [], [b], C.SONG_FIELDS, { mediaKey: 'blob' });
+  assert.equal(r.live.length, 1);
+});
