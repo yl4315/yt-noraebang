@@ -43,12 +43,13 @@ python server.py --open     # 켜면서 브라우저 열기
 - 다른 브라우저나 기기에서는 보이지 않아요. Drive에 연결하거나 백업 파일로 옮기세요.
 - 이 저장소(GitHub)에는 코드와 데모곡만 올라가요. MR, 가사, 녹음은 올라가지 않아요.
 
-## Google Drive 연결 (처음 한 번)
+## Google Drive 연결
 
-앱의 `설정` → **"처음 한 번: 클라이언트 ID 만드는 방법"** 에 단계가 있어요. **승인된 JavaScript 원본**에는 이 두 주소를 넣으세요.
+클라이언트 ID는 앱에 들어 있어요(`js/cloud.js`의 `DEFAULT_CLIENT_ID`, Google Cloud 프로젝트 `yt-noraebang`). `설정` → **Google 계정 연결**만 누르면 돼요.
 
-- `http://localhost:5173`
-- `https://yl4315.github.io` (GitHub Pages)
+- 로그인할 수 있는 계정은 Google Cloud의 **테스트 사용자**에 넣은 계정뿐이에요. 가족 계정을 쓰려면 그 주소도 테스트 사용자에 넣으세요.
+- Drive의 **'YT 노래방' 폴더에 MR 파일을 직접 넣어도** 다음 동기화 때 곡 목록에 들어와요. 파일 이름에서 제목·가수를 자동으로 뽑아요.
+- 클라이언트 ID의 **승인된 JavaScript 원본**에는 `http://localhost:5173`과 `https://yl4315.github.io`가 들어 있어야 해요. 다른 주소에서 열면 로그인이 막혀요.
 
 ## 휴대폰에서 쓰기
 

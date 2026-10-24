@@ -65,7 +65,7 @@ $('#persistBtn').onclick = async () => { await requestPersist(); renderStorage()
 // drive.file: 앱이 만든 파일(곡 목록, 앱에서 올린 MR) 쓰기 · drive.readonly: 'YT 노래방' 폴더에 직접 넣은 MR 읽기
 const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive.readonly';
 // 앱에 들어 있는 클라이언트 ID (공개해도 되는 값). 설정에서 다른 ID를 넣으면 그걸 쓴다.
-const DEFAULT_CLIENT_ID = '';
+const DEFAULT_CLIENT_ID = '411673683570-9im22ak82uhtlgs07ak8ptg1t5a60skl.apps.googleusercontent.com';
 const DRIVE = 'https://www.googleapis.com/drive/v3', UPLOAD = 'https://www.googleapis.com/upload/drive/v3';
 
 const Cloud = {
