@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>YT 노래방 리모컨</title>
 <meta name="theme-color" content="#0a0e27">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="manifest" href="remote.webmanifest">
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Noto+Sans+KR:wght@400;500;700&display=swap">
@@ -100,6 +102,9 @@ nav .cnt{font-size:10px;background:var(--pink);color:#fff;border-radius:8px;padd
 .pin input{text-align:center;font:400 34px var(--display);letter-spacing:.3em;max-width:220px}
 .pin .go{background:var(--amber);border:0;border-radius:10px;padding:12px 30px;font-weight:700;color:#1a1300}
 .err{color:#ff8a96;font-size:14px;min-height:1.4em}
+.a2hs{display:flex;align-items:center;gap:8px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:6px 6px 6px 10px;margin-bottom:8px;font-size:12px;color:var(--muted)}
+.a2hs span{flex:1;min-width:0}
+.a2hs b{color:var(--ink);font-weight:700}
 .toast{position:fixed;left:50%;bottom:calc(84px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--panel-2);border:1px solid var(--line);padding:8px 14px;border-radius:10px;font-size:14px;box-shadow:0 8px 24px rgba(0,0,0,.4);max-width:calc(100vw - 32px)}
 :focus-visible{outline:2px solid var(--amber);outline-offset:2px}
 </style>
@@ -163,6 +168,13 @@ nav .cnt{font-size:10px;background:var(--pink);color:#fff;border-radius:8px;padd
       <div id="mine" style="display:flex;flex-direction:column;gap:10px;margin-top:10px"></div>
     </section>
   </main>
+  <div class="pad" id="a2hs" hidden>
+    <div class="a2hs">
+      <span>크롬 메뉴(⋮) → <b>홈 화면에 추가</b> 하면 다음부터 아이콘으로 바로 열려요</span>
+      <button class="sb p" id="a2hsAdd" type="button" hidden>홈 화면에 추가</button>
+      <button class="sb" id="a2hsClose" type="button">닫기</button>
+    </div>
+  </div>
   <nav>
     <button type="button" data-tab="remote" class="on"><b>◉</b>리모컨</button>
     <button type="button" data-tab="search"><b>⌕</b>검색</button>
@@ -177,7 +189,16 @@ nav .cnt{font-size:10px;background:var(--pink);color:#fff;border-radius:8px;padd
 const $ = s => document.querySelector(s);
 const el = (tag, cls, text) => Object.assign(document.createElement(tag), { className: cls || '', textContent: text ?? '' });
 const fmt = t => Math.floor(t / 60) + ':' + String(Math.floor(t % 60)).padStart(2, '0');
-let pin = new URLSearchParams(location.search).get('pin') || (() => { try { return localStorage.getItem('yt-remote-pin'); } catch { return null; } })() || '';
+const lsGet = k => { try { return localStorage.getItem(k); } catch { return null; } };
+const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch {} };
+// QR 주소의 ?pin=은 바로 기억해 두고 주소에서 지운다. 주소에 코드가 남아 있으면 "홈 화면에 추가"한 아이콘에
+// 그 코드가 박혀서, PC에서 코드를 바꾼 뒤에는 아이콘을 누를 때마다 옛 코드로 실패한다.
+const urlPin = new URLSearchParams(location.search).get('pin');
+if (urlPin) {
+  lsSet('yt-remote-pin', urlPin);
+  try { const u = new URL(location.href); u.searchParams.delete('pin'); history.replaceState(null, '', u.pathname + u.search + u.hash); } catch {}
+}
+let pin = urlPin || lsGet('yt-remote-pin') || '';
 let S = null, lastJson = '', failCount = 0;
 
 let toastT;
@@ -206,6 +227,7 @@ async function poll() {
     lastJson = txt; S = JSON.parse(txt);
     try { localStorage.setItem('yt-remote-pin', pin); } catch {}
     $('#pinView').hidden = true; $('#app').hidden = false;
+    showA2hs();
     render();
   } catch { if (++failCount > 2) setConn(false); }
 }
@@ -333,6 +355,26 @@ function tab(name) {
 }
 for (const b of document.querySelectorAll('nav button')) b.onclick = () => tab(b.dataset.tab);
 for (const b of document.querySelectorAll('[data-cmd]')) b.onclick = () => send(b.dataset.cmd, b.dataset.delta ? { delta: +b.dataset.delta } : {});
+
+/* 홈 화면 아이콘 안내: 연결된 뒤, 홈 화면 앱으로 연 게 아닐 때 한 줄. 닫으면 다시 안 보인다 */
+// 휴대폰은 http://192.168.x.x 주소라 정식 설치는 안 될 수 있지만, 크롬 메뉴의 "홈 화면에 추가"로 아이콘은 만들 수 있다.
+// 크롬이 바로 설치를 제안하면(beforeinstallprompt) 그 버튼도 같이 보여 준다.
+const A2HS_KEY = 'nb-remote-a2hs';
+let installEvt = null;
+const isHomeApp = () => matchMedia('(display-mode: standalone)').matches || matchMedia('(display-mode: fullscreen)').matches || navigator.standalone === true;
+function showA2hs() {
+  $('#a2hs').hidden = !!lsGet(A2HS_KEY) || isHomeApp();
+  $('#a2hsAdd').hidden = !installEvt;
+}
+function closeA2hs() { lsSet(A2HS_KEY, '1'); $('#a2hs').hidden = true; }
+$('#a2hsClose').onclick = closeA2hs;
+addEventListener('beforeinstallprompt', e => { e.preventDefault(); installEvt = e; if (!$('#app').hidden) showA2hs(); });
+$('#a2hsAdd').onclick = async () => {
+  if (!installEvt) return;
+  const e = installEvt; installEvt = null; $('#a2hsAdd').hidden = true;
+  try { e.prompt(); if ((await e.userChoice).outcome === 'accepted') closeA2hs(); } catch {}
+};
+addEventListener('appinstalled', closeA2hs);
 
 if (pin) { $('#pinIn').value = pin; poll(); } else showPin();
 setInterval(poll, 1000);

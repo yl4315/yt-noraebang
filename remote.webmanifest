@@ -1,0 +1,17 @@
+{
+  "name": "YT 노래방 리모컨",
+  "short_name": "노래방 리모컨",
+  "description": "같은 와이파이에서 PC 노래방을 예약·시작·취소하는 휴대폰 리모컨",
+  "lang": "ko",
+  "id": "./remote.html",
+  "start_url": "remote.html",
+  "scope": "./remote.html",
+  "display": "standalone",
+  "background_color": "#0a0e27",
+  "theme_color": "#0a0e27",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
