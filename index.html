@@ -409,6 +409,11 @@
     <section class="set-sec">
       <h3>휴대폰 리모컨</h3>
       <div class="remote-info" id="remoteSet">"YT 노래방 켜기"로 연 화면에서만 쓸 수 있어요. 같은 와이파이의 휴대폰으로 예약·검색·시작·취소를 할 수 있어요.</div>
+      <div id="remoteCtl" hidden style="display:contents">
+        <label class="set-row chk"><input type="checkbox" id="remoteNewEach"> 켤 때마다 새 코드 만들기</label>
+        <div class="set-row"><button class="btn small" id="remoteNewPin" type="button">새 코드 만들기</button><span class="hint" id="remotePinMsg"></span></div>
+        <p class="hint" id="remotePinHint"></p>
+      </div>
     </section>
     <div class="dlg-btns"><button class="btn primary" type="button" id="cloudClose">닫기</button></div>
   </div>
