@@ -45,5 +45,7 @@ function loop() {
   if (matchMedia('(max-width:560px)').matches) $('#deckMore').open = false;
   remoteInit();
   await selectSong(demo);
+  // "YT 노래방 TV로 켜기"(주소 ?tv=1)로 열었으면 곡 목록·데모곡 준비가 끝난 뒤 바로 TV 화면으로
+  if (tvParam(location.search)) startInTV();
   requestAnimationFrame(loop);
 })();

@@ -269,5 +269,43 @@ class PinApiTest(ServerBase):
             shutil.rmtree(folder, ignore_errors=True)
 
 
+class TvLaunchTest(unittest.TestCase):
+    """YT 노래방 TV로 켜기: 크롬 찾기와 명령줄 (실제로 크롬을 띄우지는 않는다)"""
+
+    def test_find_chrome_in_usual_places(self):
+        env = {'ProgramFiles': r'C:\PF', 'ProgramFiles(x86)': r'C:\PF86', 'LocalAppData': r'C:\Users\me\AppData\Local'}
+        local = os.path.join(env['LocalAppData'], 'Google', 'Chrome', 'Application', 'chrome.exe')
+        self.assertEqual(server.find_chrome(env, isfile=lambda p: p == local), local)
+        pf86 = os.path.join(env['ProgramFiles(x86)'], 'Google', 'Chrome', 'Application', 'chrome.exe')
+        self.assertEqual(server.find_chrome(env, isfile=lambda p: p in (pf86, local)), pf86)   # 앞 순서가 먼저
+        self.assertIsNone(server.find_chrome(env, isfile=lambda p: False))
+        self.assertIsNone(server.find_chrome({}, isfile=lambda p: True))
+
+    def test_tv_command_uses_normal_profile_and_localhost(self):
+        cmd = server.tv_command(r'C:\chrome.exe', 5173)
+        self.assertEqual(cmd, [r'C:\chrome.exe', '--app=http://localhost:5173/?tv=1', '--start-fullscreen'])
+        self.assertFalse(any(a.startswith('--user-data-dir') for a in cmd))   # 다른 프로필이면 곡이 안 보인다
+
+    def test_open_tv_uses_chrome_or_default_browser(self):
+        opened, ran = [], []
+        fake_popen = lambda cmd, **k: ran.append(cmd)   # noqa: E731 — 진짜 크롬은 띄우지 않는다
+        # 크롬이 없으면 기본 브라우저로 같은 주소
+        with mock.patch.object(server, 'find_chrome', return_value=None):
+            self.assertEqual(server.open_tv(5173, popen=fake_popen, browser_open=opened.append), 'browser')
+        self.assertEqual((opened, ran), (['http://localhost:5173/?tv=1'], []))
+
+        # 크롬을 켜지 못해도 기본 브라우저로
+        def broken(cmd, **k):
+            raise OSError('no chrome')
+        opened.clear()
+        self.assertEqual(server.open_tv(5173, chrome=r'C:\chrome.exe', popen=broken, browser_open=opened.append), 'browser')
+        self.assertEqual(opened, ['http://localhost:5173/?tv=1'])
+
+        # 크롬이 있으면 앱 창 + 전체 화면 명령으로
+        opened.clear()
+        self.assertEqual(server.open_tv(5173, chrome=r'C:\chrome.exe', popen=fake_popen, browser_open=opened.append), 'chrome')
+        self.assertEqual((ran, opened), ([server.tv_command(r'C:\chrome.exe', 5173)], []))
+
+
 if __name__ == '__main__':
     unittest.main()

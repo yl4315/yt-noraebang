@@ -243,3 +243,23 @@ test('같은 파일을 두 기기가 들여와도 곡 id가 같아서 하나로 
   const r = C.mergeRemoteInto([a], [], [b], C.SONG_FIELDS, { mediaKey: 'blob' });
   assert.equal(r.live.length, 1);
 });
+
+/* ---------------- TV로 켜기 (CR-009) ---------------- */
+test('주소의 tv 값: ?tv=1·?tv는 TV 화면으로, 0·false·no·off나 없으면 그대로', () => {
+  for (const s of ['?tv=1', '?tv', '?tv=', '?tv=yes', '?a=b&tv=1', 'tv=1']) assert.equal(C.tvParam(s), true, s);
+  for (const s of ['', '?', '?tv=0', '?tv=false', '?tv=OFF', '?tv=no', '?pin=1234', '?tvx=1', undefined]) assert.equal(C.tvParam(s), false, String(s));
+});
+
+test('창이 화면을 다 덮었는지: 크롬 전체 화면이면 안내를 띄우지 않는다', () => {
+  const scr = { width: 1920, height: 1080 };
+  const win = (iw, ih, ow, oh) => ({ innerWidth: iw, innerHeight: ih, outerWidth: ow, outerHeight: oh });
+  assert.equal(C.fillsScreen(win(1920, 1080, 1920, 1080), scr), true);                 // --start-fullscreen · F11
+  assert.equal(C.fillsScreen(win(1536, 864, 1920, 1080), scr), true);                  // 같은데 페이지 125% 확대
+  assert.equal(C.fillsScreen(win(1745, 982, 1920, 1080), scr), true);                  // 110% 확대 (반올림)
+  assert.equal(C.fillsScreen(win(1920, 1009, 1936, 1056), scr), false);                // 최대화한 앱 창 (작업 표시줄 있음)
+  assert.equal(C.fillsScreen(win(1920, 1049, 1920, 1080), scr), false);                // 작업 표시줄 숨김 + 최대화 (제목 줄 있음)
+  assert.equal(C.fillsScreen(win(1280, 689, 1296, 728), scr), false);                  // 보통 창
+  assert.equal(C.fillsScreen(win(2560, 1440, 2560, 1440), { width: 2560, height: 1440 }), true);   // 4K TV를 150%로 쓰는 PC
+  assert.equal(C.fillsScreen(win(0, 0, 0, 0), scr), false);                            // 크기를 아직 모를 때
+  assert.equal(C.fillsScreen({}, scr), false);
+});

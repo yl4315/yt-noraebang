@@ -5,10 +5,10 @@ const path = require('node:path');
 const vm = require('node:vm');
 
 const NAMES = ['fmtMs', 'norm', 'chosung', 'pick', 'parseLyrics', 'toLRC', 'searchIn', 'SONG_FIELDS', 'REC_FIELDS',
-  'mergeRemoteInto', 'mergeProfileLists', 'renumberDuplicates', 'buildLibrary', 'librarySig', 'packBackup', 'unpackBackup', 'BK_MAGIC', 'titleFromFilename', 'songsFromFolderFiles'];
+  'mergeRemoteInto', 'mergeProfileLists', 'renumberDuplicates', 'buildLibrary', 'librarySig', 'packBackup', 'unpackBackup', 'BK_MAGIC', 'titleFromFilename', 'songsFromFolderFiles', 'tvParam', 'fillsScreen'];
 
 function loadCore() {
-  const ctx = vm.createContext({ console, Blob, TextEncoder, TextDecoder, DataView, Uint8Array, crypto: globalThis.crypto });
+  const ctx = vm.createContext({ console, Blob, TextEncoder, TextDecoder, DataView, Uint8Array, URLSearchParams, crypto: globalThis.crypto });
   for (const f of ['util.js', 'core.js']) {
     const file = path.join(__dirname, '..', 'js', f);
     vm.runInContext(fs.readFileSync(file, 'utf8'), ctx, { filename: file });

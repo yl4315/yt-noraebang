@@ -121,10 +121,10 @@ function reserveByNumber(priority) {
   if (s) reserve(s, priority); else flash('없는 번호예요');
 }
 let flashTimer;
-function flash(text) {
+function flash(text, ms = 2500) {
   const el = $('#flash'); el.textContent = text; el.hidden = false;
   el.style.animation = 'none'; void el.offsetWidth; el.style.animation = '';
-  clearTimeout(flashTimer); flashTimer = setTimeout(() => el.hidden = true, 2500);
+  clearTimeout(flashTimer); flashTimer = setTimeout(() => el.hidden = true, ms);
 }
 function bumpSetting(k, d) {
   settings[k] = clamp(settings[k] + d, 0, 100); applySettings(); saveSettings();
@@ -259,6 +259,7 @@ async function enterTV() {
 }
 function exitTV() {
   if (!state.tv) return;
+  disarmFirstInputFullscreen();
   state.tv = false; closeOverlays();
   stageHome.parent.insertBefore($('#stage'), stageHome.next);
   $('#tv').hidden = true; document.body.style.overflow = '';
@@ -273,6 +274,51 @@ function toggleFullscreen() {
   if (document.fullscreenElement) document.exitFullscreen?.();
   else document.documentElement.requestFullscreen?.().catch(() => toast('전체 화면을 열 수 없어요'));
 }
+
+/* 켜자마자 TV 화면 (주소에 ?tv=1 — "YT 노래방 TV로 켜기") */
+// 브라우저는 사용자가 아무것도 누르지 않았을 때 전체 화면을 막는다(requestFullscreen이 실패한다).
+// 그래서 아직 전체 화면이 아니면 처음 누르는 키나 클릭 한 번에 전체 화면을 시도한다. 그 키의 원래 동작은 그대로 한다.
+const FS_HINT = '아무 키나 누르면 전체 화면이 돼요 · F 키도 돼요';
+let fsArmed = null;
+function screenCovered() {
+  return !!document.fullscreenElement || matchMedia('(display-mode: fullscreen)').matches ||
+    fillsScreen({ innerWidth, innerHeight, outerWidth, outerHeight }, { width: screen.width, height: screen.height });
+}
+async function startInTV() {
+  await enterTV();
+  // 크롬 --start-fullscreen으로 이미 창이 화면을 다 덮었으면 안내도 시도도 하지 않는다
+  if (!state.tv || screenCovered() || !document.documentElement.requestFullscreen) return;
+  armFirstInputFullscreen();
+  flash(FS_HINT, 6000);
+}
+function armFirstInputFullscreen() {
+  if (fsArmed) return;
+  const go = () => {
+    disarmFirstInputFullscreen();
+    if (!state.tv || screenCovered()) return;
+    document.documentElement.requestFullscreen()
+      .then(() => { if ($('#flash').textContent === FS_HINT) $('#flash').hidden = true; })
+      .catch(() => { if (state.tv && !document.fullscreenElement) armFirstInputFullscreen(); });   // 이 키로는 안 됐으면 다음 키에 다시
+  };
+  const onKey = e => {
+    if (e.repeat || ['Shift', 'Control', 'Alt', 'Meta', 'CapsLock', 'HangulMode', 'HanjaMode', 'Process'].includes(e.key)) return;
+    if (e.key === 'Escape') return;                              // Esc로는 전체 화면을 켤 수 없다 (L11 순서는 그대로)
+    if (['f', 'F', 'ㄹ', 't', 'T', 'ㅅ'].includes(e.key)) return disarmFirstInputFullscreen();   // F는 스스로 전체 화면, T는 TV에서 나가기
+    go();
+  };
+  const onClick = e => {
+    if (e.target.closest?.('[data-act="fs"],[data-act="exit"]')) return disarmFirstInputFullscreen();   // 전체 화면·나가기 버튼은 그 버튼대로
+    go();
+  };
+  fsArmed = { onKey, onClick };
+  addEventListener('keydown', onKey, true); addEventListener('click', onClick, true);
+}
+function disarmFirstInputFullscreen() {
+  if (!fsArmed) return;
+  removeEventListener('keydown', fsArmed.onKey, true); removeEventListener('click', fsArmed.onClick, true);
+  fsArmed = null;
+}
+document.addEventListener('fullscreenchange', () => { if (document.fullscreenElement) disarmFirstInputFullscreen(); });
 function stopKey() {
   if (!$('#searchOv').hidden || !$('#queueOv').hidden) return closeOverlays();
   if (numBuf) { numBuf = ''; updateNumBox(); return; }

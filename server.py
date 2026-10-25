@@ -2,6 +2,7 @@
 #   python server.py            → 이 PC에서만 (http://localhost:5173)
 #   python server.py --lan      → 같은 와이파이의 휴대폰 리모컨도 허용
 #   python server.py --open     → 켜면서 브라우저도 연다
+#   python server.py --tv       → 켜면서 크롬을 TV 화면·전체 화면으로 연다 (YT 노래방 TV로 켜기.bat)
 # 브라우저가 예전 파일을 캐시하지 않도록 no-store로 보낸다. 마이크는 localhost에서만 되므로
 # 노래방 화면은 항상 이 PC에서 localhost로 연다.
 # 휴대폰 리모컨 코드는 이 폴더의 .remote.json에 저장해서 다음에 켜도 같은 코드를 쓴다 (git에는 안 올림).
@@ -12,6 +13,7 @@ import os
 import random
 import re
 import socket
+import subprocess
 import sys
 import threading
 import time
@@ -266,13 +268,61 @@ def make_server(host, listen_port):
     return server
 
 
+CHROME_PLACES = ('ProgramFiles', 'ProgramFiles(x86)', 'LocalAppData')
+
+
+def find_chrome(env=None, isfile=os.path.isfile):
+    # 크롬이 설치되는 세 곳에서 chrome.exe를 찾는다. 없으면 None
+    env = os.environ if env is None else env
+    for var in CHROME_PLACES:
+        base = env.get(var)
+        if base:
+            path = os.path.join(base, 'Google', 'Chrome', 'Application', 'chrome.exe')
+            if isfile(path):
+                return path
+    return None
+
+
+def tv_url(listen_port):
+    # 마이크는 localhost에서만 되므로 주소는 꼭 localhost. ?tv=1이면 앱이 켜지자마자 TV 화면으로 간다.
+    return f'http://localhost:{listen_port}/?tv=1'
+
+
+def tv_command(chrome, listen_port):
+    # 주소창 없는 앱 창 + 전체 화면. --user-data-dir은 일부러 쓰지 않는다: 곡·녹음은 평소 쓰는 크롬 프로필의
+    # 저장소(IndexedDB)에 있어서, 다른 프로필로 열면 곡이 하나도 안 보인다.
+    # 크롬이 이미 켜져 있으면 --start-fullscreen이 무시될 수 있어서, 앱이 첫 키·클릭에 전체 화면을 한 번 더 시도한다.
+    return [chrome, f'--app={tv_url(listen_port)}', '--start-fullscreen']
+
+
+def open_tv(listen_port, chrome=None, popen=subprocess.Popen, browser_open=webbrowser.open):
+    # 크롬으로 TV 화면을 연다. 크롬이 없거나 못 켜면 기본 브라우저로 같은 주소를 연다.
+    chrome = chrome or find_chrome()
+    if chrome:
+        try:
+            # 이 검은 창을 닫거나 Ctrl+C를 눌러도 크롬은 같이 꺼지지 않게 따로 띄운다
+            flags = getattr(subprocess, 'DETACHED_PROCESS', 0) | getattr(subprocess, 'CREATE_NEW_PROCESS_GROUP', 0)
+            popen(tv_command(chrome, listen_port), creationflags=flags,
+                  stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            return 'chrome'
+        except OSError:
+            pass
+    browser_open(tv_url(listen_port))
+    return 'browser'
+
+
 def main(argv):
     global port, lan
     port = int(next((a for a in argv if a.isdigit()), 5173))
     lan = '--lan' in argv
+    tv = '--tv' in argv
     try:
         server = make_server('0.0.0.0' if lan else '127.0.0.1', port)
     except OSError:
+        if tv:
+            print(f'YT 노래방이 이미 켜져 있어요. TV 화면만 열게요: {tv_url(port)}')
+            open_tv(port)
+            return
         print(f'YT 노래방이 이미 켜져 있어요. 브라우저만 열게요: http://localhost:{port}')
         if '--open' in argv:
             webbrowser.open(f'http://localhost:{port}/')
@@ -285,7 +335,9 @@ def main(argv):
         print(f'휴대폰 리모컨: http://{ip}:{port}/remote.html  · 코드 {PIN}{" (고정 코드)" if FIXED else ""}' if ip else '휴대폰 리모컨: 와이파이 주소를 찾지 못했어요')
         if not saved:
             print('리모컨 코드를 저장하지 못했어요. 다음에 켜면 코드가 바뀔 수 있어요 (폴더에 쓸 수 있는지 확인해 주세요)')
-    if '--open' in argv:
+    if tv:
+        threading.Timer(0.8, lambda: open_tv(port)).start()
+    elif '--open' in argv:
         threading.Timer(0.8, lambda: webbrowser.open(f'http://localhost:{port}/')).start()
     try:
         server.serve_forever()

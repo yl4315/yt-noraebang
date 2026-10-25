@@ -133,6 +133,26 @@ function songsFromFolderFiles(files, knownFileIds, startNo, now = Date.now()) {
   return out;
 }
 
+/* ---------------- TV로 켜기 (?tv=1) ---------------- */
+// 주소에 tv 값이 있으면 켜자마자 TV 화면으로. ?tv=1, ?tv(값 없이)는 켜기, ?tv=0·false·no·off는 끄기
+function tvParam(search) {
+  const v = new URLSearchParams(search || '').get('tv');
+  return v != null && !/^(0|false|no|off)$/i.test(v.trim());
+}
+// 창이 이미 화면을 다 덮고 있는지 (크롬 --start-fullscreen은 F11처럼 제목 줄·테두리 없이 화면 전체를 쓴다).
+// 그럴 때는 "아무 키나 누르면 전체 화면" 안내를 띄우지 않는다.
+// - outer(창 바깥 크기)는 화면(screen)과 같은 단위라서 화면 크기와 바로 비교한다. 최대화한 창은 작업 표시줄만큼
+//   작거나 테두리만큼 커서 여기서 걸러진다.
+// - inner(보이는 영역)는 페이지 확대(줌)만큼 작아지므로 outer/inner 너비 비율로 줌을 덜어 낸 뒤, 위에 제목 줄이
+//   없는지(높이가 outer와 같은지) 본다. 작업 표시줄을 숨긴 PC에서 최대화한 앱 창은 제목 줄 때문에 걸러진다.
+function fillsScreen(win, scr, tol = 4) {
+  const { innerWidth: iw, innerHeight: ih, outerWidth: ow, outerHeight: oh } = win || {};
+  const { width: sw, height: sh } = scr || {};
+  if (!(iw > 0 && ih > 0 && ow > 0 && oh > 0 && sw > 0 && sh > 0)) return false;
+  const near = (a, b) => Math.abs(a - b) <= tol;
+  return near(ow, sw) && near(oh, sh) && near(ih * (ow / iw), oh);
+}
+
 /* ---------------- 백업 파일 (.ytbackup) ---------------- */
 // 형식: "YTNB1\n" + 머리말 길이(4바이트) + 머리말 JSON + 파일들을 차례로 이어 붙임
 const BK_MAGIC = 'YTNB1\n';
