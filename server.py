@@ -248,8 +248,20 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             return False
 
 
+class Server(http.server.ThreadingHTTPServer):
+    # 윈도에서는 파이썬 기본값(SO_REUSEADDR)이 이미 쓰고 있는 포트에도 또 붙게 해서, 두 번 켜면 서버가 둘이 되고
+    # "이미 켜져 있어요 → 브라우저만 열기"로 가지 않는다 (휴대폰 명령이 다른 서버로 가서 사라질 수 있다).
+    # 그래서 윈도에서는 포트를 혼자 쓰게(SO_EXCLUSIVEADDRUSE) 한다. 껐다 바로 다시 켜는 것은 그대로 된다.
+    allow_reuse_address = os.name != 'nt'
+
+    def server_bind(self):
+        if os.name == 'nt' and hasattr(socket, 'SO_EXCLUSIVEADDRUSE'):
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+        super().server_bind()
+
+
 def make_server(host, listen_port):
-    server = http.server.ThreadingHTTPServer((host, listen_port), functools.partial(Handler, directory=root))
+    server = Server((host, listen_port), functools.partial(Handler, directory=root))
     server.daemon_threads = True
     return server
 

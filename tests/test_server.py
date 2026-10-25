@@ -103,6 +103,20 @@ class ServerTest(ServerBase):
         self.assertEqual(data['cmds'][0]['args'], {})
 
 
+class SecondStartTest(unittest.TestCase):
+    """이미 켜져 있을 때 다시 켜면 서버가 둘이 되지 않는다 (A2: 그때는 브라우저만 연다)"""
+
+    def test_second_server_on_same_port_is_refused(self):
+        first = server.make_server('127.0.0.1', 0)
+        try:
+            with self.assertRaises(OSError):
+                server.make_server('127.0.0.1', first.server_address[1]).server_close()
+        finally:
+            first.server_close()
+        again = server.make_server('127.0.0.1', first.server_address[1])   # 끈 뒤에는 바로 다시 켜진다
+        again.server_close()
+
+
 def read_file(path):
     with open(path, encoding='utf-8') as f:
         return json.load(f)
