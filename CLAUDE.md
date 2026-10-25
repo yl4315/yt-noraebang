@@ -7,10 +7,15 @@
 ```bash
 python server.py 5173            # 이 PC에서만 (마이크는 localhost에서만 된다)
 python server.py 5173 --lan      # 같은 와이파이 휴대폰 리모컨 허용
+python server.py 5173 --lan --tv # 켠 뒤 크롬 앱 창·전체 화면으로 /?tv=1 (이미 켜져 있으면 TV 화면만)
 npm test                         # Node 핵심 로직 테스트 + 파이썬 서버 테스트
 ```
 
-- 사용자는 `YT 노래방 켜기.bat`(= `server.py 5173 --lan --open`)으로 켠다.
+- 사용자는 `YT 노래방 켜기.bat`(= `server.py 5173 --lan --open`) 또는 `YT 노래방 TV로 켜기.bat`(= `--lan --tv`)으로 켠다.
+- `--tv`는 크롬을 `--user-data-dir` 없이 연다. 곡·녹음이 평소 크롬 프로필의 IndexedDB(`http://localhost:5173`)에 있어서, 다른 프로필로 열면 곡이 안 보인다. 크롬을 실제로 띄우는 확인은 사용자 화면에 창이 뜨니 하지 않는다 (테스트는 가짜 `popen`).
+- 주소에 `?tv=1`이 있으면 앱 시작 뒤 바로 TV 화면(`startInTV`). 전체 화면이 아니면 첫 키·클릭에 전체 화면을 시도한다.
+- 휴대폰 리모컨 코드는 저장소 폴더의 `.remote.json`(`{"pin","fixed"}`, git에 안 올림, `hidden()`이 안 내줌)에 저장해서 다시 켜도 같다. 불러오기는 `main()`에서만 하고, 테스트는 `server.PIN_FILE`을 임시 폴더로 바꾼다. 새 코드·고정 설정은 `POST /api/remote/pin`(이 PC에서만).
+- 휴대폰 `remote.html`은 맞은 코드를 `localStorage['yt-remote-pin']`에 기억한다 (이 키 이름은 바꾸지 않는다). 홈 화면 아이콘용 `remote.webmanifest`가 따로 있다.
 - 배포는 GitHub Pages(정적 파일 그대로). Pages에서는 `server.py`가 없으니 휴대폰 리모컨은 꺼지고, 나머지는 다 된다.
 
 ## 구조
@@ -35,7 +40,7 @@ npm test                         # Node 핵심 로직 테스트 + 파이썬 서�
 | `js/remote.js` | 휴대폰 리모컨 중계 (`server.py`의 `/api/remote/*`) |
 | `js/backup.js` | 녹음 Drive 백업, 백업 파일 |
 | `js/main.js` | 메인 루프, 앱 시작 (항상 마지막) |
-| `remote.html` | 휴대폰 리모컨 화면 (따로 동작) |
+| `remote.html` | 휴대폰 리모컨 화면 (따로 동작, `remote.webmanifest`로 홈 화면 아이콘) |
 | `sw.js` | 서비스 워커: 앱 파일·글꼴을 저장해 오프라인에서도 열리게 |
 
 ## 꼭 지킬 것
