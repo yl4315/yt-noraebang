@@ -1,4 +1,4 @@
-// YT 노래방 · 화면과 상관없는 핵심 로직: 가사 읽기, 검색, Drive 동기화 합치기, 백업 파일 형식, 지연 측정 계산
+// YT 노래방 · 화면과 상관없는 핵심 로직: 가사 읽기, 검색, Drive 동기화 합치기, 파일 이름 해석·가사 찾기 결과 고르기, 백업 파일 형식, 지연 측정 계산
 // 자동 테스트(tests/)가 이 파일과 util.js를 브라우저 없이 불러서 검사한다. 여기에는 화면(DOM)을 건드리는 코드를 넣지 않는다.
 'use strict';
 
@@ -105,19 +105,32 @@ function buildLibrary({ songs, tombs, profiles, recs, recTombs }, now = Date.now
 const byIdSort = a => [...(a || [])].sort((x, y) => x.id < y.id ? -1 : 1);
 const librarySig = l => JSON.stringify([byIdSort(l.songs), byIdSort(l.profiles), byIdSort(l.recs)]);
 
-/* ---------------- Drive 폴더에 직접 넣은 MR 들여오기 ---------------- */
-// 파일 이름에서 제목·가수를 뽑는다.
+/* ---------------- 파일 이름 → 제목·가수 (곡 추가 창, 여러 곡 한 번에 넣기, Drive 폴더 들여오기가 같이 씀) ---------------- */
 // 예: "[TJ노래방] 200% - AKMU(악뮤) _ TJ Karaoke.mp3" → { title: '200%', artist: 'AKMU(악뮤)' }
+//     "밤편지 - 아이유 (MR).mp3" → 밤편지 / 아이유,  "01 밤편지.mp3" → 밤편지 (앞 트랙 번호를 뺌)
+//     "좋은 날_아이유_MR.mp3" → 좋은 날 / 아이유 (" - "가 없으면 밑줄로 나눈다. 두 조각일 때만, 아니면 밑줄은 띄어쓰기)
+// "아이유 - 밤편지"처럼 제목·가수가 뒤집힌 이름은 여기서는 알 수 없다 → 가사를 찾을 때 뒤집어서도 맞춰 본다 (chooseLyrics)
 function titleFromFilename(name) {
   let s = String(name || '').replace(/\.[a-z0-9]{2,5}$/i, '');
   s = s.replace(/^\s*[\[【][^\]】]*[\]】]\s*/, '');                       // 앞의 [TJ노래방] 같은 꼬리표
   s = s.replace(/[\s_\-–]*(TJ|KY|금영)\s*(Karaoke|노래방|미디어)[^]*$/i, ''); // 뒤의 "_ TJ Karaoke - (320 Kbps)" 같은 것
-  s = s.replace(/\(\s*\d+\s*kbps\s*\)/ig, '').replace(/\b(MR|Inst\.?|Instrumental)\b/ig, '');
-  s = s.replace(/[\s_\-–]+$/, '').replace(/\s{2,}/g, ' ').trim();
+  s = s.replace(/[(\[]\s*(TJ|KY|금영)[\s.#:-]*\d+\s*[)\]]/ig, '');          // (KY.12345) 같은 노래방 번호
+  s = s.replace(/\(\s*\d+\s*kbps\s*\)/ig, '').replace(/[(\[]\s*반주\s*[)\]]/g, '');
+  // MR은 대문자·소문자만 ("Mr. Chu"의 Mr는 지키려고), Inst.·Instrumental은 대소문자 상관없이. 밑줄 옆도 뺀다 ("_MR")
+  s = s.replace(/(?<![A-Za-z0-9])(?:MR|mr)(?![A-Za-z0-9.])/g, '').replace(/(?<![A-Za-z0-9])inst(?:rumental)?\.?(?![A-Za-z0-9])/ig, '');
+  s = s.replace(/[(\[]\s*[)\]]/g, '');                                    // 위에서 비워진 () []
+  const noTrack = s.replace(/^\s*(?:0\d[\s.\-_)]+|\d{1,3}[.\-_)]\s*)/, ''); // "01 ", "1. " 같은 트랙 번호 ("10 Minutes"는 그대로)
+  if (noTrack.trim()) s = noTrack;
+  s = s.replace(/\s+[–—]\s+/g, ' - ').replace(/^[\s_\-–]+|[\s_\-–]+$/g, '').replace(/\s{2,}/g, ' ').trim();
   const i = s.lastIndexOf(' - ');
   if (i > 0) return { title: s.slice(0, i).trim(), artist: s.slice(i + 3).trim() };
+  const parts = s.split(/\s*_+\s*/).filter(Boolean);
+  if (parts.length === 2) return { title: parts[0], artist: parts[1] };
+  s = parts.join(' ');
   return { title: s || String(name || '제목 없음'), artist: '' };
 }
+
+/* ---------------- Drive 폴더에 직접 넣은 MR 들여오기 ---------------- */
 // 폴더 파일 중 아직 어떤 곡과도 이어지지 않은 것을 새 곡으로 만든다. 곡 id를 파일 id로 정해서,
 // 두 기기가 같은 파일을 동시에 들여와도 한 곡으로 합쳐진다.
 function songsFromFolderFiles(files, knownFileIds, startNo, now = Date.now()) {
@@ -131,6 +144,72 @@ function songsFromFolderFiles(files, knownFileIds, startNo, now = Date.now()) {
     out.push(s);
   }
   return out;
+}
+
+/* ---------------- 곡 넣기 자동화: 여러 MR 한 번에 + 가사 자동 찾기 (CR-017) ---------------- */
+// MR로 넣을 수 있는 파일인지: 음악·동영상 형식이거나(파일 형식을 모르는 기기도 있어서) 확장자로 본다
+const MEDIA_EXT = /\.(mp3|m4a|aac|wav|ogg|oga|opus|flac|webm|mp4|m4v|mov|3gp)$/i;
+const isMediaFile = f => !!f && (/^(audio|video)\//.test(f.type || '') || MEDIA_EXT.test(f.name || ''));
+// 파일 이름 순서 (숫자는 크기대로: "2 …"가 "10 …"보다 앞). 고른 순서는 기기마다 달라서 번호는 이 순서로 붙인다
+const byFileName = (a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'ko', { numeric: true, sensitivity: 'base' });
+// 새 곡 번호 n개: 가장 큰 번호 + 1부터 차례로 (데모곡 10001만 있으면 10002부터)
+function nextSongNumbers(songs, n) {
+  const top = Math.max(10001, ...(songs || []).map(s => +s.no).filter(Number.isFinite));
+  return Array.from({ length: n }, (_, i) => top + 1 + i);
+}
+// 제목·가수가 같은 곡 (띄어쓰기·대소문자 무시, 데모곡 빼고). 없으면 null
+function findSameSong(songs, title, artist) {
+  const t = norm(title), a = norm(artist);
+  return (songs || []).find(s => !s.demo && !s.deleted && norm(s.title) === t && norm(s.artist) === a) || null;
+}
+// 곡 목록의 "가사 없음": 데모곡이 아니고 가사가 비어 있는 곡 (동영상 곡도 센다)
+const lacksLyrics = s => !!s && !s.demo && !String(s.lyrics || '').trim();
+
+// 가수 이름 → 비교·검색에 쓸 이름들. 괄호 앞 이름이 먼저, 괄호 안 이름이 다음. "Feat." 뒤는 뺀다.
+// "AKMU(악뮤)" → ['AKMU', '악뮤'], "잔나비(Feat.카리나 of aespa)" → ['잔나비'], "(G)I-DLE" → ['I-DLE'] (한 글자 괄호는 버림)
+function artistNames(name) {
+  const s = String(name || '').replace(/[(\[]?\s*(?<![a-z])(?:feat\.?|ft\.|featuring)(?![a-z])[^]*$/i, '');
+  const inner = [...s.matchAll(/[(\[]([^()\[\]]*)[)\]]/g)].map(m => m[1].replace(/\s+/g, ' ').trim());
+  const main = s.replace(/[(\[][^()\[\]]*[)\]]/g, ' ').replace(/[()\[\]]/g, ' ').replace(/\s+/g, ' ').trim();
+  const out = [];
+  for (const x of [main, ...inner]) if (x && (x === main || norm(x).length >= 2) && !out.some(o => norm(o) === norm(x))) out.push(x);
+  return out;
+}
+// 찾기 결과의 가수(cand)가 내 가수(artist)와 같은지: 결과 가수 이름 안에 내 가수 이름(괄호 앞·괄호 안 아무거나)이 들어 있으면 같음.
+// 괄호 없는 가수는 예전 규칙("결과 가수가 내 가수를 포함")과 같다.
+function artistMatches(artist, cand) {
+  const hay = norm(cand);
+  return !!hay && artistNames(artist).some(n => hay.includes(norm(n)));
+}
+// 제목 맞음 정도: 0 같음("Through the Night (밤편지)"·괄호 뺀 제목도 같음으로) · 30 포함 · 60 다름
+function titleRank(candTitle, title) {
+  const nt = norm(title), tn = norm(candTitle);
+  if (tn === nt || tn.includes(`(${nt})`) || tn.replace(/\(.*?\)/g, '') === nt) return 0;
+  return tn.includes(nt) ? 30 : 60;
+}
+// LRCLIB 찾기 결과 → 고르기 쉬운 순서 15개: 싱크 있음 > 가수 같음 > 제목 같음 > MR과 길이 비슷. 가사가 없는 결과는 뺀다.
+function rankLyrics(found, { title, artist, mrDur } = {}) {
+  return (found || []).filter(x => x && (x.syncedLyrics || x.plainLyrics))
+    .map(x => ({ x, rank: (x.syncedLyrics ? 0 : 1000) + (artist && !artistMatches(artist, x.artistName) ? 200 : 0) + titleRank(x.trackName, title)
+      + (mrDur ? (Number.isFinite(x.duration) ? Math.min(29, Math.abs(x.duration - mrDur) / 2) : 29) : 0) }))
+    .sort((a, b) => a.rank - b.rank).slice(0, 15).map(o => o.x);
+}
+// 가사를 저절로 넣을지 정한다. 맨 위 후보가 네 가지를 다 맞을 때만 자동: 싱크 있음 + 제목 같음 + 가수 같음 + MR 길이와 3초 안.
+// 가수나 MR 길이를 모르면 자동으로 넣지 않는다. 파일 이름의 제목·가수가 뒤집혀 있으면(후보 제목 = 내 가수, 후보 가수 = 내 제목)
+// 뒤집어서 본다. 돌려주는 값: { items: 고를 후보(정렬), auto: 넣을 후보 또는 null, why: 자동이 아닌 이유, swapped, title, artist }
+// why: 'none' 결과 없음 · 'plain' 싱크 없음 · 'title' 제목 다름 · 'noartist' 가수 모름 · 'artist' 가수 다름 · 'nodur' MR 길이 모름 · 'duration' 길이 다름
+const AUTO_SEC = 3;
+function chooseLyrics(found, { title, artist, mrDur } = {}) {
+  const fits = (x, t, a) => titleRank(x.trackName, t) === 0 && !!a && artistMatches(a, x.artistName);
+  let t = title || '', a = artist || '', swapped = false, items = rankLyrics(found, { title: t, artist: a, mrDur });
+  if (a && !items.some(x => fits(x, t, a))) {
+    const alt = rankLyrics(found, { title: a, artist: t, mrDur });
+    if (alt.some(x => fits(x, a, t))) { swapped = true; [t, a] = [a, t]; items = alt; }
+  }
+  const top = items[0];
+  const why = !top ? 'none' : !top.syncedLyrics ? 'plain' : titleRank(top.trackName, t) !== 0 ? 'title' : !a ? 'noartist'
+    : !artistMatches(a, top.artistName) ? 'artist' : !mrDur ? 'nodur' : !(Math.abs(top.duration - mrDur) <= AUTO_SEC) ? 'duration' : '';
+  return { items, auto: why ? null : top, why, swapped, title: t, artist: a };
 }
 
 /* ---------------- TV로 켜기 (?tv=1) ---------------- */

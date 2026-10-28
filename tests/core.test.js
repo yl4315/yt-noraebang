@@ -244,6 +244,152 @@ test('같은 파일을 두 기기가 들여와도 곡 id가 같아서 하나로 
   assert.equal(r.live.length, 1);
 });
 
+/* ---------------- 곡 넣기 자동화 (CR-017) ---------------- */
+test('파일 이름 해석 보강: 빈 괄호, Inst., 밑줄, 노래방 번호, 트랙 번호', () => {
+  const cases = [
+    ['[TJ노래방] 200% - AKMU(악뮤) _ TJ Karaoke.mp3', '200%', 'AKMU(악뮤)'],
+    ['밤편지 - 아이유 (MR).mp3', '밤편지', '아이유'],
+    ['밤편지 - 아이유 [MR].mp3', '밤편지', '아이유'],
+    ['밤편지(Inst.).m4a', '밤편지', ''],
+    ['좋은 날_아이유_MR.mp3', '좋은 날', '아이유'],
+    ['[KY 금영노래방] 밤편지 - 아이유 (KY.12345) _ KY Karaoke.mp4', '밤편지', '아이유'],
+    ['01 밤편지.mp3', '밤편지', ''],
+    ['아이유 - 밤편지 MR.mp3', '아이유', '밤편지'],            // 뒤집힘은 가사를 찾을 때 맞춘다
+  ];
+  for (const [name, title, artist] of cases) same(C.titleFromFilename(name), { title, artist });
+});
+
+test('파일 이름 해석: 제목 속 숫자·Mr·Instant는 지키고, 밑줄이 여러 개면 띄어쓰기로', () => {
+  const cases = [
+    ['10 Minutes - 이효리.mp3', '10 Minutes', '이효리'],
+    ['Mr. Chu - Apink MR.mp3', 'Mr. Chu', 'Apink'],
+    ['Instant Crush - Daft Punk (Instrumental).mp3', 'Instant Crush', 'Daft Punk'],
+    ['1. 산책 - 백예린.mp3', '산책', '백예린'],
+    ['07 - 청혼 - 이소라.mp3', '청혼', '이소라'],
+    ['Good_Day_IU_mr.mp3', 'Good Day IU', ''],
+    ['밤편지 – 아이유.mp3', '밤편지', '아이유'],
+    ['01.mp3', '01', ''],
+  ];
+  for (const [name, title, artist] of cases) same(C.titleFromFilename(name), { title, artist });
+});
+
+test('MR 파일인지: 음악·동영상 형식, 형식을 모르면 확장자로', () => {
+  assert.equal(C.isMediaFile({ name: 'a.mp3', type: 'audio/mpeg' }), true);
+  assert.equal(C.isMediaFile({ name: '영상', type: 'video/mp4' }), true);
+  assert.equal(C.isMediaFile({ name: '노래.M4A', type: '' }), true);
+  assert.equal(C.isMediaFile({ name: '가사.txt', type: 'text/plain' }), false);
+  assert.equal(C.isMediaFile({ name: '사진.jpg', type: 'image/jpeg' }), false);
+  assert.equal(C.isMediaFile(null), false);
+});
+
+test('파일 이름 순서: 숫자는 크기대로', () => {
+  const names = ['10 다.mp3', '2 나.mp3', '1 가.mp3', 'b.mp3', 'A.mp3'];
+  same(names.map(name => ({ name })).sort(C.byFileName).map(f => f.name), ['1 가.mp3', '2 나.mp3', '10 다.mp3', 'A.mp3', 'b.mp3']);
+});
+
+test('번호 이어 붙이기: 가장 큰 번호 + 1부터, 데모곡만 있으면 10002부터', () => {
+  same(C.nextSongNumbers([{ no: 10001, demo: true }], 3), [10002, 10003, 10004]);
+  same(C.nextSongNumbers([{ no: 10001 }, { no: '10007' }, { no: 10003 }], 2), [10008, 10009]);
+  same(C.nextSongNumbers([], 1), [10002]);
+  same(C.nextSongNumbers([{ no: 10001 }], 0), []);
+});
+
+test('같은 곡 찾기: 제목·가수가 같으면 (띄어쓰기·대소문자 무시), 데모곡은 빼고', () => {
+  const songs = [{ id: 'd', title: '작은 방의 노래', artist: 'YT 노래방 데모 MR', demo: true }, { id: 'a', title: 'Love Attack', artist: 'RESCENE(리센느)' }, { id: 'b', title: '산책', artist: '' }];
+  assert.equal(C.findSameSong(songs, 'love  attack', 'rescene (리센느)').id, 'a');
+  assert.equal(C.findSameSong(songs, '산책', '').id, 'b');
+  assert.equal(C.findSameSong(songs, '산책', '백예린'), null);
+  assert.equal(C.findSameSong(songs, '작은 방의 노래', 'YT 노래방 데모 MR'), null);
+});
+
+test('가사 없음: 데모곡 빼고 가사가 빈 곡 (띄어쓰기만 있어도 빈 것)', () => {
+  assert.equal(C.lacksLyrics({ lyrics: '' }), true);
+  assert.equal(C.lacksLyrics({ lyrics: '  \n ' }), true);
+  assert.equal(C.lacksLyrics({}), true);
+  assert.equal(C.lacksLyrics({ lyrics: '[00:01.00]가사' }), false);
+  assert.equal(C.lacksLyrics({ demo: true }), false);
+});
+
+test('가수 이름: 괄호 앞·괄호 안 이름을 따로, Feat. 뒤는 뺀다', () => {
+  same(C.artistNames('AKMU(악뮤)'), ['AKMU', '악뮤']);
+  same(C.artistNames('잔나비(Feat.카리나 of aespa)'), ['잔나비']);
+  same(C.artistNames('죠지(Feat.유라(youra))'), ['죠지']);
+  same(C.artistNames('아이유 (IU)'), ['아이유', 'IU']);
+  same(C.artistNames('Zion.T feat. Crush'), ['Zion.T']);
+  same(C.artistNames('(G)I-DLE'), ['I-DLE']);
+  same(C.artistNames('Defeat'), ['Defeat']);
+  same(C.artistNames('아이유'), ['아이유']);
+  same(C.artistNames(''), []);
+  assert.equal(C.artistMatches('AKMU(악뮤)', 'AKMU'), true);
+  assert.equal(C.artistMatches('AKMU(악뮤)', '악뮤'), true);
+  assert.equal(C.artistMatches('잔나비(Feat.카리나 of aespa)', '잔나비'), true);
+  assert.equal(C.artistMatches('아이유', 'IU'), false);
+  assert.equal(C.artistMatches('아이유', '아이유 (IU)'), true);
+  assert.equal(C.artistMatches('아이유', ''), false);
+});
+
+// 예전(songs.js) 정렬 규칙 그대로: 괄호 없는 가수는 새 정렬과 결과가 같아야 한다
+function oldRank(found, title, artist, mrDur) {
+  const nt = C.norm(title), titleRank = x => {
+    const tn = C.norm(x.trackName);
+    if (tn === nt || tn.includes(`(${nt})`) || tn.replace(/\(.*?\)/g, '') === nt) return 0;
+    return tn.includes(nt) ? 30 : 60;
+  };
+  return found.filter(x => x.syncedLyrics || x.plainLyrics)
+    .map(x => ({ x, rank: (x.syncedLyrics ? 0 : 1000) + (artist && !C.norm(x.artistName).includes(C.norm(artist)) ? 200 : 0) + titleRank(x) + (mrDur ? Math.min(29, Math.abs(x.duration - mrDur) / 2) : 0) }))
+    .sort((a, b) => a.rank - b.rank).slice(0, 15).map(o => o.x);
+}
+const cand = (id, trackName, artistName, duration, synced = true, plain = true) =>
+  ({ id, trackName, artistName, duration, syncedLyrics: synced ? '[00:01.00]가' : null, plainLyrics: plain ? '가' : null });
+const FOUND = [
+  cand(1, '밤편지', '아이유', 253, false),
+  cand(2, '밤편지 (Live)', '아이유', 270),
+  cand(3, '밤편지', 'Cover Singer', 251),
+  cand(4, 'Through the Night (밤편지)', 'IU', 254),
+  cand(5, '밤편지', '아이유', 254),
+  cand(6, '밤편지', '아이유', 300),
+  cand(7, '다른 노래', '아이유', 200),
+  cand(8, '밤편지', '아이유', 250, false, false),
+];
+
+test('가사 후보 정렬: 괄호 없는 가수는 예전 정렬과 같은 결과', () => {
+  for (const [title, artist, mrDur] of [['밤편지', '아이유', 254], ['밤편지', '아이유', null], ['밤편지', '', 260], ['밤편지', 'IU', 254], ['다른 노래', '아이유', 0]]) {
+    same(C.rankLyrics(FOUND, { title, artist, mrDur }).map(x => x.id), oldRank(FOUND, title, artist, mrDur).map(x => x.id));
+  }
+  const many = Array.from({ length: 20 }, (_, i) => cand(100 + i, '밤편지', '아이유', 240 + i));
+  assert.equal(C.rankLyrics(many, { title: '밤편지', artist: '아이유', mrDur: 250 }).length, 15);
+});
+
+test('가사 후보 정렬: 가수 이름에 괄호가 있어도 가수를 맞춘다 (예전에는 가수 다름으로 밀렸다)', () => {
+  const found = [cand(1, '200%', 'Someone Else', 200), cand(2, '200%', 'AKMU', 201)];
+  same(C.rankLyrics(found, { title: '200%', artist: 'AKMU(악뮤)', mrDur: 200 }).map(x => x.id), [2, 1]);
+  same(oldRank(found, '200%', 'AKMU(악뮤)', 200).map(x => x.id), [1, 2]);   // 예전 규칙의 문제
+});
+
+test('가사 자동으로 넣기: 싱크 + 제목 + 가수 + MR 길이 3초 안, 넷 다 맞을 때만', () => {
+  const ok = C.chooseLyrics(FOUND, { title: '밤편지', artist: '아이유', mrDur: 255 });
+  assert.equal(ok.auto.id, 5); assert.equal(ok.why, ''); assert.equal(ok.swapped, false);
+  const no = (found, opts, why) => { const r = C.chooseLyrics(found, opts); assert.equal(r.auto, null, why); assert.equal(r.why, why); return r; };
+  no([cand(1, '밤편지', '아이유', 254, false)], { title: '밤편지', artist: '아이유', mrDur: 254 }, 'plain');
+  no([cand(1, '밤편지 리메이크', '아이유', 254)], { title: '밤편지', artist: '아이유', mrDur: 254 }, 'title');   // "밤편지 (Live)"는 예전 규칙대로 같은 제목 → 길이로 거른다
+  no([cand(1, '밤편지', '아이유', 254)], { title: '밤편지', artist: '', mrDur: 254 }, 'noartist');
+  no([cand(1, '밤편지', 'Cover Singer', 254)], { title: '밤편지', artist: '아이유', mrDur: 254 }, 'artist');
+  no([cand(1, '밤편지', '아이유', 254)], { title: '밤편지', artist: '아이유', mrDur: null }, 'nodur');
+  no([cand(1, '밤편지', '아이유', 254)], { title: '밤편지', artist: '아이유', mrDur: 258 }, 'duration');
+  no([], { title: '밤편지', artist: '아이유', mrDur: 254 }, 'none');
+  assert.equal(C.chooseLyrics([cand(1, '밤편지', '아이유', 254)], { title: '밤편지', artist: '아이유', mrDur: 257 }).auto.id, 1);   // 딱 3초는 넣는다
+  assert.equal(C.chooseLyrics([cand(1, '200%', 'AKMU', 200)], { title: '200%', artist: 'AKMU(악뮤)', mrDur: 199 }).auto.id, 1);     // 가수 괄호
+});
+
+test('가사 자동으로 넣기: 파일 이름의 제목·가수가 뒤집혀 있으면 바꿔서 맞춘다', () => {
+  const r = C.chooseLyrics(FOUND, { title: '아이유', artist: '밤편지', mrDur: 254 });
+  assert.equal(r.swapped, true); assert.equal(r.title, '밤편지'); assert.equal(r.artist, '아이유'); assert.equal(r.auto.id, 5);
+  const n = C.chooseLyrics(FOUND, { title: '밤편지', artist: '아이유', mrDur: 254 });
+  assert.equal(n.swapped, false);
+  const x = C.chooseLyrics([cand(1, '전혀 다른 곡', '누군가', 200)], { title: '아이유', artist: '밤편지', mrDur: 200 });
+  assert.equal(x.swapped, false); assert.equal(x.title, '아이유');
+});
+
 /* ---------------- TV로 켜기 (CR-009) ---------------- */
 test('주소의 tv 값: ?tv=1·?tv는 TV 화면으로, 0·false·no·off나 없으면 그대로', () => {
   for (const s of ['?tv=1', '?tv', '?tv=', '?tv=yes', '?a=b&tv=1', 'tv=1']) assert.equal(C.tvParam(s), true, s);

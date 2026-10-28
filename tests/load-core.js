@@ -6,7 +6,8 @@ const vm = require('node:vm');
 
 const NAMES = ['fmtMs', 'norm', 'chosung', 'pick', 'parseLyrics', 'toLRC', 'searchIn', 'SONG_FIELDS', 'REC_FIELDS',
   'mergeRemoteInto', 'mergeProfileLists', 'renumberDuplicates', 'buildLibrary', 'librarySig', 'packBackup', 'unpackBackup', 'BK_MAGIC', 'titleFromFilename', 'songsFromFolderFiles', 'tvParam', 'fillsScreen',
-  'MEASURE', 'findClickDelays', 'summarizeDelays', 'pickByArrow'];
+  'MEASURE', 'findClickDelays', 'summarizeDelays', 'pickByArrow',
+  'isMediaFile', 'byFileName', 'nextSongNumbers', 'findSameSong', 'lacksLyrics', 'artistNames', 'artistMatches', 'titleRank', 'rankLyrics', 'chooseLyrics', 'AUTO_SEC'];
 
 function loadCore() {
   const ctx = vm.createContext({ console, Blob, TextEncoder, TextDecoder, DataView, Uint8Array, URLSearchParams, crypto: globalThis.crypto });
