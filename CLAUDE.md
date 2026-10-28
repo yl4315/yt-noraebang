@@ -31,11 +31,12 @@ npm test                         # Node 핵심 로직 테스트 + 파이썬 서�
 | 파일 | 내용 |
 |---|---|
 | `js/util.js` | 공용 도구 (`$`, `el`, `fmt`, `pick`, `lsGet`, `norm`, `chosung` …) |
-| `js/core.js` | **화면과 상관없는 순수 로직**: 가사(LRC) 읽기, 검색, Drive 동기화 합치기 규칙, 백업 파일 형식, TV로 켜기 판단, 지연 자동 측정 계산, 숫자판 방향키 고르기. Node 테스트가 직접 불러 쓴다 |
+| `js/core.js` | **화면과 상관없는 순수 로직**: 가사(LRC) 읽기, 검색, Drive 동기화 합치기 규칙, 파일 이름 → 제목·가수, 가사 후보 정렬·자동 고르기, 백업 파일 형식, TV로 켜기 판단, 지연 자동 측정 계산, 숫자판 방향키 고르기. Node 테스트가 직접 불러 쓴다 |
 | `js/store.js` | IndexedDB, 설정 |
 | `js/demo.js` | 데모곡 반주 합성 + 기기 저장(캐시) |
 | `js/audio.js` | 오디오 엔진, 목소리 효과, 마이크, 녹음 캡처 워클릿, 지연 측정 |
-| `js/songs.js` | 앱 상태(`state`), 곡 목록, 곡 추가/수정, LRCLIB 가사 찾기 |
+| `js/songs.js` | 앱 상태(`state`), 곡 목록, 곡 추가/수정, LRCLIB 가사 찾기 (`findLyrics`·`lyricItem`·`mediaDuration`은 `bulk.js`도 씀) |
+| `js/bulk.js` | 여러 곡 한 번에 넣기(MR 여러 개 + 가사 자동 찾기), "가사 없음" 곡 모아 찾기, PC 곡 목록에 끌어다 놓기 |
 | `js/playback.js` | 재생, 노래방식 두 줄 가사, 음정·점수 |
 | `js/recording.js` | 녹음 저장, 녹음 믹스, 내 녹음, 싱크·믹스 조절 |
 | `js/syncedit.js` | 가사 싱크 편집기 |
@@ -59,6 +60,15 @@ npm test                         # Node 핵심 로직 테스트 + 파이썬 서�
 - 데모곡(반주·멜로디)을 바꾸면 `js/demo.js`의 `DEMO_CACHE_KEY` 숫자를 올린다. 안 올리면 예전 반주가 계속 나온다.
 - 곡·녹음 내용이 바뀌면 `persistSong(s)` / `recTouch(r)`로 `updatedAt`을 남긴다. Drive 동기화는 `updatedAt`이 더 나중인 쪽이 이기고, 지운 것은 지움 기록(tombstone)으로 남긴다.
 - 사용자에게 보이는 글은 쉬운 한국어로, 이유와 해결 방법을 같이 쓴다.
+
+## 곡 넣기 자동화 (CR-017, `js/bulk.js`)
+
+- 곡 추가 창에서 MR을 2개 이상 고르거나(파일 칸 `multiple`은 새로 넣을 때만) PC에서 곡 목록(`#songsPanel`)에 끌어다 놓으면 `openBulk(files)`, 곡 목록 위 `#missBtn`은 `openMissing()`. MR이 아닌 파일은 `isMediaFile`로 빼고, 줄 순서·번호는 파일 이름 순서(`byFileName`, `nextSongNumbers`).
+- 제목·가수는 `titleFromFilename` 하나로 (곡 추가 창 파일 하나, 여러 곡 넣기, Drive 폴더 들여오기가 같이 씀).
+- 가사는 LRCLIB에 **한 번에 한 곡씩**, 곡 사이 0.5초. 곡마다 많아야 3번 (`findLyrics`: 제목+가수 → 가수를 못 맞추면 괄호 안 이름 → 결과가 없으면 제목만). 두 곡 연달아 "바빠요"면 멈춘다. 시험할 때 요청을 많이 보내지 않는다 (곡 5개 안팎).
+- 저절로 넣는 기준은 `chooseLyrics` (싱크 + 제목 같음 + 가수 같음 + MR 길이 `AUTO_SEC` 3초 안, 넷 다). 가수 비교는 `artistMatches` (괄호 앞·안 이름, Feat. 뒤는 뺌). 정렬은 `rankLyrics` (곡 추가 창도 같이 씀).
+- **"가사 자동" 표시는 곡에 저장하지 않는다.** Drive `library.json` 칸(`SONG_FIELDS`)을 늘리면 예전 판 화면이 동기화할 때 그 칸을 지운다. 새 곡은 곡 추가 창과 같은 모양으로 `persistSong`(여러 곡이면 `quiet`로 실패 알림을 한 번만).
+- 창을 닫으면(취소·✕·Esc·TV 화면) 아무것도 저장하지 않고 찾기도 멈춘다 (`Bulk.sess`). 저장해도 무대의 곡은 그대로 두고 목록만 첫 새 곡으로 옮긴다.
 
 ## 녹음 구조
 
