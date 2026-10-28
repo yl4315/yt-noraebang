@@ -4,6 +4,7 @@
   "description": "YT 노래방: MR 반주, 녹음, 점수, 예약이 되는 집 노래방 웹앱",
   "scripts": {
     "start": "python server.py 5173 --lan --open",
-    "test": "node --test \"tests/*.test.js\" && python -m unittest discover -s tests -p \"test_*.py\""
+    "test": "node --test \"tests/*.test.js\" && python -m unittest discover -s tests -p \"test_*.py\"",
+    "test:ui": "node tests/ui/run.mjs"
   }
 }
