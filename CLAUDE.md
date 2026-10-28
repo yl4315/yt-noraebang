@@ -13,7 +13,13 @@ npm test                         # Node 핵심 로직 테스트 + 파이썬 서�
 
 - 사용자는 `YT 노래방 켜기.bat`(= `server.py 5173 --lan --open`) 또는 `YT 노래방 TV로 켜기.bat`(= `--lan --tv`)으로 켠다.
 - `--tv`는 크롬을 `--user-data-dir` 없이 연다. 곡·녹음이 평소 크롬 프로필의 IndexedDB(`http://localhost:5173`)에 있어서, 다른 프로필로 열면 곡이 안 보인다. 크롬을 실제로 띄우는 확인은 사용자 화면에 창이 뜨니 하지 않는다 (테스트는 가짜 `popen`).
-- 주소에 `?tv=1`이 있으면 앱 시작 뒤 바로 TV 화면(`startInTV`). 전체 화면이 아니면 첫 키·클릭에 전체 화면을 시도한다.
+- 주소에 `?tv=1`이 있으면 앱 시작 뒤 바로 TV 화면(`startInTV`). 전체 화면이 아니면 첫 키·클릭에 전체 화면을 시도한다. 앱 아이콘 바로가기 "TV 화면으로"(`manifest.webmanifest` `shortcuts`)도 이 주소다. `start_url`·`scope`는 바꾸지 않는다.
+- **폰을 TV에 이어 쓰기 (CR-003)**: 폰·노트북이 노래방 본체, TV는 화면만. 터치 화면 판단은 곡 목록과 같은 `(hover:none)` (JS `isTouch()`).
+  - 터치 화면에서만 TV 조작 막대가 첫 줄 8칸 + `⋯ 더 보기`(`#tvMore`)로 바뀌고 키 표시를 숨긴다. 마우스 화면은 `#tvMore`가 `display:contents`라 예전 막대 그대로("번호"만 더함). 키보드용·터치용 안내 글은 `.for-keys`·`.for-touch`.
+  - 화면 숫자판(`#numPad`)은 번호 입력(`numKey`·`updateNumBox`·`reserveByNumber`)과 같은 길이다. Esc 순서(`stopKey`) 맨 앞에서 닫는다.
+  - 숨은 막대는 마우스 움직임·화면 누르기·키 누르기로 다시 보인다. 숨어 있을 때 누른 첫 톡은 버튼을 누르지 않는다(`tapWhileHidden`).
+  - 화면 켜 두기 `updateWakeLock()`(TV 화면이거나 노래 중)은 `updateTransportUI()`·TV 들어가기/나가기·`visibilitychange`에서 부른다. 가로 고정은 터치 + 전체 화면일 때만, 실패는 조용히.
+  - 자동 측정의 딸깍 간격·창(`MEASURE`)과 딸깍 찾기 계산은 `core.js`에 있다 (블루투스·무선 화면 복제처럼 지연이 길어도 맞게).
 - 휴대폰 리모컨 코드는 저장소 폴더의 `.remote.json`(`{"pin","fixed"}`, git에 안 올림, `hidden()`이 안 내줌)에 저장해서 다시 켜도 같다. 불러오기는 `main()`에서만 하고, 테스트는 `server.PIN_FILE`을 임시 폴더로 바꾼다. 새 코드·고정 설정은 `POST /api/remote/pin`(이 PC에서만).
 - 휴대폰 `remote.html`은 맞은 코드를 `localStorage['yt-remote-pin']`에 기억한다 (이 키 이름은 바꾸지 않는다). 홈 화면 아이콘용 `remote.webmanifest`가 따로 있다.
 - 배포는 GitHub Pages(정적 파일 그대로). Pages에서는 `server.py`가 없으니 휴대폰 리모컨은 꺼지고, 나머지는 다 된다.
@@ -25,7 +31,7 @@ npm test                         # Node 핵심 로직 테스트 + 파이썬 서�
 | 파일 | 내용 |
 |---|---|
 | `js/util.js` | 공용 도구 (`$`, `el`, `fmt`, `pick`, `lsGet`, `norm`, `chosung` …) |
-| `js/core.js` | **화면과 상관없는 순수 로직**: 가사(LRC) 읽기, 검색, Drive 동기화 합치기 규칙, 백업 파일 형식. Node 테스트가 직접 불러 쓴다 |
+| `js/core.js` | **화면과 상관없는 순수 로직**: 가사(LRC) 읽기, 검색, Drive 동기화 합치기 규칙, 백업 파일 형식, TV로 켜기 판단, 지연 자동 측정 계산, 숫자판 방향키 고르기. Node 테스트가 직접 불러 쓴다 |
 | `js/store.js` | IndexedDB, 설정 |
 | `js/demo.js` | 데모곡 반주 합성 + 기기 저장(캐시) |
 | `js/audio.js` | 오디오 엔진, 목소리 효과, 마이크, 녹음 캡처 워클릿, 지연 측정 |
@@ -33,7 +39,7 @@ npm test                         # Node 핵심 로직 테스트 + 파이썬 서�
 | `js/playback.js` | 재생, 노래방식 두 줄 가사, 음정·점수 |
 | `js/recording.js` | 녹음 저장, 녹음 믹스, 내 녹음, 싱크·믹스 조절 |
 | `js/syncedit.js` | 가사 싱크 편집기 |
-| `js/karaoke.js` | 예약, 번호 입력, 검색, TV 화면, 단축키, 간주점프, 인기차트, 동영상 곡 |
+| `js/karaoke.js` | 예약, 번호 입력·화면 숫자판, 검색, TV 화면(터치 막대·화면 켜 두기·가로 고정), 단축키, 간주점프, 인기차트, 동영상 곡 |
 | `js/profiles.js` | 사용자, 좋아요, 재생목록 |
 | `js/cloud.js` | 기기 저장(오프라인), Google Drive 동기화 |
 | `js/key.js` | 키 바꾸기 (WSOLA, 워커에서 처리) |
