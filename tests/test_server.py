@@ -84,6 +84,26 @@ class ServerTest(ServerBase):
         # 이미 가져간 명령은 다시 오지 않는다
         self.assertEqual(json.loads(self.get(f"/api/remote/poll?since={data['last']}")[1])['cmds'], [])
 
+    def test_too_big_request_is_refused(self):
+        # 2MB가 넘는 요청은 몸통을 읽지 않고 거절한다 (CR-019: N14 "2MB 넘는 요청은 거절"의 테스트)
+        import http.client
+        host, port = self.srv.server_address[:2]
+        for path in ['/api/remote/cmd', '/api/remote/state']:
+            conn = http.client.HTTPConnection(host, port, timeout=5)
+            try:
+                conn.putrequest('POST', path)
+                conn.putheader('Content-Type', 'application/json')
+                conn.putheader('Content-Length', str(2_000_001))
+                conn.endheaders()
+                res = conn.getresponse()
+                self.assertEqual(res.status, 413, path)
+                self.assertEqual(json.loads(res.read()), {'error': 'too big'})
+            finally:
+                conn.close()
+        self.assertEqual(server.cmds, [])
+        # 딱 2MB까지는 받는다 (경계)
+        self.assertEqual(self.post('/api/remote/cmd', None, raw=b'{"pin":"x"}' + b' ' * (2_000_000 - 11))[0], 403)
+
     def test_too_many_wrong_codes_blocks_for_a_while(self):
         for _ in range(10):
             self.post('/api/remote/cmd', {'pin': 'nope', 'cmd': 'start'})
