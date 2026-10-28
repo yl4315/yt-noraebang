@@ -121,7 +121,13 @@ function capOff() { return new Promise(r => { capWaiters.push(r); E.cap.port.pos
 
 async function enableMic() {
   ensureCtx(); E.ctx.resume();
-  if (!navigator.mediaDevices?.getUserMedia) { toast('이 브라우저에서는 마이크를 쓸 수 없어요. localhost 주소로 열었는지 확인해 주세요.'); return false; }
+  if (!navigator.mediaDevices?.getUserMedia) {
+    // 브라우저는 https 주소(또는 이 기기의 localhost)에서만 마이크를 허락한다. 휴대폰·노트북은 https 주소로 연다
+    toast(window.isSecureContext === false
+      ? '이 주소에서는 마이크를 쓸 수 없어요. 브라우저가 https 주소에서만 마이크를 허락해요. https://yl4315.github.io/yt-noraebang/ 으로 열어 주세요 (PC에서는 "YT 노래방 켜기"로 열어도 돼요).'
+      : '이 브라우저에서는 마이크를 쓸 수 없어요. 크롬 최신판으로 열어 주세요.', 6000);
+    return false;
+  }
   const ec = settings.speakerMode;
   let stream;
   try {
@@ -140,10 +146,13 @@ async function enableMic() {
     applySettings();
   }
   updateMicUI();
+  // 좁은 화면은 위쪽 막대에 마이크 이름이 안 보여서, 켤 때마다 어떤 마이크가 잡혔는지 알려 준다
+  toast(`마이크 연결됨 · ${micLabel()}`, 3500);
   return true;
 }
+const micLabel = () => E.micStream?.getAudioTracks()[0]?.label || '마이크';
 function updateMicUI() {
-  const on = state.micOn, label = on ? (E.micStream.getAudioTracks()[0].label || '마이크') : '마이크 꺼짐';
+  const on = state.micOn, label = on ? micLabel() : '마이크 꺼짐';
   $('#micStatus').classList.toggle('on', on);
   $('#micStatus span').textContent = label;
   $('#micBtn span').textContent = on ? '마이크 다시 연결' : '마이크 켜기';

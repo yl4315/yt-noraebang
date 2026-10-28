@@ -5,7 +5,7 @@
 ## 실행과 테스트
 
 ```bash
-python server.py 5173            # 이 PC에서만 (마이크는 localhost에서만 된다)
+python server.py 5173            # 이 PC에서만 (마이크는 https 주소나 localhost에서만 된다)
 python server.py 5173 --lan      # 같은 와이파이 휴대폰 리모컨 허용
 python server.py 5173 --lan --tv # 켠 뒤 크롬 앱 창·전체 화면으로 /?tv=1 (이미 켜져 있으면 TV 화면만)
 npm test                         # Node 핵심 로직 테스트 + 파이썬 서버 테스트
