@@ -28,11 +28,14 @@ const DB = (() => {
   };
 })();
 // meta: 내용이 바뀌었으면 수정 시각을 남기고 Drive 동기화를 예약한다
-function persistSong(s, meta = true) {
-  if (s.demo) return Promise.resolve();
+// quiet: 실패 알림을 띄우지 않는다 (여러 곡을 한꺼번에 저장할 때 알림을 한 번만 띄우려고). 저장했으면 true를 돌려준다
+function persistSong(s, meta = true, quiet = false) {
+  if (s.demo) return Promise.resolve(true);
   if (meta) { s.updatedAt = Date.now(); Cloud.schedule(); }
-  return DB.put('songs', songRecord(s))
-    .catch(() => toast('브라우저 저장 공간에 저장하지 못했어요. 새로고침하면 사라질 수 있어요.', 4500));
+  return DB.put('songs', songRecord(s)).then(() => true, () => {
+    if (!quiet) toast('브라우저 저장 공간에 저장하지 못했어요. 새로고침하면 사라질 수 있어요.', 4500);
+    return false;
+  });
 }
 
 /* ---------------- 설정 ---------------- */

@@ -41,8 +41,9 @@
       </div>
       <section class="panel" id="songsPanel">
         <button class="btn primary" id="addSongBtn" type="button">+ 곡 추가 (MR 업로드)</button>
+        <button class="btn small miss-btn" id="missBtn" type="button" hidden title="가사가 없는 곡의 가사를 한꺼번에 찾아요">가사 없음 · 찾기</button>
         <ul class="list" id="songList"></ul>
-        <p class="hint">MR 파일(mp3, m4a, wav, mp4 등)과 가사를 넣으면 곡이 추가돼요. 곡은 이 기기에 저장되고, Drive에 연결하면 다른 기기와 맞춰져요.</p>
+        <p class="hint">MR 파일(mp3, m4a, wav, mp4 등)과 가사를 넣으면 곡이 추가돼요. MR을 여러 개 고르면 한 번에 넣고 가사도 찾아 줘요 (PC에서는 여기로 끌어다 놓아도 돼요). 곡은 이 기기에 저장되고, Drive에 연결하면 다른 기기와 맞춰져요.</p>
       </section>
       <section class="panel" id="minePanel" hidden>
         <div class="mine-head"><b id="mineWho"></b><button class="btn small" id="newPlBtn" type="button">+ 새 재생목록</button></div>
@@ -313,6 +314,25 @@
   </form>
 </dialog>
 
+<dialog id="bulkDialog" aria-labelledby="blkTitle">
+  <div class="mix bulk">
+    <div class="bulk-head">
+      <h2 id="blkTitle">여러 곡 한 번에 넣기</h2>
+      <button class="icon-btn" id="blkX" type="button" aria-label="닫기 (저장 안 함)" title="닫기 (저장 안 함)">✕</button>
+    </div>
+    <div class="bulk-sum"><b id="blkSum"></b><span class="hint">LRCLIB 공개 가사 데이터베이스</span></div>
+    <div class="bulk-note" id="blkNote" hidden><span id="blkNoteTxt"></span><button class="btn small" id="blkRetry" type="button">다시 찾기</button></div>
+    <p class="hint" id="blkInfo" hidden></p>
+    <ul class="bulk-list" id="blkList"></ul>
+    <p class="hint" id="blkHint">줄을 누르면 제목·가수를 고치고 가사를 고를 수 있어요</p>
+    <p class="err" id="blkErr" hidden></p>
+    <div class="dlg-btns">
+      <button class="btn ghost" type="button" id="blkCancel">취소</button>
+      <button class="btn primary" type="button" id="blkSave">저장</button>
+    </div>
+  </div>
+</dialog>
+
 <dialog id="mixDialog">
   <div class="mix">
     <div>
@@ -444,6 +464,7 @@
 <script src="js/demo.js"></script>
 <script src="js/audio.js"></script>
 <script src="js/songs.js"></script>
+<script src="js/bulk.js"></script>
 <script src="js/playback.js"></script>
 <script src="js/recording.js"></script>
 <script src="js/syncedit.js"></script>

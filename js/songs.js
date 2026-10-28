@@ -1,4 +1,4 @@
-// YT 노래방 · 앱 상태, 곡 목록, 곡 추가/수정, 싱크 가사 찾기
+// YT 노래방 · 앱 상태, 곡 목록, 곡 추가/수정, 싱크 가사 찾기 (여러 곡 한 번에 넣기 창은 bulk.js)
 'use strict';
 
 /* ---------------- 상태 ---------------- */
@@ -16,6 +16,9 @@ const ICON_DEL = '<svg viewBox="0 0 24 24"><path d="M6 19a2 2 0 0 0 2 2h8a2 2 0 
 function renderSongs() {
   const ul = $('#songList'); ul.textContent = '';
   const offline = !navigator.onLine;
+  // 가사가 빈 곡이 있으면 맨 위 "가사 없음 N곡 · 찾기" (bulk.js의 모아 찾기)
+  const miss = state.songs.filter(lacksLyrics).length;
+  $('#missBtn').hidden = !miss; $('#missBtn').textContent = `가사 없음 ${miss}곡 · 찾기`;
   for (const s of state.songs) {
     const li = document.createElement('li');
     li.className = 'song' + (state.song === s ? ' on' : '') + (!onDevice(s) && offline ? ' off' : '');
@@ -27,6 +30,7 @@ function renderSongs() {
     if (s.video) li.querySelector('.t').append(videoTag());
     const st = songStatus(s);
     if (st) { const tg = el('span', 'stag ' + st.cls, st.text); tg.dataset.dl = s.id; li.querySelector('.a').append(tg); }
+    if (lacksLyrics(s)) li.querySelector('.a').append(el('span', 'stag nolyr', '가사 없음'));
     const acts = li.querySelector('.acts');
     const ib = (html, tip, cls, fn) => { const b = document.createElement('button'); b.className = 'icon-btn ' + cls; b.type = 'button'; b.title = tip; b.innerHTML = html; b.onclick = e => { e.stopPropagation(); fn(b); }; acts.append(b); return b; };
     const rb = el('button', 'btn small', '예약'); rb.type = 'button'; rb.title = '예약 목록에 추가';
@@ -141,9 +145,10 @@ let editing = null;
 function openSongDialog(s = null) {
   editing = s;
   $('#dlgTitle').textContent = s ? '곡 수정' : '곡 추가';
-  $('#fileLbl').textContent = s ? 'MR 파일 (바꿀 때만 선택)' : 'MR 파일';
+  $('#fileLbl').textContent = s ? 'MR 파일 (바꿀 때만 선택)' : 'MR 파일 (여러 개를 고르면 한 번에 넣어요)';
   $('#f-title').value = s?.title || ''; $('#f-artist').value = s?.artist || '';
   $('#f-lyrics').value = s?.lyrics || ''; $('#f-file').value = '';
+  $('#f-file').multiple = !s;   // 여러 개 고르기는 새로 넣을 때만 (2개 이상이면 bulk.js 창)
   $('#videoOpts').hidden = !(s && (isVideoBlob(s.blob) || /^video\//.test(s.mime || '')));
   renderDeviceRow(s);
   $('#f-video').checked = s ? !!s.video : true; $('#f-videoLyrics').checked = !!s?.videoLyrics;
@@ -152,10 +157,17 @@ function openSongDialog(s = null) {
   $('#songDialog').showModal();
 }
 $('#f-file').addEventListener('change', () => {
-  const f = $('#f-file').files[0];
+  const files = [...$('#f-file').files];
+  if (!editing && files.length > 1) { $('#songDialog').close(); openBulk(files); return; }
+  const f = files[0];
   $('#videoOpts').hidden = !(isVideoBlob(f) || (!f && editing && isVideoBlob(editing.blob)));
   if (f && !editing) $('#f-video').checked = true;
-  if (f && !$('#f-title').value.trim()) $('#f-title').value = f.name.replace(/\.[^.]+$/, '').replace(/[_]+/g, ' ').replace(/\b(MR|mr|Inst\.?|inst)\b/g, '').trim();
+  // 제목·가수는 Drive 들여오기·여러 곡 넣기와 같은 규칙으로 (비어 있는 칸만 채운다)
+  if (f) {
+    const n = titleFromFilename(f.name);
+    if (!$('#f-title').value.trim()) $('#f-title').value = n.title;
+    if (!$('#f-artist').value.trim()) $('#f-artist').value = n.artist;
+  }
 });
 $('#dlgCancel').onclick = () => $('#songDialog').close();
 $('#songForm').addEventListener('submit', async e => {
@@ -164,7 +176,7 @@ $('#songForm').addEventListener('submit', async e => {
   const err = m => { $('#dlgErr').textContent = m; $('#dlgErr').hidden = false; };
   if (!title) return err('제목을 입력해 주세요.');
   if (!editing && !file) return err('MR 파일을 골라 주세요.');
-  const s = editing || { id: uid(), no: Math.max(...state.songs.map(x => +x.no)) + 1, createdAt: Date.now(), lyricOffset: 0 };
+  const s = editing || { id: uid(), no: nextSongNumbers(state.songs, 1)[0], createdAt: Date.now(), lyricOffset: 0 };
   const lyricsChanged = s.lyrics !== $('#f-lyrics').value;
   s.title = title; s.artist = $('#f-artist').value.trim(); s.lyrics = $('#f-lyrics').value;
   if (lyricsChanged) s.lyricOffset = 0;
@@ -195,16 +207,46 @@ async function lrclibSearch(params, onRetry) {
   }
   throw new Error('busy');
 }
-// 고른 MR의 길이: 원곡 길이와 비교해서 맞는 버전을 위로 올린다
-function mrDurationForDialog() {
-  const f = $('#f-file').files[0];
-  if (!f) return Promise.resolve(editing?.buffer?.duration || null);
+// MR 길이(초): 원곡 길이와 비교해서 맞는 버전을 위로 올린다. 소리를 풀지 않고 길이 정보만 읽는다 (큰 파일 여러 개도 메모리를 적게).
+// 4초 안에 못 읽으면 null
+function mediaDuration(blob) {
+  if (!blob) return Promise.resolve(null);
   return new Promise(res => {
-    const el = document.createElement(isVideoBlob(f) ? 'video' : 'audio'), u = URL.createObjectURL(f);
-    const done = d => { URL.revokeObjectURL(u); res(isFinite(d) ? d : null); };
+    const el = document.createElement(isVideoBlob(blob) ? 'video' : 'audio'), u = URL.createObjectURL(blob);
+    let over = false;
+    const done = d => { if (over) return; over = true; URL.revokeObjectURL(u); el.removeAttribute('src'); res(isFinite(d) && d > 0 ? d : null); };
     el.preload = 'metadata'; el.onloadedmetadata = () => done(el.duration); el.onerror = () => done(null);
     setTimeout(() => done(null), 4000); el.src = u;
   });
+}
+function mrDurationForDialog() {
+  const f = $('#f-file').files[0];
+  return f ? mediaDuration(f) : Promise.resolve(editing?.buffer?.duration || null);
+}
+// 가사 찾기 (곡 추가 창과 여러 곡 넣기 창이 같이 씀). 요청은 많아야 3번:
+// ① 제목 + 가수(괄호 앞 이름) ② 가수를 못 맞추면 괄호 안 이름으로 한 번 더 (AKMU(악뮤) → 악뮤) ③ 결과가 없으면 제목만
+async function findLyrics(title, artist, onRetry, onStep = () => {}) {
+  const [main, ...alts] = artist ? artistNames(artist) : [];
+  let found = await lrclibSearch({ q: main ? `${title} ${main}` : title }, onRetry);
+  if (alts.length && !found.some(x => artistMatches(artist, x.artistName))) {
+    onStep(`'${alts[0]}'(으)로 다시 찾는 중…`);
+    const seen = new Set(found.map(x => x.id));
+    found = found.concat((await lrclibSearch({ q: `${title} ${alts[0]}` }, onRetry)).filter(x => !seen.has(x.id)));
+  }
+  if (!found.length && artist) { onStep('제목만으로 다시 찾는 중…'); found = await lrclibSearch({ q: title }, onRetry); }
+  return found;
+}
+// 후보 한 줄 (곡 추가 창과 여러 곡 넣기 창이 같은 모양): 제목, 가수·앨범·길이, "싱크 있음/가사만 · 길이 비슷"
+function lyricItem(it, mrDur, onPick) {
+  const li = document.createElement('li'), b = document.createElement('button'); b.type = 'button';
+  b.innerHTML = '<span class="nm"></span><span class="s"></span><span class="tag"></span>';
+  b.querySelector('.nm').textContent = it.trackName;
+  b.querySelector('.s').textContent = `${it.artistName}${it.albumName ? ' · ' + it.albumName : ''} · ${fmt(it.duration)}`;
+  const close = mrDur && Math.abs(it.duration - mrDur) <= AUTO_SEC;
+  const tag = b.querySelector('.tag'); tag.textContent = (it.syncedLyrics ? '싱크 있음' : '가사만') + (close ? ' · 길이 비슷' : ''); if (!it.syncedLyrics) tag.classList.add('plain');
+  b.onclick = () => onPick(it);
+  li.append(b);
+  return li;
 }
 $('#lrcFind').onclick = async () => {
   const title = $('#f-title').value.trim(), artist = $('#f-artist').value.trim();
@@ -213,39 +255,21 @@ $('#lrcFind').onclick = async () => {
   btn.disabled = true; st.textContent = '찾는 중…'; ul.hidden = true;
   const onRetry = (n, total) => { st.textContent = `가사 서버가 바빠서 다시 시도하는 중… (${n}/${total})`; };
   try {
-    const [mrDur, first] = await Promise.all([mrDurationForDialog(), lrclibSearch({ q: artist ? `${title} ${artist}` : title }, onRetry)]);
-    let found = first;
-    if (!found.length && artist) { st.textContent = '제목만으로 다시 찾는 중…'; found = await lrclibSearch({ q: title }, onRetry); }
-    // 순서: 싱크 있음 > 가수 일치 > 제목 일치("Through the Night (밤편지)"도 일치로) > MR과 길이 비슷
-    const nt = norm(title), titleRank = x => {
-      const tn = norm(x.trackName);
-      if (tn === nt || tn.includes(`(${nt})`) || tn.replace(/\(.*?\)/g, '') === nt) return 0;
-      return tn.includes(nt) ? 30 : 60;
-    };
-    const items = found.filter(x => x.syncedLyrics || x.plainLyrics)
-      .map(x => ({ x, rank: (x.syncedLyrics ? 0 : 1000) + (artist && !norm(x.artistName).includes(norm(artist)) ? 200 : 0) + titleRank(x) + (mrDur ? Math.min(29, Math.abs(x.duration - mrDur) / 2) : 0) }))
-      .sort((a, b) => a.rank - b.rank).slice(0, 15).map(o => o.x);
+    const [mrDur, found] = await Promise.all([mrDurationForDialog(), findLyrics(title, artist, onRetry, m => { st.textContent = m; })]);
+    // 순서: 싱크 있음 > 가수 일치 > 제목 일치 > MR과 길이 비슷 (core.js rankLyrics)
+    const items = rankLyrics(found, { title, artist, mrDur });
     if (!items.length) { st.textContent = '찾지 못했어요. 제목 철자를 확인하거나 영어 제목으로 찾아보세요. 가사를 직접 붙여넣어도 돼요'; return; }
     ul.textContent = '';
-    for (const it of items) {
-      const li = document.createElement('li'), b = document.createElement('button'); b.type = 'button';
-      b.innerHTML = '<span class="nm"></span><span class="s"></span><span class="tag"></span>';
-      b.querySelector('.nm').textContent = it.trackName;
-      b.querySelector('.s').textContent = `${it.artistName}${it.albumName ? ' · ' + it.albumName : ''} · ${fmt(it.duration)}`;
-      const close = mrDur && Math.abs(it.duration - mrDur) <= 3;
-      const tag = b.querySelector('.tag'); tag.textContent = (it.syncedLyrics ? '싱크 있음' : '가사만') + (close ? ' · 길이 비슷' : ''); if (!it.syncedLyrics) tag.classList.add('plain');
-      b.onclick = () => {
-        $('#f-lyrics').value = it.syncedLyrics || it.plainLyrics;
-        if (!$('#f-artist').value.trim()) $('#f-artist').value = it.artistName;
-        ul.hidden = true;
-        st.textContent = it.syncedLyrics
-          ? `넣었어요. 원곡 길이(${fmt(it.duration)})와 MR 길이가 많이 다르면 '가사 타이밍'으로 조절하세요`
-          : '시간 정보가 없는 가사예요. 저장한 뒤 가사 싱크 편집으로 맞춰 주세요';
-      };
-      li.append(b); ul.append(li);
-    }
+    for (const it of items) ul.append(lyricItem(it, mrDur, () => {
+      $('#f-lyrics').value = it.syncedLyrics || it.plainLyrics;
+      if (!$('#f-artist').value.trim()) $('#f-artist').value = it.artistName;
+      ul.hidden = true;
+      st.textContent = it.syncedLyrics
+        ? `넣었어요. 원곡 길이(${fmt(it.duration)})와 MR 길이가 많이 다르면 '가사 타이밍'으로 조절하세요`
+        : '시간 정보가 없는 가사예요. 저장한 뒤 가사 싱크 편집으로 맞춰 주세요';
+    }));
     ul.hidden = false;
-    const artistHit = !artist || items.some(x => norm(x.artistName).includes(norm(artist)));
+    const artistHit = !artist || items.some(x => artistMatches(artist, x.artistName));
     st.textContent = !artistHit
       ? `'${artist}' 곡은 못 찾았어요. 영어 제목·영어 가수명으로도 찾아보세요 (예: 좋은 날 → Good Day, 아이유 → IU)`
       : `${items.length}개 찾음. ` + (mrDur ? `MR 길이(${fmt(mrDur)})와 비슷한 순서예요` : '원곡 길이가 MR과 비슷한 걸 고르세요');

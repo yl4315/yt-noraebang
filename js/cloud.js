@@ -345,7 +345,7 @@ async function syncNow({ interactive = false, connect = false } = {}) {
     Cloud.lastSync = Date.now(); lsSet('nb-glast', String(Cloud.lastSync));
     setCloud('ok');
     afterSync(touched);
-    if (imported) toast(`Drive 폴더에서 새 곡 ${imported}개를 가져왔어요. 가사는 곡 수정(연필)에서 '싱크 가사 찾기'로 넣을 수 있어요`, 6000);
+    if (imported) toast(`Drive 폴더에서 새 곡 ${imported}개를 가져왔어요. 가사는 곡 목록 위 '가사 없음 · 찾기'로 한꺼번에 넣을 수 있어요`, 6000);
     else if (!Cloud.canReadFolder) toast('Drive 폴더에 직접 넣은 파일을 가져오려면, 연결할 때 "Drive 파일 보기" 권한도 허용해 주세요', 6000);
   } catch (e) {
     console.warn('sync', e);

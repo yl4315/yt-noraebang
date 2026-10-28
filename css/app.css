@@ -216,6 +216,40 @@ dialog h2{margin:0;font:400 22px var(--display)}
 .lrc-results .s{font-size:12px;color:var(--muted);grid-column:1}
 .tag{font-size:11px;padding:2px 7px;border-radius:4px;background:rgba(64,224,208,.15);color:var(--cyan);grid-row:1/3;grid-column:2}
 .tag.plain{background:rgba(255,255,255,.08);color:var(--muted)}
+.lrc-results li.on button{background:var(--panel-2);box-shadow:inset 3px 0 0 var(--amber)}
+
+/* 여러 곡 한 번에 넣기 · 가사 없는 곡 모아 찾기 (CR-017). 곡 추가 창·후보 목록과 같은 모양 */
+#bulkDialog{width:min(720px,calc(100vw - 32px))}
+.bulk-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.bulk-head .icon-btn{font-size:18px;width:36px;height:36px;align-items:center;justify-content:center}
+.bulk-sum{display:flex;align-items:baseline;justify-content:space-between;gap:2px 12px;flex-wrap:wrap;font-size:14px}
+.bulk-sum b{font-variant-numeric:tabular-nums}
+.bulk-note{display:flex;align-items:center;gap:8px 12px;flex-wrap:wrap;background:rgba(255,190,61,.1);border:1px solid rgba(255,190,61,.4);border-radius:8px;padding:8px 10px;font-size:13px}
+.bulk-note span{flex:1;min-width:12em}
+.bulk-list{list-style:none;margin:0;padding:0;border:1px solid var(--line);border-radius:8px;background:var(--room);max-height:min(52vh,480px);overflow:auto}
+.bk-row{display:grid;grid-template-columns:auto minmax(0,1fr);border-bottom:1px solid var(--line)}
+.bk-row:last-child{border-bottom:0}
+.bk-row.open{background:var(--panel)}
+.bk-chk{display:flex;align-items:center;justify-content:center;padding:0 2px 0 10px;cursor:pointer}
+.bk-chk input{accent-color:var(--amber);width:18px;height:18px;margin:0}
+.bk-main{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:4px 10px;align-items:center;width:100%;min-height:48px;background:none;border:0;text-align:left;padding:9px 10px 9px 8px}
+@media (hover:hover){.bk-main:hover{background:var(--panel-2)}}
+.bk-main .no{font:400 13px/1 var(--display);color:var(--amber);background:rgba(255,190,61,.12);padding:5px 6px;border-radius:5px;font-variant-numeric:tabular-nums;min-width:5.4ch;text-align:center}
+.bk-name{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bk-name .a{font-size:12px;color:var(--muted);margin-left:8px}
+.bk-row.off .no,.bk-row.off .bk-name{opacity:.5}
+.bk-st{font-size:12px;padding:2px 8px;border-radius:4px;white-space:nowrap;color:var(--muted);background:rgba(255,255,255,.06)}
+.bk-st.ok{background:rgba(64,224,208,.15);color:var(--cyan)}
+.bk-st.ask{background:rgba(255,190,61,.15);color:var(--amber)}
+.bk-st.fail{background:rgba(255,59,79,.14);color:#ff8a96}
+.bk-st.busy{color:var(--ink)}
+.bk-st.dup{background:none;border:1px solid var(--line)}
+.bk-more{grid-column:1/-1;display:flex;flex-direction:column;gap:10px;padding:2px 12px 12px}
+.bk-more .lrc-results{max-height:220px}
+.miss-btn{justify-content:flex-start;background:none;border-style:dashed;color:var(--amber)}
+#songsPanel.drop{outline:2px dashed var(--amber);outline-offset:-4px;background:rgba(255,190,61,.06)}
+.song.fresh{animation:fresh 2.4s ease-out}
+@keyframes fresh{from{background:rgba(255,190,61,.28)}}
 
 .mx-transport{display:flex;align-items:center;gap:12px;font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
 .mx-transport input{flex:1;min-width:0}
@@ -459,9 +493,11 @@ details summary{cursor:pointer;font-weight:700;font-size:13px}
   .lyr-tools output{min-width:4.5em}
   .stage{aspect-ratio:4/3}
   .two,.mx-knobs{grid-template-columns:1fr}
+  .bk-main{grid-template-columns:auto minmax(0,1fr)}
+  .bk-st{grid-column:2;justify-self:start}
   .mic-status span{max-width:140px}
   .keys{display:none}
 }
 @media (prefers-reduced-motion:reduce){
-  .lights,.badge.rec{animation:none}
+  .lights,.badge.rec,.song.fresh{animation:none}
 }
