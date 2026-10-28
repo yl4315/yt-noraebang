@@ -9,7 +9,15 @@ python server.py 5173            # 이 PC에서만 (마이크는 https 주소나
 python server.py 5173 --lan      # 같은 와이파이 휴대폰 리모컨 허용
 python server.py 5173 --lan --tv # 켠 뒤 크롬 앱 창·전체 화면으로 /?tv=1 (이미 켜져 있으면 TV 화면만)
 npm test                         # Node 핵심 로직 테스트 + 파이썬 서버 테스트
+npm run test:ui                  # 화면 자동 점검: 헤드리스 Edge가 빈 시험 저장소에서 눌러 보고 결과표·스크린샷 (CR-019)
 ```
+
+- **화면을 고친 CR은 끝내기 전에 `npm test`와 `npm run test:ui`를 둘 다 돌린다.** 결과·사진은 PC 임시 폴더(`--out`으로 바꿈, 저장소 안은 git에서 빠지는 `tests/ui/out/`만). 옵션은 `tests/ui/run.mjs` 맨 위.
+- **기능을 더하거나 바꾸면 `tests/ui/features.json`(기능 번호 → 분류 auto/test/partial/human/device, 조건 P·V·O·M·W·S·L)과 그 번호를 보는 `tests/ui/checks/*.mjs`를 같이 고친다.** 결과표에 208줄이 다 나오는지, 자동 줄에 확인 기록이 있는지 점검이 스스로 본다 (기록이 없으면 실패).
+- 점검 도구는 npm 패키지 없이 CDP로 Edge를 움직인다 (`tests/ui/edge.mjs`). 시험 서버 `tests/ui/serve.py`는 `server.PIN_FILE`을 임시 폴더로 바꾸고 127.0.0.1에만 켠다 (저장소 `.remote.json`을 안 건드림). 밖으로 나가는 요청은 글꼴·QR 라이브러리만 허용, `lrclib.net`은 가짜 답, Google은 막음.
+- 점검이 찾은 앱 문제는 고치지 않고 결과표 "점검하다 본 것"에 적는다. 바로 못 고치는 실패는 `features.json`의 `known`(설명 + 맞는 실패 글)으로 "알려진 문제"로 따로 보이게 하고, 고치면 지운다.
+- 점검이 고장을 잡는지: `node tests/ui/selftest.mjs` (사본에서 단축키 C 빼기·검색 ✕ 숨기기·데모곡 번호 바꾸기 → M4·M10·I9·I12·S1·S4가 실패로 나와야 함).
+- `npm test`는 `tests/*.test.js`와 `tests/test_*.py`만 돈다. `tests/ui/` 파일은 이름 모양이 달라 섞이지 않는다.
 
 - 사용자는 `YT 노래방 켜기.bat`(= `server.py 5173 --lan --open`) 또는 `YT 노래방 TV로 켜기.bat`(= `--lan --tv`)으로 켠다.
 - `--tv`는 크롬을 `--user-data-dir` 없이 연다. 곡·녹음이 평소 크롬 프로필의 IndexedDB(`http://localhost:5173`)에 있어서, 다른 프로필로 열면 곡이 안 보인다. 크롬을 실제로 띄우는 확인은 사용자 화면에 창이 뜨니 하지 않는다 (테스트는 가짜 `popen`).
@@ -49,6 +57,7 @@ npm test                         # Node 핵심 로직 테스트 + 파이썬 서�
 | `js/main.js` | 메인 루프, 앱 시작 (항상 마지막) |
 | `remote.html` | 휴대폰 리모컨 화면 (따로 동작, `remote.webmanifest`로 홈 화면 아이콘) |
 | `sw.js` | 서비스 워커: 앱 파일·글꼴을 저장해 오프라인에서도 열리게 |
+| `tests/ui/` | 화면 자동 점검 (`npm run test:ui`): `run.mjs` 차례·결과표, `edge.mjs` 헤드리스 Edge(CDP), `serve.py` 시험 서버, `checks/*.mjs` 흐름별 점검, `features.json` 기능 번호 연결표, `fixtures.mjs` 시험 파일(그때그때 만듦), `compare.mjs` 사진 비교, `selftest.mjs` 고장 잡는지 시험. 앱 파일이 아니라 `sw.js` 목록에 넣지 않는다 |
 
 ## 꼭 지킬 것
 
