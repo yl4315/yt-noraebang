@@ -49,7 +49,7 @@ export default async function tv(ctx) {
     const L6 = await p.eval(`({h:document.querySelector('#remoteInfo').hidden, t:document.querySelector('#remoteInfo').textContent, qr:!!document.querySelector('#remoteInfo img.qr')?.src})`);
     const cover = await p.eval(`(()=>{const a=document.querySelector('#remoteInfo').getBoundingClientRect(), b=document.querySelector('#tvRemote').getBoundingClientRect(); const h=Math.min(a.bottom,b.bottom)-Math.max(a.top,b.top), w=Math.min(a.right,b.right)-Math.max(a.left,b.left); return h>0&&w>0 ? {h:Math.round(h), of:Math.round(a.height)} : null})()`);
     if (cover) ctx.finding('L6', `TV 1920×1080 대기 화면: 리모컨 칸(QR·주소·코드) 아래쪽 ${cover.h}px(칸 높이 ${cover.of}px)가 조작 막대에 가려짐. 대기 중에는 막대가 안 숨어서 계속 가림 (사진 12-tv-idle-1920x1080)`);
-    ok('L6', !L6.h && L6.t.includes(`http://192.0.2.1:${ctx.port}/remote.html`) && /코드 \d{4}/.test(L6.t) && (L6.qr || ctx.conds.W === false), `대기 화면 리모컨 주소·코드·QR (${L6.qr ? 'QR 있음' : 'QR 없음'})`);
+    ok('L6', !L6.h && L6.t.includes(`http://192.0.2.1:5199/remote.html`) && /코드 \d{4}/.test(L6.t) && (L6.qr || ctx.conds.W === false), `대기 화면 리모컨 주소·코드·QR (${L6.qr ? 'QR 있음' : 'QR 없음'})`);
   });
 
   await step('대기 화면에서 예약하면 바로 시작, 제목 카드 4.5초·진행 막대, "지금 부르는 중이에요"', ['I4', 'L7', 'L14', 'L18'], async () => {
@@ -149,7 +149,14 @@ export default async function tv(ctx) {
     await p.move(960, 500);
     const btns = await p.eval(`[...document.querySelectorAll('#tvRemote [data-act]')].filter(b=>getComputedStyle(b).display!=='none' && b.getBoundingClientRect().width>0).map(b=>b.dataset.act)`);
     const res = {};
-    const press = async a => { await p.move(960, 500); await p.click(bar(a)); await sleep(150); };
+    const trace = [];
+    const press = async a => {
+      await p.move(960, 500);
+      const r = await p.rect(bar(a));
+      const before = await p.eval(`({pl:state.playing, hide:document.querySelector('#tv').classList.contains('hide-ui'), fs:!!document.fullscreenElement, at:(document.elementFromPoint(${Math.round(r.cx)},${Math.round(r.cy)})?.closest('[data-act]')?.dataset.act)||document.elementFromPoint(${Math.round(r.cx)},${Math.round(r.cy)})?.className})`);
+      await p.click(bar(a)); await sleep(150);
+      trace.push(`${a}:${JSON.stringify(before)}`);
+    };
     const S = e => p.eval(e);
     await press('start'); res.start = await p.until('state.playing', 3000);
     await press('pause'); res.pause = await S('!state.playing && state.offset>0');
@@ -174,7 +181,7 @@ export default async function tv(ctx) {
     if (await S('!!document.fullscreenElement')) { await press('fs'); await sleep(200); }
     await press('exit'); res.exit = await S('!state.tv');
     const bad = Object.entries(res).filter(([, v]) => !v).map(([k]) => k);
-    ok('L8', btns.length === 18 && !btns.includes('more') && !bad.length, `보이는 버튼 ${btns.length}개 (한 줄) · 안 된 버튼: ${bad.join(',') || '없음'} (마이크는 지금 권한 거부 상태: 안내가 뜨면 통과, 가짜 마이크는 mic 점검)`);
+    ok('L8', btns.length === 18 && !btns.includes('more') && !bad.length, `보이는 버튼 ${btns.length}개 (한 줄) · 안 된 버튼: ${bad.join(',') || '없음'} (마이크는 지금 권한 거부 상태: 안내가 뜨면 통과, 가짜 마이크는 mic 점검)${bad.length ? ' · 누르기 전 상태 ' + trace.filter(t => bad.some(b => t.startsWith(b + ':'))).join(' ') : ''}`);
   });
 
   await step('F로 전체 화면 켜고 끄기, T로 나가기', ['L12'], async () => {

@@ -16,7 +16,7 @@ import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { launchEdge, ourEdgeProcesses, killPids, sleep, findEdge } from './edge.mjs';
+import { launchEdge, ourEdgeProcesses, killPids, sleep, findEdge, timing } from './edge.mjs';
 import { makeFixtures } from './fixtures.mjs';
 import { compareShots } from './compare.mjs';
 
@@ -116,6 +116,8 @@ async function stopServer(pr) {
 
 /* ---------------- 밖으로 나가는 요청: 허용 / 가짜 답 / 막기 ---------------- */
 const ALLOW = /^(fonts\.googleapis\.com|fonts\.gstatic\.com|cdnjs\.cloudflare\.com)$/;
+// 가로챌 바깥 주소: 허용(글꼴·QR), 가짜 답(가사 서버), 막음(Google 로그인·Drive). 그 밖은 Edge가 이름 찾기부터 실패한다 (edge.mjs)
+const ROUTED = ['fonts.googleapis.com', 'fonts.gstatic.com', 'cdnjs.cloudflare.com', 'lrclib.net', 'accounts.google.com', 'www.googleapis.com', 'oauth2.googleapis.com', 'apis.google.com'];
 const LOCAL = /^(127\.0\.0\.1|localhost)$/;
 function makeRouter(page) {
   return async p => {
@@ -219,12 +221,12 @@ function writeResults({ shots, compare, cleanup, edgeErrors, elapsed, aborted })
   const commonBad = common.filter(c => !c.ok);
   const failed = count('fail') + commonBad.length + (aborted ? 1 : 0);
   const summary = { ok: failed === 0, elapsedSec: elapsed, total: rows.length, byClass: byCls, byStatus: Object.fromEntries(Object.keys(ST_KO).map(k => [k, count(k)])),
-    commonFailed: commonBad.length, conds, condWhy, only: ONLY, shotsOnly: SHOTS_ONLY, root: ROOT, out: OUT, node: process.version, edge: findEdge(), aborted: aborted || null };
+    commonFailed: commonBad.length, slow: timing.slow, conds, condWhy, only: ONLY, shotsOnly: SHOTS_ONLY, root: ROOT, out: OUT, node: process.version, edge: findEdge(), aborted: aborted || null };
   fs.writeFileSync(path.join(OUT, 'results.json'), JSON.stringify({ summary, features: rows, common, findings, shots, compare, cleanup, net: ctx.netLog, lrclib: ctx.lrcLog, pageErrors: edgeErrors }, null, 1));
   const L = [];
   L.push(`# YT 노래방 화면 자동 점검 결과 (CR-019)`, '');
   L.push(`- 결과: **${failed === 0 ? '통과' : `실패 ${failed}개`}** · 걸린 시간 ${elapsed}초 · ${new Date().toLocaleString('ko-KR')}`);
-  L.push(`- 점검한 폴더: \`${ROOT}\`${ROOT !== REPO ? ' (저장소가 아닌 사본)' : ''} · Node ${process.version} · Edge \`${findEdge()}\``);
+  L.push(`- 점검한 폴더: \`${ROOT}\`${ROOT !== REPO ? ' (저장소가 아닌 사본)' : ''} · Node ${process.version} · Edge \`${findEdge()}\`${timing.slow > 1 ? ` · PC가 바빠서 기다리는 시간 ${timing.slow}배` : ''}`);
   if (ONLY) L.push(`- --only ${ONLY.join(',')}: 그 구역만 점검`);
   if (SHOTS_ONLY) L.push('- --shots: 스크린샷만');
   if (aborted) L.push(`- **점검이 중간에 멈춤**: ${aborted}`);
@@ -307,7 +309,7 @@ try {
     const collect = p => { if (p.collected) return; p.collected = true; edgeErrors.push(...p.events.map(e => ({ ...e, known: KNOWN.some(k => k.test(e.text + ' ' + (e.url || ''))) }))); };
     b.newPage = async () => {
       const p = await origNew();
-      await p.route(makeRouter(p));
+      await p.route(makeRouter(p), ROUTED, u => ctx.netLog.push({ kind: '막음', url: u.origin + u.pathname, note: '모르는 곳 (이름 찾기에서 막힘)' }));
       const origClose = p.close;
       p.close = async () => { collect(p); await origClose(); };
       return p;
@@ -324,8 +326,11 @@ try {
   ctx.browser = fb;
   {
     const t = Date.now();
-    ctx.p = await lib.openPage(ctx, lib.PC, ctx.base + '/index.html', lib.READY_DEMO, fb, 180000);
-    log(`첫 화면 준비 (데모 반주 합성 포함) ${((Date.now() - t) / 1000).toFixed(0)}초`);
+    ctx.p = await lib.openPage(ctx, lib.PC, ctx.base + '/index.html', lib.READY_DEMO, fb, 240000);
+    const sec = (Date.now() - t) / 1000;
+    // 한가한 PC에서는 10초 안팎. 오래 걸리면 PC가 바쁜 것이니 기다리는 시간을 그만큼 늘린다 (최대 3배)
+    timing.slow = Math.min(3, Math.max(1, Math.round(sec / 15 * 10) / 10));
+    log(`첫 화면 준비 (데모 반주 합성 포함) ${sec.toFixed(0)}초${timing.slow > 1 ? ` → PC가 바빠서 기다리는 시간 ${timing.slow}배` : ''}`);
     await probeConditions(ctx.p);
   }
 
@@ -383,7 +388,7 @@ for (const c of cleanup) if (!c.ok) log(`✕ 정리: ${c.name} ${c.detail || ''}
 const unknown = edgeErrors.filter(e => !e.known);
 ctx.common('페이지 오류(예외) 0', !edgeErrors.some(e => e.kind === 'pageerror'), edgeErrors.filter(e => e.kind === 'pageerror').map(e => e.text).slice(0, 5).join(' / '));
 ctx.common('콘솔 오류는 알려진 것만', !unknown.length, unknown.map(e => e.text).slice(0, 5).join(' / '));
-const outside = ctx.netLog.filter(n => n.kind === '막음' && !/accounts\.google\.com|www\.googleapis\.com/.test(n.url));
+const outside = ctx.netLog.filter(n => n.kind === '막음' && !/accounts\.google\.com|googleapis\.com|apis\.google\.com/.test(n.url));
 ctx.common('밖으로 나간 요청은 허용 목록(글꼴·QR 라이브러리)뿐, Google은 막고 lrclib은 가짜 답', outside.length === 0, outside.length ? '모르는 곳: ' + [...new Set(outside.map(n => n.url))].join(', ') : `막음 ${ctx.netLog.filter(n => n.kind === '막음').length} · 가짜 답 ${ctx.netLog.filter(n => n.kind === '가짜 답').length} · 허용 ${ctx.netLog.filter(n => n.kind === '허용').length}`);
 for (const c of cleanup) if (!c.ok) common.push({ name: '정리: ' + c.name, ok: false, detail: c.detail || '' });
 

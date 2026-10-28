@@ -118,7 +118,7 @@ export default async function basics(ctx) {
     m = await marks(p); await p.key('-'); const f2 = await sawFlash(p, /반주 볼륨 75/, m);
     m = await marks(p); await p.key('='); const f3 = await sawFlash(p, /반주 볼륨 80/, m);
     m = await marks(p); await p.key('.');
-    const k1 = await p.until(`state.key===1 && !!state.keyBufs`, 25000);
+    const k1 = await p.until(`state.key===1 && !!state.keyBufs`, 60000);     // 데모곡은 키마다 반주를 새로 합성해서 오래 걸린다
     const f4 = await sawFlash(p, /키 \+1/, m, 2000);
     const badge = await p.eval(`!document.querySelector('#keyBadge').hidden && document.querySelector('#keyBadge').textContent==='키 +1' && document.querySelector('#keyOut').textContent==='+1'`);
     ok('E11', f1 && f2 && f3 && f4, `예약 ${f1} · 볼륨 ${f2 && f3} · 키 ${f4}`);

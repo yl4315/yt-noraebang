@@ -4,7 +4,7 @@
 # - server.py의 Handler를 그대로 쓰되, 휴대폰 리모컨 코드 파일(server.PIN_FILE)을 임시 폴더로 바꾼다.
 #   (저장소 폴더의 .remote.json은 CEO 휴대폰 리모컨의 고정 코드라서 읽지도 쓰지도 않는다. 서버 테스트와 같은 방법)
 # - 127.0.0.1에만 켠다 (와이파이에 열지 않음). 리모컨 칸이 보이도록 lan 표시만 켜고,
-#   와이파이 주소는 문서용 가짜 주소(192.0.2.1)로 둔다 → 사진에 진짜 집 주소가 안 찍히고 매번 같다.
+#   와이파이 주소는 문서용 가짜 주소(192.0.2.1:5199)로 둔다 → 사진에 진짜 집 주소가 안 찍히고 매번 같다.
 # - --static: /api/가 없는 정적 서버 (GitHub Pages와 같은 상태, 리모컨 없음). 오프라인 시험에서 이것만 끈다.
 # - 점검(node)이 끝나거나 죽어서 표준 입력이 닫히면 같이 꺼진다 (서버가 남지 않게).
 import functools
@@ -19,6 +19,7 @@ sys.path.insert(0, REPO)
 import server  # noqa: E402
 
 FAKE_LAN_IP = '192.0.2.1'
+FAKE_PORT = 5199      # 리모컨 주소(QR)에 보이는 포트. 점검 포트는 매번 달라서, 사진이 매번 같게 고정한다 (가짜 주소라 열리지는 않음)
 
 
 def arg(name, default=None):
@@ -78,7 +79,7 @@ def main():
             sys.exit(2)
     server.PIN_FILE = pin_file
     server.root = root
-    server.port = port
+    server.port = FAKE_PORT      # remote_info()의 주소에만 쓰인다 (실제로 켜는 포트는 아래 port)
     server.lan = True
     server.lan_ip = lambda: FAKE_LAN_IP
     # --pin: 시작 코드를 정해 둔다 (스크린샷이 매번 같게). 임시 코드 파일에 고정 코드로 써 두고 main()과 같이 불러온다

@@ -23,7 +23,7 @@ export default async function remote(ctx) {
     const qrOk = await p.until(`!!document.querySelector('#remoteSet img.qr') && !!document.querySelector('#remoteInfo img.qr')`, 8000);
     const set = await p.eval(`({t:document.querySelector('#remoteSet').textContent, ctl:!document.querySelector('#remoteCtl').hidden, each:document.querySelector('#remoteNewEach').checked, hint:document.querySelector('#remotePinHint').textContent, qr:document.querySelectorAll('#remoteSet img.qr').length})`);
     await p.click('#cloudClose');
-    ok('N2', /^\d{4}$/.test(pin) && info.fixed === true && info.url === `http://192.0.2.1:${ctx.port}/remote.html?pin=${pin}` && set.t.includes(`코드 ${pin}`) && (qrOk || ctx.conds.W === false) && set.qr <= 1 && !set.each && /코드가 바뀌지 않아서/.test(set.hint),
+    ok('N2', /^\d{4}$/.test(pin) && info.fixed === true && info.url === `http://192.0.2.1:5199/remote.html?pin=${pin}` && set.t.includes(`코드 ${pin}`) && (qrOk || ctx.conds.W === false) && set.qr <= 1 && !set.each && /코드가 바뀌지 않아서/.test(set.hint),
       `코드 ${pin} (고정) · QR 주소에 ?pin=${pin} · 설정 창 QR ${set.qr}개 · "켤 때마다 새 코드" 꺼짐`);
     // 다른 사이트(Origin)가 코드를 바꾸려 하면 403, 이 PC 화면은 됨(아래 N16)
     const r = await fetch(`${ctx.base}/api/remote/pin`, { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: 'https://example.com' }, body: '{"action":"new"}' });
@@ -57,11 +57,11 @@ export default async function remote(ctx) {
     await tap('[data-cmd="pause"]'); res.pause = await cmd('pause', '!state.playing && state.offset>0');
     await tap('[data-cmd="pause"]'); res.pause = res.pause && await cmd('pause', 'state.playing');
     let m = await marks(p); await tap('[data-cmd="jump"]'); res.jump = await p.until(`__ui.flashes.length>${m.f}`, 4000);
-    await tap('[data-cmd="key"][data-delta="-1"]'); res['key-'] = await cmd('key', `document.querySelector('#keyOut').textContent==='-1'`, 20000);
+    await tap('[data-cmd="key"][data-delta="-1"]'); res['key-'] = await cmd('key', `document.querySelector('#keyOut').textContent==='-1'`, 60000);
     await sleep(1200);
     const keyK = await ph.eval(`document.querySelector('#keyK').firstChild.textContent`);
     await tap('[data-cmd="keyReset"]'); res.keyReset = await cmd('keyReset', `document.querySelector('#keyOut').textContent==='원래 키'`);
-    await tap('[data-cmd="key"][data-delta="1"]'); res['key+'] = await cmd('key', `document.querySelector('#keyOut').textContent==='+1'`, 20000);
+    await tap('[data-cmd="key"][data-delta="1"]'); res['key+'] = await cmd('key', `document.querySelector('#keyOut').textContent==='+1'`, 60000);
     await tap('[data-cmd="keyReset"]'); await cmd('keyReset', `document.querySelector('#keyOut').textContent==='원래 키'`);
     await tap('[data-cmd="rec"]'); res.rec = await cmd('rec', 'state.armed');
     await sleep(1200);

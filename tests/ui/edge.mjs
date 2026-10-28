@@ -10,6 +10,8 @@ import os from 'node:os';
 import path from 'node:path';
 
 export const sleep = ms => new Promise(r => setTimeout(r, ms));
+// PC가 바쁠 때(다른 빌드가 CPU를 다 쓸 때) 기다리는 시간을 늘리는 배수. run.mjs가 첫 화면이 열리는 데 걸린 시간을 보고 정한다
+export const timing = { slow: 1 };
 export const PROFILE_PREFIX = 'yt-ui-check-edge-';
 
 const EDGE_PATHS = [
@@ -50,6 +52,8 @@ export async function launchEdge({ downloadDir = null, args = [] } = {}) {
     '--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream',   // 가짜 마이크 (권한 창 없이 허용)
     '--disable-background-timer-throttling', '--disable-renderer-backgrounding', '--disable-backgrounding-occluded-windows',
     '--disable-background-networking', '--no-pings', '--metrics-recording-only',
+    // 안전장치: 이 PC(localhost·127.0.0.1) 말고는 이름 찾기부터 실패하게 한다. 허용한 곳(글꼴·QR)과 가사 서버는 요청 가로채기가 먼저 답한다
+    '--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE localhost, EXCLUDE 127.0.0.1',
     `--user-data-dir=${profile}`, '--remote-debugging-port=0', ...args, 'about:blank',
   ], { stdio: 'ignore' });
   proc.on('error', () => {});
@@ -155,14 +159,16 @@ function makePage(browser, targetId, sessionId) {
     },
     /** 식이 참이 될 때까지 기다린다. 됐으면 true */
     async until(expr, ms = 10000, step = 100) {
+      ms *= timing.slow;
       const t0 = Date.now();
       while (Date.now() - t0 < ms) { try { if (await page.eval(expr)) return true; } catch {} await sleep(step); }
       return false;
     },
     async goto(url, ready, ms = 60000) {
+      ms *= timing.slow;
       await s('Page.navigate', { url });
       const ok = await page.until(`document.readyState==="complete"${ready ? ` && (${ready})` : ''}`, ms, 150);
-      if (!ok) throw new Error(`${url} 이(가) ${ms / 1000}초 안에 준비되지 않았어요`);
+      if (!ok) throw new Error(`${url} 이(가) ${Math.round(ms / 1000)}초 안에 준비되지 않았어요`);
     },
     /** 화면 흉내: { width, height, dsf, mobile, touch, landscape } */
     async emulate(v) {
@@ -273,8 +279,9 @@ function makePage(browser, targetId, sessionId) {
       page.isOffline = !!on;     // 요청 가로채기가 흉내보다 먼저 받으므로, 가로채기도 이 값을 보고 끊는다
       await s('Network.emulateNetworkConditions', { offline: !!on, latency: 0, downloadThroughput: -1, uploadThroughput: -1 });
     },
-    /** 요청 가로채기: fn(params) → { continue: true } | { fulfill: { status, body, headers } } | { fail: 'BlockedByClient' } */
-    async route(fn) {
+    /** 요청 가로채기: fn(params) → { continue: true } | { fulfill: { status, body, headers } } | { fail: 'BlockedByClient' }
+     *  hosts: 가로챌 바깥 주소 이름들 (이 PC 주소는 가로채지 않는다: CDP를 거치지 않아 PC가 바빠도 앱 파일이 늦게 오지 않게) */
+    async route(fn, hosts = null, onOther = null) {
       routeFn = async p => {
         let r;
         try { r = await fn(p); } catch (e) { r = { fail: 'Failed' }; }
@@ -286,7 +293,13 @@ function makePage(browser, targetId, sessionId) {
         } else if (r?.fail) await s('Fetch.failRequest', { requestId: p.requestId, errorReason: r.fail }).catch(() => {});
         else await s('Fetch.continueRequest', { requestId: p.requestId }).catch(() => {});
       };
-      await s('Fetch.enable', { patterns: [{ urlPattern: '*', requestStage: 'Request' }] });
+      const patterns = hosts ? hosts.flatMap(h => [`http://${h}/*`, `https://${h}/*`]).map(urlPattern => ({ urlPattern, requestStage: 'Request' })) : [{ urlPattern: '*', requestStage: 'Request' }];
+      await s('Fetch.enable', { patterns });
+      // 가로채지 않은 바깥 요청(모르는 곳)은 이름 찾기에서 막히지만, 무엇이 나가려 했는지 적어 둔다
+      if (onOther) browser.onEvent(m => {
+        if (m.sessionId !== sessionId || m.method !== 'Network.requestWillBeSent') return;
+        try { const u = new URL(m.params.request.url); if (/^https?:$/.test(u.protocol) && !/^(127\.0\.0\.1|localhost)$/.test(u.hostname) && !hosts.includes(u.hostname)) onOther(u); } catch {}
+      });
     },
     async bringToFront() { await s('Page.bringToFront'); },
     async close() {

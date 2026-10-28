@@ -116,8 +116,9 @@ export default async function reserve(ctx) {
     const started = await p.until('state.playing', 6000);
     const playingNo = await p.eval('state.song.no');
     await stopAll(p);
-    ok('I8', open && hint === '4곡 예약됨' && q1[0] === q0[2] && q2.length === 3 && q3[0] === q2[1] && q4.length === 2 && closedL && openK && started && playingNo === q4[0],
-      `열림 "${hint}" · ↓↓P 맨 위로 · ↓Del 취소 · 버튼 맨 위로·취소 · L 닫기 · Enter 지금 부르기 (${playingNo})`);
+    const i8 = { open, hint: hint === '4곡 예약됨', p: q1[0] === q0[2], del: q2.length === 3, top: q3[0] === q2[1], x: q4.length === 2, closeL: closedL, openK, started, now: playingNo === q4[0] };
+    ok('I8', Object.values(i8).every(Boolean),
+      `열림 "${hint}" · ↓↓P 맨 위로 · ↓Del 취소 · 버튼 맨 위로·취소 · L 닫기 · ㅣ 열기 · Enter 지금 부르기 (${playingNo})${Object.values(i8).every(Boolean) ? '' : ' · 안 된 것 ' + Object.entries(i8).filter(([, v]) => !v).map(([k]) => k).join(',') + ` (예약 ${q0}→${q1}→${q2}→${q3}→${q4})`}`);
     ok('M4', open && closedL, 'L 예약 목록');
     ok('M11', q1[0] === q0[2] && q2.length === 3, '예약 목록 창 안 ↑↓·P·Del·Enter');
   });
