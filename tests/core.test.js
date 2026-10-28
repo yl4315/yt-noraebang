@@ -263,3 +263,94 @@ test('창이 화면을 다 덮었는지: 크롬 전체 화면이면 안내를 �
   assert.equal(C.fillsScreen(win(0, 0, 0, 0), scr), false);                            // 크기를 아직 모를 때
   assert.equal(C.fillsScreen({}, scr), false);
 });
+
+/* ---------------- 지연 자동 측정 (CR-003) ---------------- */
+// 가짜 녹음: 딸깍 시각 + 지연 자리에 짧은 소리(0.03초)를 넣고, 바닥에는 작은 잡음을 깐다
+function fakeTake({ delay, sr = 8000, f0 = 12345, gap = C.MEASURE.gap, noise = 0.005, missing = [] }) {
+  const M = C.MEASURE, t0 = f0 / sr + M.lead, clicks = [];
+  for (let i = 0; i < M.clicks; i++) clicks.push(t0 + i * gap);
+  const len = Math.ceil((M.lead + M.clicks * gap + 1.5) * sr), pcm = new Float32Array(len);
+  let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  for (let i = 0; i < len; i++) pcm[i] = (rnd() * 2 - 1) * noise;
+  const put = t => { const s = Math.round(t * sr) - f0, w = 0.03 * sr; for (let i = 0; i < w; i++) if (s + i >= 0 && s + i < len) pcm[s + i] = 0.5 * Math.sin(i / 3) * (1 - i / w); };
+  clicks.forEach((t, i) => { if (!missing.includes(i)) put(t + (Array.isArray(delay) ? delay[i] : delay)); });
+  return { pcm, sr, f0, clicks };
+}
+const near = (a, b, tol = 0.002) => Math.abs(a - b) <= tol;
+
+test('자동 측정: 지연 0.1·0.5·0.8초를 딸깍마다 맞게 찾는다', () => {
+  for (const d of [0.1, 0.5, 0.8]) {
+    const { pcm, sr, f0, clicks } = fakeTake({ delay: d });
+    const lat = C.findClickDelays(pcm, sr, f0, clicks);
+    assert.equal(lat.length, 6, `지연 ${d}`);
+    for (const x of lat) assert.ok(near(x, d), `지연 ${d}인데 ${x}`);
+  }
+});
+
+test('자동 측정: 지연이 길어도 앞 딸깍 소리를 잡지 않는다 (예전 0.45초 간격은 잡았다)', () => {
+  // 예전 방식(0.45초 간격, 0.42초 창)에 지연 0.5초면 앞 딸깍이 다음 창 0.05초 지점에 들어와 아주 작은 값이 나왔다
+  const old = fakeTake({ delay: 0.5, gap: 0.45 });
+  const bad = C.findClickDelays(old.pcm, old.sr, old.f0, old.clicks, 0.42);
+  assert.ok(bad.some(x => x < 0.1), '예전 방식 재현');
+  // 지금 방식(1초 간격, 0.9초 창): 0.85초까지는 제 딸깍만 잡는다
+  for (const d of [0.5, 0.7, 0.85]) {
+    const { pcm, sr, f0, clicks } = fakeTake({ delay: d });
+    const lat = C.findClickDelays(pcm, sr, f0, clicks);
+    assert.ok(lat.length >= 5 && lat.every(x => near(x, d)), `지연 ${d}: ${lat}`);
+  }
+});
+
+test('자동 측정: 소리가 없거나 3번 미만이면 "못 들었어요"', () => {
+  const quiet = fakeTake({ delay: 0.2, missing: [0, 1, 2, 3, 4, 5] });
+  const lat0 = C.findClickDelays(quiet.pcm, quiet.sr, quiet.f0, quiet.clicks);
+  assert.equal(lat0.length, 0);
+  assert.equal(C.summarizeDelays(lat0).ok, false);
+  const two = fakeTake({ delay: 0.2, missing: [0, 2, 3, 5] });
+  const lat2 = C.findClickDelays(two.pcm, two.sr, two.f0, two.clicks);
+  assert.equal(lat2.length, 2);
+  same(C.summarizeDelays(lat2), { ok: false, heard: 2 });
+  assert.equal(C.summarizeDelays(null).ok, false);
+  assert.deepEqual(plain(C.findClickDelays(new Float32Array(0), 8000, 0, [1, 2])), []);
+});
+
+test('자동 측정: 가운데 값을 쓰고, 600ms를 넘으면 600으로 두고 표시한다', () => {
+  same(C.summarizeDelays([0.21, 0.2, 0.19, 0.2, 0.205]), { ok: true, heard: 5, raw: 200, ms: 200, tooLong: false, uneven: false });
+  const long = C.summarizeDelays([0.8, 0.8, 0.81, 0.79, 0.8, 0.8]);
+  assert.equal(long.ok, true); assert.equal(long.tooLong, true); assert.equal(long.ms, 600); assert.equal(long.raw, 800);
+  const edge = C.summarizeDelays([0.6, 0.6, 0.6]);
+  assert.equal(edge.tooLong, false); assert.equal(edge.ms, 600);
+});
+
+test('자동 측정: 값끼리 차이가 크면 "고르지 않음", 튀는 값 하나는 봐준다', () => {
+  assert.equal(C.summarizeDelays([0.1, 0.25, 0.1, 0.3, 0.12, 0.2]).uneven, true);
+  assert.equal(C.summarizeDelays([0.2, 0.205, 0.21, 0.2, 0.198, 0.202]).uneven, false);
+  const one = C.summarizeDelays([0.2, 0.2, 0.2, 0.2, 0.2, 0.45]);
+  assert.equal(one.uneven, false); assert.equal(one.ms, 200);
+  assert.equal(C.summarizeDelays([0.1, 0.2, 0.3]).uneven, true);       // 3~4번만 들었으면 빼지 않고 본다
+  // 실제 소리에서도: 딸깍마다 지연이 들쭉날쭉하면 표시된다
+  const { pcm, sr, f0, clicks } = fakeTake({ delay: [0.1, 0.3, 0.15, 0.4, 0.2, 0.35] });
+  assert.equal(C.summarizeDelays(C.findClickDelays(pcm, sr, f0, clicks)).uneven, true);
+});
+
+/* ---------------- TV 화면 숫자판: 방향키로 버튼 고르기 (CR-003) ---------------- */
+test('방향키로 숫자판 버튼 고르기: 1~9, 아래 줄, 넓은 버튼, 끝에서는 그대로', () => {
+  // 휴대폰 리모컨과 같은 모양: 1 2 3 / 4 5 6 / 7 8 9 / ⌫ 0 처음부터 / 우선예약 [예약 두 칸]
+  const at = (col, row) => ({ x: col * 10, y: row * 10 });
+  const items = [at(0, 0), at(1, 0), at(2, 0), at(0, 1), at(1, 1), at(2, 1), at(0, 2), at(1, 2), at(2, 2),
+    at(0, 3), at(1, 3), at(2, 3), at(0, 4), at(1.5, 4)];
+  const L = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'del', '0', 'clr', 'pri', 'res'];
+  const go = (from, dir) => L[C.pickByArrow(items, L.indexOf(from), dir)];
+  assert.equal(go('5', 'ArrowRight'), '6');
+  assert.equal(go('5', 'ArrowLeft'), '4');
+  assert.equal(go('5', 'ArrowUp'), '2');
+  assert.equal(go('5', 'ArrowDown'), '8');
+  assert.equal(go('8', 'ArrowDown'), '0');
+  assert.equal(go('0', 'ArrowDown'), 'res');      // 예약(두 칸)이 0 바로 아래에 더 가깝다
+  assert.equal(go('del', 'ArrowDown'), 'pri');
+  assert.equal(go('res', 'ArrowUp'), '0');
+  assert.equal(go('pri', 'ArrowRight'), 'res');
+  assert.equal(go('3', 'ArrowRight'), '3');       // 끝이면 그대로
+  assert.equal(go('1', 'ArrowUp'), '1');
+  assert.equal(C.pickByArrow(items, -1, 'ArrowDown'), 0);   // 아직 고른 게 없으면 첫 버튼
+  assert.equal(C.pickByArrow([], -1, 'ArrowDown'), -1);
+});

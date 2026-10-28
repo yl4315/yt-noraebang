@@ -1,4 +1,4 @@
-// YT 노래방 · 화면과 상관없는 핵심 로직: 가사 읽기, 검색, Drive 동기화 합치기, 백업 파일 형식
+// YT 노래방 · 화면과 상관없는 핵심 로직: 가사 읽기, 검색, Drive 동기화 합치기, 백업 파일 형식, 지연 측정 계산
 // 자동 테스트(tests/)가 이 파일과 util.js를 브라우저 없이 불러서 검사한다. 여기에는 화면(DOM)을 건드리는 코드를 넣지 않는다.
 'use strict';
 
@@ -151,6 +151,56 @@ function fillsScreen(win, scr, tol = 4) {
   if (!(iw > 0 && ih > 0 && ow > 0 && oh > 0 && sw > 0 && sh > 0)) return false;
   const near = (a, b) => Math.abs(a - b) <= tol;
   return near(ow, sw) && near(oh, sh) && near(ih * (ow / iw), oh);
+}
+
+/* ---------------- 지연 시간 자동 측정 (딸깍 소리) ---------------- */
+// 스피커로 딸깍을 clicks번, gap초 간격으로 내고, 딸깍마다 win초 안에 마이크로 처음 큰 소리가 들어온 때를 찾는다.
+// 블루투스 스피커·무선 화면 복제는 지연이 길어서(0.4초 넘게), 예전 0.45초 간격·0.42초 창으로는 앞 딸깍 소리를
+// 잡아 아주 작은 값이 저장될 수 있었다. 그래서 간격을 1초로 늘리고, 창(0.9초)이 다음 딸깍 전에 끝나게 했다.
+// lead = 첫 딸깍까지 기다리는 시간, maxMs = 녹음 기본 싱크 슬라이더 끝, unevenMs = "값이 고르지 않아요" 기준
+const MEASURE = { clicks: 6, gap: 1, win: 0.9, lead: 0.7, maxMs: 600, unevenMs: 60 };
+
+// pcm: 마이크로 받은 소리(Float32Array), sr: 샘플레이트, f0: pcm[0]의 오디오 시계 프레임 번호,
+// clicks: 딸깍을 낸 시각(초, 오디오 시계). 돌려주는 값: 들은 딸깍마다 지연(초) 목록 (못 들은 딸깍은 빠짐).
+// 첫 딸깍 전 0.4초 동안의 잡음보다 3배(최소 0.02) 큰 소리를 딸깍으로 본다.
+function findClickDelays(pcm, sr, f0, clicks, win = MEASURE.win) {
+  const n = pcm ? pcm.length : 0, idx = t => Math.round(t * sr) - f0, out = [];
+  if (!n || !clicks || !clicks.length) return out;
+  let floor = 0;
+  for (let i = Math.max(0, idx(clicks[0] - 0.4)); i < Math.min(n, idx(clicks[0])); i++) floor = Math.max(floor, Math.abs(pcm[i]));
+  const thr = Math.max(0.02, floor * 3);
+  for (const t of clicks) {
+    const s = idx(t), e = Math.min(n, idx(t + win));
+    for (let i = Math.max(0, s); i < e; i++) if (Math.abs(pcm[i]) > thr) { out.push((i - s) / sr); break; }
+  }
+  return out;
+}
+// 지연 목록 → 저장할 값. 3번 미만이면 못 들은 것(ok: false). 가운데 값을 쓰고, 슬라이더 끝(600ms)보다 길면
+// 600으로 두고 tooLong으로 알린다. 가장 큰 값·작은 값을 하나씩 뺀 나머지끼리 60ms 넘게 차이 나면 uneven.
+function summarizeDelays(lat, maxMs = MEASURE.maxMs, unevenMs = MEASURE.unevenMs) {
+  if (!lat || lat.length < 3) return { ok: false, heard: lat ? lat.length : 0 };
+  const ms = lat.map(x => x * 1000).sort((a, b) => a - b), mid = Math.round(ms[Math.floor(ms.length / 2)]);
+  const core = ms.length >= 5 ? ms.slice(1, -1) : ms;
+  return { ok: true, heard: ms.length, raw: mid, ms: clamp(mid, 0, maxMs), tooLong: mid > maxMs, uneven: core[core.length - 1] - core[0] > unevenMs };
+}
+
+/* ---------------- 방향키로 버튼 고르기 (TV 화면 숫자판) ---------------- */
+// items: 버튼 가운데 좌표 [{x, y}], from: 지금 고른 버튼 번호, dir: 'ArrowUp'·'ArrowDown'·'ArrowLeft'·'ArrowRight'.
+// 그 방향에 있는 버튼 중 가장 가까운 것(옆으로 벗어난 거리는 2배로 친다)의 번호. 그 방향에 없으면 from 그대로.
+// 아직 고른 버튼이 없으면(from이 없는 번호) 첫 버튼.
+function pickByArrow(items, from, dir) {
+  const c = items && items[from];
+  if (!c) return items && items.length ? 0 : -1;
+  const h = dir === 'ArrowLeft' || dir === 'ArrowRight', sign = dir === 'ArrowRight' || dir === 'ArrowDown' ? 1 : -1;
+  let best = from, bd = Infinity;
+  items.forEach((p, i) => {
+    if (i === from) return;
+    const along = (h ? p.x - c.x : p.y - c.y) * sign, across = Math.abs(h ? p.y - c.y : p.x - c.x);
+    if (along <= 0.5) return;
+    const d = along + across * 2;
+    if (d < bd) { bd = d; best = i; }
+  });
+  return best;
 }
 
 /* ---------------- 백업 파일 (.ytbackup) ---------------- */

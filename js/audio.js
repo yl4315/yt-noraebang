@@ -159,37 +159,34 @@ async function measureLatency() {
   if (state.playing) pause();
   pStop(true);
   btn.disabled = true; btn.textContent = '측정 중…';
-  toast('딸깍 소리가 6번 나요. 조용히 기다려 주세요', 3500);
+  const M = MEASURE;
+  toast(`딸깍 소리가 ${M.clicks}번 나요. 조용히 기다려 주세요 (약 ${Math.round(M.lead + (M.clicks - 1) * M.gap + M.win + 0.3)}초)`, 4000);
   const c = E.ctx, sr = c.sampleRate, target = { chunks: [] };
   capOn(target);
-  const t0 = c.currentTime + 0.7, clicks = [];
-  for (let i = 0; i < 6; i++) {
-    const t = t0 + i * 0.45; clicks.push(t);
+  // 딸깍 간격·기다리는 창은 core.js의 MEASURE (블루투스·무선 화면 복제처럼 지연이 길어도 앞 딸깍을 잡지 않게)
+  const t0 = c.currentTime + M.lead, clicks = [];
+  for (let i = 0; i < M.clicks; i++) {
+    const t = t0 + i * M.gap; clicks.push(t);
     const o = c.createOscillator(), g = c.createGain(); o.frequency.value = 1500;
     g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.8, t + 0.001); g.gain.exponentialRampToValueAtTime(0.001, t + 0.03);
     o.connect(g); g.connect(c.destination); o.start(t); o.stop(t + 0.05);
   }
-  await sleep((t0 - c.currentTime + 6 * 0.45 + 0.5) * 1000);
+  await sleep((clicks[clicks.length - 1] - c.currentTime + M.win + 0.3) * 1000);
   await capOff(); if (capTarget === target) capTarget = null;
 
   let total = 0; for (const ch of target.chunks) total += ch.data.length;
   const pcm = new Float32Array(total); let o = 0;
   for (const ch of target.chunks) { pcm.set(ch.data, o); o += ch.data.length; }
-  const f0 = target.chunks[0]?.frame ?? 0, idx = t => Math.round(t * sr) - f0;
-  let floor = 0; for (let i = Math.max(0, idx(t0 - 0.4)); i < Math.min(total, idx(t0)); i++) floor = Math.max(floor, Math.abs(pcm[i]));
-  const thr = Math.max(0.02, floor * 3), lat = [];
-  for (const t of clicks) {
-    const s = idx(t), e = Math.min(total, idx(t + 0.42));
-    for (let i = Math.max(0, s); i < e; i++) if (Math.abs(pcm[i]) > thr) { lat.push((i - s) / sr); break; }
-  }
+  const r = summarizeDelays(findClickDelays(pcm, sr, target.chunks[0]?.frame ?? 0, clicks));
   btn.disabled = false; btn.textContent = '자동 측정';
-  if (lat.length < 3) {
+  if (!r.ok) {
     toast('딸깍 소리를 못 들었어요. 스피커 볼륨을 올리거나 이어폰을 마이크 가까이 대고 다시 해 보세요. "스피커로 반주 듣는 중"이 켜져 있으면 끄고 해 보세요.', 6000);
     return;
   }
-  lat.sort((a, b) => a - b);
-  settings.recOffset = clamp(Math.round(lat[Math.floor(lat.length / 2)] * 1000), 0, 600);
+  settings.recOffset = r.ms;
   settings.recOffsetTouched = true; applySettings(); saveSettings();
-  toast(`측정 완료: ${settings.recOffset}ms. 다음 녹음부터 이 값으로 맞춰요`, 4000);
+  if (r.tooLong) toast(`지연이 너무 길어요 (약 ${r.raw}ms). ${M.maxMs}ms로 맞춰 뒀어요. 선으로 이어 보세요. 녹음 뒤 '싱크·믹스 조절'에서 더 고칠 수 있어요`, 7000);
+  else if (r.uneven) toast(`측정 완료: ${r.ms}ms. 다만 값이 고르지 않아요. 조용한 곳에서 다시 해 보세요`, 6000);
+  else toast(`측정 완료: ${r.ms}ms. 다음 녹음부터 이 값으로 맞춰요`, 4000);
 }
 $('#measureBtn').onclick = measureLatency;
