@@ -16,9 +16,10 @@ const ICON_DEL = '<svg viewBox="0 0 24 24"><path d="M6 19a2 2 0 0 0 2 2h8a2 2 0 
 function renderSongs() {
   const ul = $('#songList'); ul.textContent = '';
   const offline = !navigator.onLine;
-  // 가사가 빈 곡이 있으면 맨 위 "가사 없음 N곡 · 찾기" (bulk.js의 모아 찾기)
-  const miss = state.songs.filter(lacksLyrics).length;
-  $('#missBtn').hidden = !miss; $('#missBtn').textContent = `가사 없음 ${miss}곡 · 찾기`;
+  // 가사가 빈 곡이 있으면 맨 위 "가사 없음 N곡 · 찾기" (bulk.js의 모아 찾기).
+  // 배포 직후 브라우저 캐시로 예전 index.html(버튼 없음)과 새 JS가 섞여도 곡 목록은 그려지게, 버튼이 없으면 건너뛴다
+  const mb = $('#missBtn');
+  if (mb) { const miss = state.songs.filter(lacksLyrics).length; mb.hidden = !miss; mb.textContent = `가사 없음 ${miss}곡 · 찾기`; }
   for (const s of state.songs) {
     const li = document.createElement('li');
     li.className = 'song' + (state.song === s ? ' on' : '') + (!onDevice(s) && offline ? ' off' : '');
@@ -158,7 +159,8 @@ function openSongDialog(s = null) {
 }
 $('#f-file').addEventListener('change', () => {
   const files = [...$('#f-file').files];
-  if (!editing && files.length > 1) { $('#songDialog').close(); openBulk(files); return; }
+  // (예전 index.html이라 bulk.js가 없으면 첫 파일만 한 곡 넣기로)
+  if (!editing && files.length > 1 && typeof openBulk === 'function') { $('#songDialog').close(); openBulk(files); return; }
   const f = files[0];
   $('#videoOpts').hidden = !(isVideoBlob(f) || (!f && editing && isVideoBlob(editing.blob)));
   if (f && !editing) $('#f-video').checked = true;

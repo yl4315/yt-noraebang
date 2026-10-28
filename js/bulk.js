@@ -110,7 +110,7 @@ function rowMsg(r) {
     ask: (BULK_WHY[r.why] || (() => '맞는 걸 고르세요'))(r),
     none: r.title.trim() ? '찾지 못했어요. 제목 철자를 확인하거나 영어 제목·영어 가수명으로 고쳐서 다시 찾아보세요 (예: 좋은 날 → Good Day, 아이유 → IU)' : '제목을 넣고 다시 찾아 주세요',
     busy: '가사 서버(LRCLIB)가 계속 바빠요. 1~2분 뒤에 다시 찾아 주세요',
-    offline: '인터넷 연결이 끊겨 있어요. 연결되면 다시 찾아 주세요. 지금 저장하면 가사 없이 들어가요',
+    offline: '인터넷 연결이 끊겨 있어요. 연결되면 다시 찾아 주세요. ' + (add ? '지금 저장하면 가사 없이 들어가요' : '저장하면 가사를 고른 곡만 들어가요'),
     err: `가사 서버 오류(${r.code})예요. 잠시 후 다시 찾아 주세요`,
     skip: add ? "가사 없이 넣어요. 나중에 곡 목록 위 '가사 없음 · 찾기'로 넣을 수 있어요" : '이번에는 가사를 넣지 않아요',
   }[r.st];
@@ -148,6 +148,9 @@ function paintHead() {
   const add = Bulk.mode === 'add', rows = Bulk.rows, on = rows.filter(r => r.checked);
   const n = st => on.filter(r => r.st === st).length;
   const todo = on.filter(r => r.st === 'wait' || r.st === 'search').length, fail = on.filter(r => BULK_FAIL.includes(r.st)).length;
+  // 위쪽 "다시 찾기"가 다시 찾는 곡 = 바빠요·끊김·오류 + 멈춰서 아직 차례가 안 온 곡. 머리 줄과 위쪽 알림이 같은 숫자를 쓴다
+  // ("못 찾음"은 찾아봤는데 결과가 없는 곡만. 제목을 고쳐 줄에서 다시 찾는다)
+  const left = fail + (Bulk.running ? 0 : n('wait'));
   let sum = `${rows.length}곡`;
   if (Bulk.running && todo) sum += ` · 가사 찾는 중 ${on.length - todo + 1}/${on.length}`;
   else {
@@ -155,15 +158,14 @@ function paintHead() {
     if (n('auto')) bits.push(`가사 자동 ${n('auto')}`);
     if (n('picked')) bits.push(`고름 ${n('picked')}`);
     if (n('ask')) bits.push(`골라 주세요 ${n('ask')}`);
-    if (n('none') + fail) bits.push(`못 찾음 ${n('none') + fail}`);
-    if (n('wait')) bits.push(`대기 ${n('wait')}`);
+    if (n('none')) bits.push(`못 찾음 ${n('none')}`);
+    if (left) bits.push(`다시 찾을 곡 ${left}`);
     if (bits.length) sum += ' · ' + bits.join(' · ');
   }
   $('#blkSum').textContent = sum;
-  const left = fail + (Bulk.running ? 0 : on.filter(r => r.st === 'wait').length);
   const note = Bulk.note === 'busy' ? "가사 서버(LRCLIB)가 계속 바빠서 찾기를 멈췄어요. 1~2분 뒤 '다시 찾기'를 눌러 주세요"
-    : Bulk.note === 'offline' ? "인터넷이 끊겨 있어요. 연결되면 '다시 찾기'를 눌러 주세요. 지금 저장하면 가사 없이 들어가요"
-    : !Bulk.running && left ? `${left}곡은 아직 가사를 못 찾았어요` : '';
+    : Bulk.note === 'offline' ? "인터넷이 끊겨 있어요. 연결되면 '다시 찾기'를 눌러 주세요. " + (add ? '지금 저장하면 가사 없이 들어가요' : '저장하면 가사를 고른 곡만 들어가요')
+    : !Bulk.running && left ? `아직 가사를 못 찾은 곡이 ${left}곡 있어요. '다시 찾기'로 다시 찾아요` : '';
   $('#blkNote').hidden = !note; $('#blkNoteTxt').textContent = note;
   const save = add ? on.length : on.filter(r => r.pick).length;
   $('#blkSave').textContent = add ? `${save}곡 저장` : `가사 ${save}곡 저장`;
@@ -302,17 +304,20 @@ async function bulkSave() {
   }
 }
 
-$('#missBtn').onclick = openMissing;
-$('#blkSave').onclick = bulkSave;
-$('#blkX').onclick = $('#blkCancel').onclick = () => { if (!Bulk.saving) $('#bulkDialog').close(); };
-$('#blkRetry').onclick = () => {
+// 버튼·창 연결. 배포 직후 캐시로 화면(index.html)이 예전 것이면 요소가 없을 수 있어서, 없으면 건너뛴다 (시작이 멈추지 않게)
+const bulkOn = (sel, ev, fn) => $(sel)?.addEventListener(ev, fn);
+bulkOn('#missBtn', 'click', openMissing);
+bulkOn('#blkSave', 'click', bulkSave);
+for (const sel of ['#blkX', '#blkCancel']) bulkOn(sel, 'click', () => { if (!Bulk.saving) $('#bulkDialog').close(); });
+bulkOn('#blkRetry', 'click', () => {
   for (const r of Bulk.rows) if (r.checked && BULK_FAIL.includes(r.st)) r.st = 'wait';
   Bulk.note = ''; Bulk.busyRun = 0;
   paintAll(); bulkRun();
-};
-$('#bulkDialog').addEventListener('cancel', e => { if (Bulk.saving) e.preventDefault(); });
+});
+bulkOn('#bulkDialog', 'cancel', e => { if (Bulk.saving) e.preventDefault(); });
 // 닫히면(취소·✕·Esc·TV 화면이 닫음·저장 끝) 찾기를 멈추고 고른 파일을 놓아 준다
-$('#bulkDialog').addEventListener('close', () => {
+bulkOn('#bulkDialog', 'close', () => {
+  if ($('#bulkDialog').open) return;   // 닫힘 알림은 조금 늦게 온다: 그 사이에 다시 연 창은 건드리지 않는다
   Bulk.sess++; Bulk.running = false; Bulk.queue = []; Bulk.rows = [];
   $('#blkList').textContent = '';
 });
@@ -320,14 +325,16 @@ $('#bulkDialog').addEventListener('close', () => {
 /* ---------------- PC: 곡 목록에 MR 파일 끌어다 놓기 ---------------- */
 {
   const panel = $('#songsPanel'), hasFiles = e => [...(e.dataTransfer?.types || [])].includes('Files');
-  panel.addEventListener('dragover', e => { if (!hasFiles(e)) return; e.preventDefault(); e.stopPropagation(); e.dataTransfer.dropEffect = 'copy'; panel.classList.add('drop'); });
-  panel.addEventListener('dragleave', e => { if (!panel.contains(e.relatedTarget)) panel.classList.remove('drop'); });
-  panel.addEventListener('drop', e => {
+  panel?.addEventListener('dragover', e => { if (!hasFiles(e)) return; e.preventDefault(); e.stopPropagation(); e.dataTransfer.dropEffect = 'copy'; panel.classList.add('drop'); });
+  panel?.addEventListener('dragleave', e => { if (!panel.contains(e.relatedTarget)) panel.classList.remove('drop'); });
+  panel?.addEventListener('drop', e => {
     if (!hasFiles(e)) return;
     e.preventDefault(); e.stopPropagation(); panel.classList.remove('drop');
-    if (!document.querySelector('dialog[open]')) openBulk(e.dataTransfer.files);
+    if (!document.querySelector('dialog[open]') && $('#bulkDialog')) openBulk(e.dataTransfer.files);
   });
-  // 곡 목록 밖에 놓으면 브라우저가 파일을 열어 노래방 화면이 사라진다 → 막는다 (커서가 "안 됨" 표시)
-  addEventListener('dragover', e => { if (hasFiles(e)) { e.preventDefault(); e.dataTransfer.dropEffect = 'none'; } });
-  addEventListener('drop', e => { if (hasFiles(e)) e.preventDefault(); });
+  // 곡 목록 밖에 놓으면 브라우저가 파일을 열어 노래방 화면이 사라진다 → 막는다 (커서가 "안 됨" 표시).
+  // 단, 파일 칸(곡 추가 창의 MR 파일 칸 등) 위에서는 브라우저가 원래대로 파일을 칸에 넣게 둔다
+  const fileInput = e => e.target?.closest?.('input[type=file]');
+  addEventListener('dragover', e => { if (hasFiles(e) && !fileInput(e)) { e.preventDefault(); e.dataTransfer.dropEffect = 'none'; } });
+  addEventListener('drop', e => { if (hasFiles(e) && !fileInput(e)) e.preventDefault(); });
 }
