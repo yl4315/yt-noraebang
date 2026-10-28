@@ -107,19 +107,54 @@ let numBuf = '', numTimer;
 function numKey(d) { if (numBuf.length >= 5) numBuf = ''; numBuf += d; updateNumBox(); }
 function updateNumBox() {
   clearTimeout(numTimer);
-  const box = $('#numBox'); box.hidden = !numBuf; if (!numBuf) return;
+  // 번호 상자는 번호를 누르는 동안, 그리고 화면 숫자판이 열려 있는 동안 보인다
+  const box = $('#numBox'); box.hidden = !numBuf && $('#numPad').hidden; if (box.hidden) return;
   const dg = $('#numDigits'); dg.textContent = numBuf;
   if (numBuf.length < 5) dg.append(Object.assign(document.createElement('span'), { className: 'ph', textContent: '_'.repeat(5 - numBuf.length) }));
-  const s = state.songs.find(x => String(x.no) === numBuf), ns = $('#numSong');
-  ns.textContent = s ? `${s.title} · ${s.artist || '가수 미상'}` : numBuf.length >= 5 ? '없는 번호예요' : '번호를 마저 눌러 주세요';
+  const s = numBuf && state.songs.find(x => String(x.no) === numBuf), ns = $('#numSong');
+  ns.textContent = !numBuf ? '곡 번호를 눌러 주세요' : s ? `${s.title} · ${s.artist || '가수 미상'}` : numBuf.length >= 5 ? '없는 번호예요' : '번호를 마저 눌러 주세요';
   ns.classList.toggle('miss', !s);
-  numTimer = setTimeout(() => { numBuf = ''; updateNumBox(); }, 7000);
+  if (numBuf) numTimer = setTimeout(() => { numBuf = ''; updateNumBox(); }, 7000);
 }
 function reserveByNumber(priority) {
   const s = state.songs.find(x => String(x.no) === numBuf);
   numBuf = ''; updateNumBox();
   if (s) reserve(s, priority); else flash('없는 번호예요');
+  return s;
 }
+
+/* 화면 숫자판: 키보드 없이(폰을 TV에 이었을 때) 번호로 예약. 숫자는 위의 번호 입력과 같은 길로 간다 */
+function openNumPad(focusPad) {
+  if (state.sync) return;
+  closeOverlays();
+  $('#numPad').hidden = false; $('#tv').classList.add('pad-open'); updateNumBox();
+  if (focusPad) $('#numPad [data-k="1"]').focus();          // 키보드로 열었으면 방향키·Enter로 바로 누를 수 있게
+}
+function closeNumPad() {
+  if ($('#numPad').hidden) return;
+  $('#numPad').hidden = true; $('#tv').classList.remove('pad-open');
+  if (document.activeElement?.closest?.('#numPad')) document.activeElement.blur();
+  updateNumBox();
+}
+function cancelNumPad() { numBuf = ''; $('#numPad').hidden ? updateNumBox() : closeNumPad(); }
+function padArrow(dir) {
+  const bs = [...$('#numPad').querySelectorAll('button')];
+  const pts = bs.map(b => { const r = b.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; });
+  bs[pickByArrow(pts, bs.indexOf(document.activeElement), dir)]?.focus();
+}
+$('#numPad').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  const k = b.dataset.k;
+  if (/^[0-9]$/.test(k)) numKey(k);
+  else if (k === 'del') { numBuf = numBuf.slice(0, -1); updateNumBox(); }
+  else if (k === 'clr') { numBuf = ''; updateNumBox(); }
+  else if (k === 'close') { cancelNumPad(); return; }
+  else if (k === 'res' || k === 'pri') {
+    if (!numBuf) flash('곡 번호를 먼저 눌러 주세요');
+    else if (reserveByNumber(k === 'pri')) { closeNumPad(); return; }
+  }
+  if (e.detail) b.blur();   // 손가락·마우스로 누른 뒤에는 포커스를 두지 않는다 (키보드 Enter가 예약으로 가게)
+});
 let flashTimer;
 function flash(text, ms = 2500) {
   const el = $('#flash'); el.textContent = text; el.hidden = false;
@@ -190,7 +225,7 @@ function queueKey(e) {
   else return;
   e.preventDefault();
 }
-function closeOverlays() { for (const id of ['#searchOv', '#queueOv', '#chartOv', '#mineOv']) $(id).hidden = true; $('#searchInput').blur(); }
+function closeOverlays() { for (const id of ['#searchOv', '#queueOv', '#chartOv', '#mineOv']) $(id).hidden = true; $('#searchInput').blur(); closeNumPad(); }
 $('#queueClose').onclick = () => closeOverlays();
 $('#openSearchBtn').onclick = openSearch;
 $('#openQueueBtn').onclick = openQueue;
@@ -254,22 +289,60 @@ async function enterTV() {
   document.querySelectorAll('dialog[open]').forEach(d => d.close());
   const st = $('#stage'); stageHome = { parent: st.parentNode, next: st.nextSibling };
   $('#tvScreen').append(st); $('#tv').hidden = false; document.body.style.overflow = 'hidden';
-  state.tv = true; renderBest(); renderClock(); updateScreens(curTime()); pokeUI();
-  try { document.documentElement.requestFullscreen?.().catch(() => {}); } catch {}
+  state.tv = true; renderBest(); renderClock(); updateScreens(curTime()); pokeUI(); updateWakeLock();
+  try { document.documentElement.requestFullscreen?.().then(lockLandscape, () => {}); } catch {}
 }
 function exitTV() {
   if (!state.tv) return;
   disarmFirstInputFullscreen();
-  state.tv = false; closeOverlays();
+  state.tv = false; closeOverlays(); setMore(false);
   stageHome.parent.insertBefore($('#stage'), stageHome.next);
   $('#tv').hidden = true; document.body.style.overflow = '';
+  unlockOrientation();
   if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
-  updateScreens(curTime());
+  updateScreens(curTime()); updateWakeLock();
 }
 function pokeUI() {
   $('#tv').classList.remove('hide-ui'); clearTimeout(uiTimer);
-  uiTimer = setTimeout(() => { if (state.playing) $('#tv').classList.add('hide-ui'); }, 3000);
+  uiTimer = setTimeout(() => { if (state.playing) { $('#tv').classList.add('hide-ui'); setMore(false); } }, 3000);
 }
+// 터치 화면 조작 막대의 "⋯ 더 보기" 줄 (마우스 화면에서는 늘 다 보여서 상관없다)
+function setMore(open) {
+  $('#tvRemote').classList.toggle('more-open', open);
+  $('#tvRemote [data-act="more"]').setAttribute('aria-expanded', open);
+}
+
+/* 화면 켜 두기: TV 화면이 열려 있거나 노래가 나오는 동안 폰·PC 화면이 꺼지지 않게 (Screen Wake Lock) */
+// 폰을 TV에 이어 화면 복제 중일 때 폰 화면이 꺼지면 TV 화면도 꺼진다. 앱이 뒤로 가면 브라우저가 저절로 풀어서
+// 돌아오면 다시 건다. 안 되는 브라우저(https가 아닌 주소 등)에서는 조용히 넘어간다. 저장하는 것은 없다.
+const Wake = { lock: null, busy: false };
+async function updateWakeLock() {
+  if (!navigator.wakeLock) return;
+  const want = !!(state.tv || state.playing) && document.visibilityState === 'visible';
+  if (want && !Wake.lock && !Wake.busy) {
+    Wake.busy = true;
+    try {
+      const l = await navigator.wakeLock.request('screen');
+      l.addEventListener('release', () => { if (Wake.lock === l) Wake.lock = null; });
+      Wake.lock = l;
+    } catch {}
+    Wake.busy = false;
+    if (!(state.tv || state.playing)) updateWakeLock();     // 기다리는 사이에 TV에서 나가고 노래도 멈췄으면 바로 푼다
+  } else if (!want && Wake.lock) {
+    const l = Wake.lock; Wake.lock = null; l.release().catch(() => {});
+  }
+}
+document.addEventListener('visibilitychange', updateWakeLock);
+
+/* 폰 가로 고정: 터치 화면에서 TV 화면이 전체 화면이 되면 가로로 고정 (안드로이드 크롬은 전체 화면일 때만 된다) */
+// 안 되면 조용히 넘어가고, 폰이 세로면 css가 "폰을 가로로 돌려 주세요"를 보여 준다. TV 화면에서 나가면 푼다.
+const isTouch = () => matchMedia('(hover:none)').matches;
+function lockLandscape() {
+  if (!state.tv || !isTouch() || !document.fullscreenElement) return;
+  try { screen.orientation?.lock?.('landscape')?.catch?.(() => {}); } catch {}
+}
+function unlockOrientation() { try { screen.orientation?.unlock?.(); } catch {} }
+
 function toggleFullscreen() {
   if (document.fullscreenElement) document.exitFullscreen?.();
   else document.documentElement.requestFullscreen?.().catch(() => toast('전체 화면을 열 수 없어요'));
@@ -278,7 +351,7 @@ function toggleFullscreen() {
 /* 켜자마자 TV 화면 (주소에 ?tv=1 — "YT 노래방 TV로 켜기") */
 // 브라우저는 사용자가 아무것도 누르지 않았을 때 전체 화면을 막는다(requestFullscreen이 실패한다).
 // 그래서 아직 전체 화면이 아니면 처음 누르는 키나 클릭 한 번에 전체 화면을 시도한다. 그 키의 원래 동작은 그대로 한다.
-const FS_HINT = '아무 키나 누르면 전체 화면이 돼요 · F 키도 돼요';
+const FS_HINT = isTouch() ? '화면을 한 번 누르면 전체 화면이 돼요' : '아무 키나 누르면 전체 화면이 돼요 · F 키도 돼요';
 let fsArmed = null;
 function screenCovered() {
   return !!document.fullscreenElement || matchMedia('(display-mode: fullscreen)').matches ||
@@ -318,8 +391,9 @@ function disarmFirstInputFullscreen() {
   removeEventListener('keydown', fsArmed.onKey, true); removeEventListener('click', fsArmed.onClick, true);
   fsArmed = null;
 }
-document.addEventListener('fullscreenchange', () => { if (document.fullscreenElement) disarmFirstInputFullscreen(); });
+document.addEventListener('fullscreenchange', () => { if (document.fullscreenElement) { disarmFirstInputFullscreen(); lockLandscape(); } });
 function stopKey() {
+  if (!$('#numPad').hidden) return cancelNumPad();
   if (!$('#searchOv').hidden || !$('#queueOv').hidden) return closeOverlays();
   if (numBuf) { numBuf = ''; updateNumBox(); return; }
   if (nextAt != null) return cancelNext();
@@ -327,16 +401,30 @@ function stopKey() {
   if (state.playing || state.offset > 0.5) return cancelSong();
   if (state.tv) exitTV();
 }
+// 숨은 조작 막대는 마우스 움직임, 화면 누르기(손가락·클릭), 키 누르기로 다시 보인다. 키는 원래 동작도 그대로 한다.
+// 막대가 숨어 있을 때 누른 첫 톡은 막대만 보이고 그 자리 버튼은 안 눌린다: 손가락 톡은 손을 뗀 뒤 그 자리를 다시 찾아
+// 클릭을 보내서(그때는 막대가 보임) css만으로는 막을 수 없어, 누르기 시작할 때 숨어 있었는지 기억해 둔다.
+let tapWhileHidden = false;
 $('#tv').addEventListener('mousemove', pokeUI);
+$('#tv').addEventListener('pointerdown', () => { tapWhileHidden = $('#tv').classList.contains('hide-ui'); pokeUI(); }, true);
+document.addEventListener('keydown', () => { if (state.tv) pokeUI(); }, true);
+// 숫자판 바깥을 누르면 숫자판을 닫는다 (번호 상자와 "번호" 버튼은 빼고)
+$('#tv').addEventListener('click', e => {
+  if ($('#numPad').hidden || e.target.closest?.('#numPad,#numBox,[data-act="num"]')) return;
+  cancelNumPad();
+});
 $('#tvBtn').onclick = enterTV;
 $('#tvRemote').addEventListener('click', e => {
   const b = e.target.closest('[data-act]'); if (!b) return;
+  if (e.detail && tapWhileHidden) { tapWhileHidden = false; b.blur(); return; }   // 숨은 막대를 누른 첫 톡 (키보드 Enter는 detail 0)
   ({
+    num: () => $('#numPad').hidden ? openNumPad(e.detail === 0) : cancelNumPad(),
     start: startKey, pause: () => state.playing ? pause() : (state.offset > 0.5 && play()), cancel: cancelSong,
-    jump: jumpInterlude, search: openSearch, queue: openQueue, chart: openChart, mine: openMineOv, user: cycleProfile,
+    jump: jumpInterlude, search: openSearch, queue: openQueue, chart: () => { setMore(false); openChart(); }, mine: () => { setMore(false); openMineOv(); }, user: cycleProfile,
     'key-': () => setKey((state.key || 0) - 1), 'key+': () => setKey((state.key || 0) + 1),
     rec: () => setArmed(!state.armed), 'mr-': () => bumpSetting('mrVol', -5), 'mr+': () => bumpSetting('mrVol', 5),
     mic: () => enableMic(), fs: toggleFullscreen, exit: exitTV,
+    more: () => setMore(!$('#tvRemote').classList.contains('more-open')),
   })[b.dataset.act]?.();
   b.blur();
 });
@@ -354,6 +442,10 @@ document.addEventListener('keydown', e => {
     return;
   }
   if (e.ctrlKey || e.metaKey || e.altKey) return;
+  if (!$('#numPad').hidden) {
+    if (/^Arrow(Up|Down|Left|Right)$/.test(k)) { e.preventDefault(); padArrow(k); return; }
+    if ((k === 'Enter' || e.code === 'Space') && e.target.closest?.('#numPad')) return;   // 고른 숫자판 버튼을 누른다 (브라우저 기본 동작)
+  }
   if (!$('#mineOv').hidden) { mineKey(e); return; }
   if (!$('#queueOv').hidden) { queueKey(e); return; }
   if (!$('#chartOv').hidden) { chartKey(e); return; }

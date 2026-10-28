@@ -70,6 +70,7 @@ function updateTransportUI() {
   $('#recBadge').hidden = !(take && !take.paused);
   $('#tvRecBtn').textContent = state.armed ? '● 녹음 켜짐' : '● 녹음';
   $('#recLbl').textContent = take ? (take.paused ? '녹음 일시정지' : '녹음 중') : state.armed ? '녹음 대기 (시작하면 녹음)' : '녹음 꺼짐';
+  updateWakeLock();   // 노래가 나오는 동안 화면이 꺼지지 않게 (karaoke.js)
 }
 $('#playBtn').onclick = () => togglePlay();
 $('#stopBtn').onclick = () => { cancelNext(); stopPlayback(); };

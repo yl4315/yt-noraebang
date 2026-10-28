@@ -84,15 +84,15 @@
           <div>
             <div class="idle-h">예약 목록 <span id="idleCount"></span></div>
             <ol class="idle-q" id="idleQueue"></ol>
-            <div class="idle-empty" id="idleEmpty">예약된 곡이 없어요.<br>곡 번호를 누르고 <kbd>Enter</kbd>, 또는 <kbd>S</kbd>로 곡을 검색해 예약하세요.</div>
+            <div class="idle-empty" id="idleEmpty">예약된 곡이 없어요.<br><span class="for-keys">곡 번호를 누르고 <kbd>Enter</kbd>, 또는 <kbd>S</kbd>로 곡을 검색해 예약하세요.</span><span class="for-touch">아래 <b class="tb">번호</b>나 <b class="tb">곡 검색</b>을 눌러 예약하세요.</span></div>
             <div class="idle-chart" id="idleChart" hidden>
-              <div class="idle-h sm">인기차트 TOP 5 <span><kbd>C</kbd> 전체 보기</span></div>
+              <div class="idle-h sm">인기차트 TOP 5 <span class="for-keys"><kbd>C</kbd> 전체 보기</span></div>
               <ol class="idle-q" id="idleChartList"></ol>
             </div>
           </div>
           <div class="idle-right">
             <div class="clock" id="clock">--:--<small id="clockDate"></small></div>
-            <div class="idle-tip"><b>번호</b> 입력 → <kbd>Enter</kbd> 예약 · <kbd>P</kbd> 우선예약<br><kbd>S</kbd> 곡 검색 · <kbd>L</kbd> 예약 목록 · <kbd>C</kbd> 인기차트 · <kbd>M</kbd> 내 목록<br><kbd>Enter</kbd> 시작 · <kbd>Esc</kbd> 취소 · <kbd>J</kbd> 간주점프 · <kbd>R</kbd> 녹음</div>
+            <div class="idle-tip"><span class="for-keys"><b>번호</b> 입력 → <kbd>Enter</kbd> 예약 · <kbd>P</kbd> 우선예약<br><kbd>S</kbd> 곡 검색 · <kbd>L</kbd> 예약 목록 · <kbd>C</kbd> 인기차트 · <kbd>M</kbd> 내 목록<br><kbd>Enter</kbd> 시작 · <kbd>Esc</kbd> 취소 · <kbd>J</kbd> 간주점프 · <kbd>R</kbd> 녹음</span><span class="for-touch">아래 <b class="tb">번호</b>로 예약 · <b class="tb">곡 검색</b> · <b class="tb">예약 목록</b><br><b class="tb">⋯ 더 보기</b>에 인기차트 · 내 목록 · 키 · 반주 볼륨 · 녹음<br>노래 중에 버튼이 숨으면 화면을 한 번 누르세요</span></div>
             <div class="idle-user" id="idleUser"></div>
             <div class="best" id="bestBox"></div>
             <div class="remote-info" id="remoteInfo" hidden></div>
@@ -103,6 +103,16 @@
           <div class="num-digits" id="numDigits"></div>
           <div class="num-song" id="numSong"></div>
           <div class="num-keys"><kbd>Enter</kbd> 예약 · <kbd>P</kbd> 우선예약 · <kbd>⌫</kbd> 지우기 · <kbd>Esc</kbd> 취소</div>
+        </div>
+        <div class="num-pad" id="numPad" role="group" aria-label="번호로 예약" hidden>
+          <div class="np-head"><span>번호로 예약</span><button class="icon-btn" type="button" data-k="close" aria-label="숫자판 닫기">✕</button></div>
+          <div class="np-grid">
+            <button type="button" data-k="1">1</button><button type="button" data-k="2">2</button><button type="button" data-k="3">3</button>
+            <button type="button" data-k="4">4</button><button type="button" data-k="5">5</button><button type="button" data-k="6">6</button>
+            <button type="button" data-k="7">7</button><button type="button" data-k="8">8</button><button type="button" data-k="9">9</button>
+            <button type="button" class="wide" data-k="del" aria-label="한 자리 지우기">⌫ 지우기</button><button type="button" data-k="0">0</button><button type="button" class="wide" data-k="clr">처음부터</button>
+            <button type="button" class="wide" data-k="pri">우선예약</button><button type="button" class="wide res" data-k="res">예약</button>
+          </div>
         </div>
         <div class="flash" id="flash" hidden></div>
         <div class="overlay" id="scoreOverlay" hidden>
@@ -246,13 +256,17 @@
 
 <div class="tv" id="tv" hidden>
   <div id="tvScreen" style="display:contents"></div>
+  <div class="rotate-hint" id="rotateHint">⟳ 폰을 가로로 돌려 주세요</div>
+  <!-- 마우스 화면에서는 버튼이 한 줄로 그대로. 터치 화면(hover:none)에서는 첫 줄 8칸 + "⋯ 더 보기"를 누르면 위로 tv-more 줄이 펼쳐진다 -->
   <div class="tv-remote" id="tvRemote">
     <button class="btn primary" type="button" data-act="start">▶ 시작 <kbd>Enter</kbd></button>
     <button class="btn" type="button" data-act="pause">❚❚ 일시정지 <kbd>Space</kbd></button>
     <button class="btn cancel" type="button" data-act="cancel">■ 취소 <kbd>Esc</kbd></button>
     <button class="btn" type="button" data-act="jump">⏭ 간주점프 <kbd>J</kbd></button>
+    <button class="btn" type="button" data-act="num">번호 <kbd>0~9</kbd></button>
     <button class="btn" type="button" data-act="search">곡 검색 <kbd>S</kbd></button>
     <button class="btn" type="button" data-act="queue">예약 목록 <kbd>L</kbd></button>
+    <div class="tv-more" id="tvMore">
     <button class="btn" type="button" data-act="chart">인기차트 <kbd>C</kbd></button>
     <button class="btn" type="button" data-act="mine">내 목록 <kbd>M</kbd></button>
     <button class="btn" type="button" data-act="user" id="tvUserBtn">사용자: 나</button>
@@ -264,6 +278,8 @@
     <button class="btn" type="button" data-act="mic">마이크</button>
     <button class="btn" type="button" data-act="fs">전체 화면 <kbd>F</kbd></button>
     <button class="btn ghost" type="button" data-act="exit">나가기 <kbd>T</kbd></button>
+    </div>
+    <button class="btn more-btn" type="button" data-act="more" aria-expanded="false" aria-controls="tvMore">⋯ 더 보기</button>
   </div>
 </div>
 

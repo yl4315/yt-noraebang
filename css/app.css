@@ -241,6 +241,18 @@ dialog h2{margin:0;font:400 22px var(--display)}
 .num-song{font:400 1.6em/1.3 var(--lyric);margin-top:.3em;min-height:1.3em}
 .num-song.miss{color:var(--muted)}
 .num-keys{color:var(--muted);margin-top:.5em}
+/* 화면 숫자판 (TV 조작 막대 "번호"): 휴대폰 리모컨 숫자판과 같은 모양, 색은 지금 TV 무대 색. 번호 상자는 왼쪽으로 비켜 준다 */
+.num-pad{position:absolute;right:3%;top:50%;transform:translateY(-50%);z-index:7;background:rgba(10,14,39,.94);border:2px solid var(--line);border-radius:.7em;
+  padding:.6em;width:max(216px,17em);max-height:96%;display:flex;flex-direction:column;gap:.4em;font-size:clamp(14px,1.5cqw,34px)}
+.np-head{display:flex;align-items:center;justify-content:space-between;color:var(--muted);font-weight:700;font-size:.85em;padding-left:.3em}
+.np-head .icon-btn{font-size:1.2em;min-width:2.2em;min-height:2.2em;justify-content:center;align-items:center}
+.np-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));grid-auto-rows:max(44px,3em);gap:.4em}
+.np-grid button{border:1px solid var(--line);background:var(--panel-2);border-radius:.5em;padding:0;font:400 1.4em/1 var(--display);color:var(--ink);min-width:0}
+@media (hover:hover){.np-grid button:hover{border-color:var(--muted)}}
+.np-grid button:active{border-color:var(--amber)}
+.np-grid .wide{font:700 .9em var(--ui)}
+.np-grid .res{grid-column:span 2;background:var(--amber);border-color:var(--amber);color:#1a1300}
+#tv.pad-open .num-box{left:36%;max-width:50%}
 .ov-panel{position:absolute;inset:0;z-index:8;background:rgba(5,7,22,.78);display:flex;align-items:center;justify-content:center;padding:3cqw}
 .ov-card{background:var(--panel);border:1px solid var(--line);border-radius:.8em;width:min(100%,78cqw);max-height:100%;display:flex;flex-direction:column;gap:.7em;padding:1em 1.2em;font-size:clamp(12px,1.35cqw,30px);min-height:0}
 .ov-head{display:flex;align-items:baseline;gap:.8em}
@@ -315,8 +327,46 @@ dialog h2{margin:0;font:400 22px var(--display)}
 .tv.hide-ui{cursor:none}
 .tv-remote .btn{font-size:13px;padding:6px 10px}
 .tv-remote .btn kbd{margin-left:2px}
+.tv-more{display:contents}
+.tv-remote .more-btn,.rotate-hint,.for-touch{display:none}
+.tb{color:var(--ink);border:1px solid var(--line);background:var(--panel-2);border-radius:.3em;padding:0 .35em;font-weight:700;white-space:nowrap}
 
-.toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--panel-2);border:1px solid var(--line);padding:10px 16px;border-radius:10px;font-size:14px;box-shadow:0 10px 30px rgba(0,0,0,.4);z-index:30;max-width:calc(100vw - 32px)}
+/* 터치 화면 (폰을 TV에 이어 쓸 때, 곡 목록과 같은 기준 hover:none): 손가락 크기 버튼, 키 표시 숨김, 큰 TV 창.
+   PC·마우스 화면은 위 모양 그대로. 색은 지금 TV 무대 색 그대로 (회사 색은 CR-018) */
+@media (hover:none){
+  .for-keys{display:none}
+  .for-touch{display:inline}
+  .ov-foot,.num-keys{display:none}
+  .tv-remote{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:6px;padding:6px;width:calc(100vw - 24px);max-width:960px;
+    bottom:calc(8px + env(safe-area-inset-bottom,0px))}
+  .tv-remote .btn{display:block;height:48px;padding:0 4px;font-size:15px;line-height:46px;text-align:center;overflow:hidden;text-overflow:ellipsis;min-width:0}
+  .tv-remote kbd{display:none}
+  .tv-remote .more-btn{display:block}
+  .tv-remote.more-open .more-btn{color:var(--amber);border-color:var(--amber)}
+  .tv-more{display:none}
+  .tv-remote.more-open .tv-more{display:flex;flex-wrap:wrap;gap:6px;grid-column:1/-1;grid-row:1;padding-bottom:6px;border-bottom:1px solid var(--line)}
+  .tv-more .btn{flex:1 1 auto;height:44px;line-height:42px;font-size:14px;padding:0 8px}
+  .tv.pad-open .tv-remote{opacity:0;pointer-events:none}
+  .tv .ov-panel{align-items:flex-start;padding:2cqw 2cqw calc(76px + env(safe-area-inset-bottom,0px))}
+  .tv .ov-card{width:100%;font-size:max(15px,1.35cqw);padding:.6em .8em;gap:.5em}
+  .tv .ov-head .icon-btn{min-width:44px;min-height:44px;align-items:center;justify-content:center}
+  .tv .ov-card input[type=search]{min-height:44px}
+  .tv .ov-row{min-height:52px;padding:.3em .6em}
+  .tv .ov-row .acts .btn{min-height:40px;padding:0 .8em}
+  .tv .next-card .btn,.tv .score-box .btn{min-height:44px}
+  body:has(#tv:not([hidden])) .toast{bottom:calc(80px + env(safe-area-inset-bottom,0px))}   /* 알림이 조작 막대를 가리지 않게 */
+}
+/* 폰 가로: 대기 화면 아래쪽이 조작 막대에 가리지 않게 (무대 아래 검은 띠가 막대보다 좁을 때만 그만큼 올린다) */
+@media (hover:none) and (orientation:landscape){
+  .tv .tv-idle{bottom:max(7%,calc(76px + env(safe-area-inset-bottom,0px) - (100vh - min(100vh,100vw * 9 / 16)) / 2))}
+}
+@media (hover:none) and (orientation:portrait){
+  .tv .rotate-hint{display:block;position:absolute;top:calc(16px + env(safe-area-inset-top,0px));left:16px;right:16px;text-align:center;
+    font:400 20px/1.3 var(--display);color:var(--amber)}
+  .tv-remote{grid-template-columns:repeat(4,minmax(0,1fr))}
+}
+
+.toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--panel-2);border:1px solid var(--line);padding:10px 16px;border-radius:10px;font-size:14px;box-shadow:0 10px 30px rgba(0,0,0,.4);z-index:30;max-width:calc(100vw - 32px);pointer-events:none}
 
 /* 사용자 · Drive · 내 목록 */
 .prof-chip{padding:5px 12px 5px 5px}

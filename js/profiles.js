@@ -28,7 +28,9 @@ function renderProfileChip() {
 }
 function renderIdleUser() {
   const box = $('#idleUser'); box.textContent = '';
-  box.append(avatar(me()), `${me().name} · ♥ ${me().favorites.filter(songById).length}곡 · `, el('kbd', '', 'M'), ' 내 목록 · ', el('kbd', '', 'U'), ' 사용자 바꾸기');
+  const keys = el('span', 'for-keys');      // 터치 화면에서는 키 안내를 숨긴다 (사용자 바꾸기는 조작 막대 "⋯ 더 보기")
+  keys.append(' · ', el('kbd', '', 'M'), ' 내 목록 · ', el('kbd', '', 'U'), ' 사용자 바꾸기');
+  box.append(avatar(me()), `${me().name} · ♥ ${me().favorites.filter(songById).length}곡`, keys);
 }
 function switchProfile(p) {
   Profiles.cur = p; saveProfiles();
