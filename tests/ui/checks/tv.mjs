@@ -159,6 +159,7 @@ export default async function tv(ctx) {
     };
     const S = e => p.eval(e);
     await press('start'); res.start = await p.until('state.playing', 3000);
+    await p.until('curTime()>1', 5000);     // 0.5초 안이면 앱이 "처음"으로 봐서 일시정지 뒤 다시 누르기·취소가 안 먹는다 (앱 규칙)
     await press('pause'); res.pause = await S('!state.playing && state.offset>0');
     await press('pause'); res.pause = res.pause && await p.until('state.playing', 2000);
     let m = await marks(p); await press('jump'); res.jump = (await S(`__ui.flashes.length`)) > m.f;
