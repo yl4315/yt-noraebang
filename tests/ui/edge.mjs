@@ -52,8 +52,9 @@ export async function launchEdge({ downloadDir = null, args = [] } = {}) {
     '--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream',   // 가짜 마이크 (권한 창 없이 허용)
     '--disable-background-timer-throttling', '--disable-renderer-backgrounding', '--disable-backgrounding-occluded-windows',
     '--disable-background-networking', '--no-pings', '--metrics-recording-only',
-    // 안전장치: 이 PC(localhost·127.0.0.1) 말고는 이름 찾기부터 실패하게 한다. 허용한 곳(글꼴·QR)과 가사 서버는 요청 가로채기가 먼저 답한다
-    '--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE localhost, EXCLUDE 127.0.0.1',
+    // 안전장치: 이 PC(localhost·127.0.0.1)와 허용한 곳(글꼴·QR 라이브러리) 말고는 이름 찾기부터 실패하게 한다.
+    // 가사 서버·Google은 요청 가로채기가 먼저 답하거나 막는다. 글꼴은 서비스 워커도 직접 받아서(가로채기 밖) 허용 목록에 둔다
+    '--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE localhost, EXCLUDE 127.0.0.1, EXCLUDE fonts.googleapis.com, EXCLUDE fonts.gstatic.com, EXCLUDE cdnjs.cloudflare.com',
     `--user-data-dir=${profile}`, '--remote-debugging-port=0', ...args, 'about:blank',
   ], { stdio: 'ignore' });
   proc.on('error', () => {});

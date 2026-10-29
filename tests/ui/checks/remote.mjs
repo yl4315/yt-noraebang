@@ -49,7 +49,8 @@ export default async function remote(ctx) {
     const res = {};
     await ph.eval('window.scrollTo(0,0)');
     await tap('[data-cmd="start"]'); res.start = await cmd('start', 'state.playing');
-    await sleep(1500);
+    // 휴대폰은 1초마다 상태를 받는다: PC가 1초 넘게 부른 상태가 휴대폰에 올 때까지
+    await ph.until(`/▶ 부르는 중/.test(document.querySelector('#now .meta')?.textContent) && !/^0:00/.test(document.querySelector('#now .meta span:last-child')?.textContent)`, 8000);
     const now = await ph.eval(`({no:document.querySelector('#now .no').textContent, t:document.querySelector('#now .t').textContent, meta:document.querySelector('#now .meta').textContent, w:parseFloat(document.querySelector('#now .bar i').style.width)})`);
     const pcT = await p.eval('Math.round(curTime())');
     const phT = (now.meta.match(/(\d+):(\d\d) \/ 0:5\d$/) || []).slice(1).map(Number);
@@ -58,18 +59,18 @@ export default async function remote(ctx) {
     await tap('[data-cmd="pause"]'); res.pause = res.pause && await cmd('pause', 'state.playing');
     let m = await marks(p); await tap('[data-cmd="jump"]'); res.jump = await p.until(`__ui.flashes.length>${m.f}`, 4000);
     await tap('[data-cmd="key"][data-delta="-1"]'); res['key-'] = await cmd('key', `document.querySelector('#keyOut').textContent==='-1'`, 60000);
-    await sleep(1200);
+    await ph.until(`document.querySelector('#keyK').firstChild.textContent==='키 -1'`, 5000);
     const keyK = await ph.eval(`document.querySelector('#keyK').firstChild.textContent`);
     await tap('[data-cmd="keyReset"]'); res.keyReset = await cmd('keyReset', `document.querySelector('#keyOut').textContent==='원래 키'`);
     await tap('[data-cmd="key"][data-delta="1"]'); res['key+'] = await cmd('key', `document.querySelector('#keyOut').textContent==='+1'`, 60000);
     await tap('[data-cmd="keyReset"]'); await cmd('keyReset', `document.querySelector('#keyOut').textContent==='원래 키'`);
     await tap('[data-cmd="rec"]'); res.rec = await cmd('rec', 'state.armed');
-    await sleep(1200);
+    await ph.until(`document.querySelector('#recK small').textContent==='켜짐'`, 5000);
     const recK = await ph.eval(`document.querySelector('#recK small').textContent`);
     await tap('[data-cmd="rec"]'); await cmd('rec', '!state.armed');
     const v0 = await p.eval('settings.mrVol');
     await tap('[data-cmd="mr"][data-delta="-5"]'); res['mr-'] = await cmd('mr', `settings.mrVol===${v0 - 5}`);
-    await sleep(1200);
+    await ph.until(`document.querySelector('#mrK').textContent==='볼륨 ${v0 - 5}'`, 5000);
     const mrK = await ph.eval(`document.querySelector('#mrK').textContent`);
     await tap('[data-cmd="mr"][data-delta="5"]'); res['mr+'] = await cmd('mr', `settings.mrVol===${v0}`);
     await tap('[data-cmd="cancel"]'); res.cancel = await cmd('cancel', '!state.playing && state.offset===0');
