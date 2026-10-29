@@ -111,16 +111,17 @@ export default async function remote(ctx) {
     const res2 = await cmd('reserve', `state.queue.length===4 && state.queue[3]==='demo'`);
     ok('N9', res[0] === '10001' && favOk && pri && res2, `초성 "ㅈㅇㅂ" → ${res.join(',')} · ♡ → PC 좋아요 · 우선 · 예약`);
     // 예약 탭
+    const phQ = n => ph.until(`document.querySelectorAll('#queue .item').length===${n}`, 6000);
     await tap('nav [data-tab="queue"]');
-    await sleep(1200);
+    await phQ(4);
     const qn = await ph.eval(`[...document.querySelectorAll('#queue .item')].map(li=>li.querySelector('.no').textContent)`);
     const cnt = await ph.eval(`document.querySelector('#qCnt').textContent`);
     await tap('#queue .item:nth-child(2) .acts .sb:nth-child(2)');      // 둘째 줄 맨 위로
     const top = await cmd('top', `state.queue.length===4 && songById(state.queue[0]).no===${+qn[1]}`);
-    await sleep(1200);
+    await ph.until(`document.querySelector('#queue .item .no')?.textContent===${q(qn[1])}`, 6000);
     await tap('#queue .item:nth-child(4) .acts .x');                      // 넷째 줄 취소
     const un = await cmd('unreserve', `state.queue.length===3`);
-    await sleep(1200);
+    await phQ(3);
     await tap('#queue .item:nth-child(2) .acts .p');                      // 지금
     const nowOk = await cmd('now', `state.playing && state.queue.length===2`, 8000);
     await p.eval('stopPlayback()');
@@ -131,7 +132,7 @@ export default async function remote(ctx) {
     if (twoUsers < 2) await p.eval(`(()=>{ const u={id:'qa-remote-user', name:'QA리모컨', favorites:[], playlists:[], updatedAt:Date.now()}; Profiles.list.push(u); saveProfiles(u); })()`);
     await p.eval(`(()=>{ const s=songById(${q(ids.long)}); if(!isFav(s)) toggleFav(s); })()`);
     await tap('nav [data-tab="mine"]');
-    await sleep(1300);
+    await ph.until(`document.querySelectorAll('#profiles .chip').length>=2 && document.querySelectorAll('#mine .group:first-child .item').length>0`, 6000);
     const me0 = await p.eval('me().name');
     const other = await ph.eval(`[...document.querySelectorAll('#profiles .chip')].find(b=>!b.classList.contains('on'))?.textContent.slice(1)`);
     await ph.eval(`[...document.querySelectorAll('#profiles .chip')].find(b=>!b.classList.contains('on')).scrollIntoView({block:'center'})`);
@@ -140,7 +141,7 @@ export default async function remote(ctx) {
     const sw = await cmd('profile', `me().name===${q(other)}`);
     await tap(chipSel.replace(/nth-child\(\d+\)/, `nth-child(${await ph.eval(`[...document.querySelectorAll('#profiles .chip')].findIndex(b=>b.textContent.slice(1)===${q(me0)})+1`)})`));
     await cmd('profile', `me().name===${q(me0)}`);
-    await sleep(1300);
+    await ph.until(`document.querySelector('#profiles .chip.on')?.textContent.slice(1)===${q(me0)} && document.querySelectorAll('#mine .group:first-child .item').length>0`, 6000);
     await tap('#mine .group:first-child h3 .p');                          // 좋아요 전체 예약
     const all = await cmd('reserveMany', `state.queue.length===me().favorites.filter(songById).length && state.queue.length>0`);
     const n = await p.eval('state.queue.length');
