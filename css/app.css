@@ -371,7 +371,11 @@ body:has(#tv:not([hidden])) .toast{bottom:calc(var(--bar-h,80px) + 8px)}
 .ov-row.top .idx{color:var(--pink);font:400 1.2em var(--display)}
 .tv-remote .btn.cancel{color:#ff8a96;border-color:rgba(255,59,79,.5)}
 .idle-empty{color:var(--muted);line-height:1.7;background:rgba(255,255,255,.04);border:1px dashed var(--line);border-radius:.5em;padding:1em}
-.idle-right{display:flex;flex-direction:column;gap:1.2em;min-width:0}
+.idle-right{display:grid;grid-template-columns:auto minmax(0,1fr);gap:1.2em;align-content:start;min-width:0}
+/* 리모컨 칸(QR·주소·코드)은 시계 옆에: 맨 아래에 두면 조작 막대 위로 올린 뒤 칸이 모자라 잘린다 (점검 L6, CR-018) */
+.idle-right>*{grid-column:1/-1}
+.idle-right>.clock{grid-column:1;grid-row:1}
+.idle-right>.remote-info{grid-column:2;grid-row:1;align-self:start;font-size:.7em;overflow-wrap:anywhere}
 .clock{font:400 4.4em/1 var(--display);font-variant-numeric:tabular-nums;letter-spacing:.02em}
 .clock small{display:block;font:500 .2em var(--ui);color:var(--muted);letter-spacing:.1em;margin-top:.5em}
 .idle-tip{line-height:1.9;color:var(--muted)}
