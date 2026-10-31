@@ -19,7 +19,8 @@ export default async function mic(ctx) {
     const got = await p.eval(`({v:settings.recOffset, ui:document.querySelector('#v-recOffset').textContent, s:+document.querySelector('#s-recOffset').value})`);
     ok('B6', ui.st === label && ui.on && ui.btn === '마이크 다시 연결', `마이크 이름 "${label}" · 버튼 "${ui.btn}"`);
     ok('B9', t, `"마이크 연결됨 · ${label}" 알림`);
-    ok('B7', got.v === want && got.ui === want + 'ms' && got.s === want, `처음 켜면 녹음 기본 싱크 120 → ${got.v}ms (입력+출력 지연으로 계산)`);
+    // 점검이 다시 셀 때는 오디오가 돌기 시작해 출력 지연 값이 조금 달라질 수 있다 (main에서도 5ms 차이로 가끔 실패) → 10ms 안이면 맞음
+    ok('B7', Math.abs(got.v - want) <= 10 && got.v !== 120 && got.ui === got.v + 'ms' && got.s === got.v, `처음 켜면 녹음 기본 싱크 120 → ${got.v}ms (입력+출력 지연으로 계산 ${want}ms, 10ms 안)`);
   });
 
   await step('소리 막대가 움직임 (가짜 마이크 삐 소리)', ['F4'], async () => {
