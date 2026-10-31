@@ -25,7 +25,7 @@ export default async function reserve(ctx) {
     await sleep(6500);
     const still = await box();
     const gone = await p.until(`document.querySelector('#numBox').hidden`, 2500);
-    ok('I1', !a.h && a.d === '10001' && a.s === '작은 방의 노래 · YT 노래방 데모 MR' && b.s === '번호를 마저 눌러 주세요' && c.s === '없는 번호예요' && !still.h && gone,
+    ok('I1', !a.h && a.d === '10001' && a.s === '작은 방의 노래 · 예태 노래방 데모 MR' && b.s === '번호를 마저 눌러 주세요' && c.s === '없는 번호예요' && !still.h && gone,
       `"${a.s}" · "${b.s}" · "${c.s}" · 6.5초엔 남고 7초 뒤 지워짐 (${((Date.now() - t0) / 1000).toFixed(1)}초)`);
   });
 

@@ -11,11 +11,11 @@ export default async function basics(ctx) {
     ok('S4', await p.eval(`state.song.no===10001 && document.querySelector('#songNo').textContent==='10001' && document.querySelector('#songList li.on .no').textContent==='10001'`), '시작할 때 10001이 골라짐 (무대 번호·목록 표시)');
     const first = await p.eval(`(()=>{const li=document.querySelector('#songList li'); return {no:li.querySelector('.no').textContent, t:li.querySelector('.t').textContent, a:li.querySelector('.a').textContent}})()`);
     ok('S1', first.no === '10001' && first.t === '작은 방의 노래', `맨 위 ${first.no} ${first.t}`);
-    ok('C2', first.no === '10001' && first.t === '작은 방의 노래' && first.a.startsWith('YT 노래방 데모 MR'), `줄에 번호·제목·가수: ${first.no} / ${first.t} / ${first.a}`);
+    ok('C2', first.no === '10001' && first.t === '작은 방의 노래' && first.a.startsWith('예태 노래방 데모 MR'), `줄에 번호·제목·가수: ${first.no} / ${first.t} / ${first.a}`);
     const demoActs = await p.eval(`[...document.querySelectorAll('#songList li:first-child .acts button')].map(b=>b.title||b.textContent)`);
     ok('S3', !demoActs.includes('수정') && !demoActs.includes('삭제') && await isHidden(p, '#syncBtn'), `데모곡 줄 버튼: ${demoActs.join(',')} · 가사 싱크 편집 버튼 숨김`);
     const logo = await txt(p, '.logo');
-    ok('B1', /YT\s*노래방/.test(logo) && logo.includes('MR · 녹음 · 점수'), `로고 "${logo.replace(/\s+/g, ' ').trim()}"`);
+    ok('B1', /예태\s*노래방/.test(logo) && logo.includes('MR · 녹음 · 점수'), `로고 "${logo.replace(/\s+/g, ' ').trim()}"`);
     ok('E2', await visible(p, '#titleCard') && (await txt(p, '#cardTitle')) === '작은 방의 노래' && (await txt(p, '#titleCard .press')).includes('스페이스바'), '시작 전 제목 카드');
     ok('F2', (await visible(p, '.deck .keys')) && (await txt(p, '.deck .keys')).includes('Space'), '단축키 안내 글');
     // 탭 3개

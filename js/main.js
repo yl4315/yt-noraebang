@@ -29,7 +29,7 @@ function loop() {
 /* ---------------- 시작 ---------------- */
 (async function init() {
   applySettings();
-  const demo = { id: 'demo', no: 10001, title: '작은 방의 노래', artist: 'YT 노래방 데모 MR', demo: true, lyricOffset: 0 };
+  const demo = { id: 'demo', no: 10001, title: '작은 방의 노래', artist: '예태 노래방 데모 MR', demo: true, lyricOffset: 0 };
   loadProfiles();
   const saved = (await DB.all('songs')).sort((a, b) => a.no - b.no);
   state.songs = [demo, ...saved.filter(x => !x.deleted)];

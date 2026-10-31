@@ -1,0 +1,212 @@
+/*
+ * 자동 생성, 직접 고치지 말 것 — 원본 departments/design/tokens/tokens.json
+ * 다시 만들기: departments/design/tokens 에서 node build.mjs · 토큰 v1.2.0 (2026-10-29)
+ *
+ * 회사 디자인 토큰 (값은 캘린더 "예나의 하루" 그대로).
+ * - 기본은 다크(:root). 라이트: <html data-theme="light">, 폰·PC 설정 따라가기: data-theme="system"
+ * - 큰 글씨: <html data-text-size="large"> (제안값 — CR-005 시안 ②에서 확정)
+ * - 노래방 TV 무대 전용 색·글꼴(--pink, --cyan, --display, --lyric, 무대 배경)은 여기 없다 (CEO 결정 C1).
+ *   무대 변수는 app.css에 그대로 두고, 관리 화면·리모컨만 아래 회사 변수로 바꾼다 (크리에이티브 랩 CR-018).
+ * - 진동은 CSS로 못 정해서 haptics.js에 있다.
+ *
+ * 노래방 지금 변수 → 회사 변수 (디자인 언어 v0 3-2장 N1~N6, v1 design-language.md)
+ *   --room     #0a0e27                            → --color-bg #121316 [N1]
+ *   --panel    #131938                            → --color-surface #1C1E23 [N1]
+ *   --panel-2  #1b2250                            → --color-selected #202329 [N1] 버튼·고른 곡 바탕 (패널보다 한 단계 밝은 면)
+ *   --line     #2a336b                            → --color-line #2A2D33 [N1·N3] N3: 테두리는 대부분 빼고 면 색으로
+ *   --ink      #eef0ff                            → --color-text #ECEEF1 [N1]
+ *   --muted    #9aa2d4                            → --color-text-muted #8E949E [N1]
+ *   --amber    #ffbe3d                            → --color-accent #ECEEF1 [N2] 관리 화면·리모컨의 주 버튼·선택·포커스만 흰색(글자 color.accent.on). 무대 점수·번호 앰버는 그대로
+ *   --pink     #ff4fa3                            → (그대로) [C1] 무대 전용, 그대로
+ *   --cyan     #40e0d0                            → (그대로) [N6] 연결됨 점·무대 네온, 그대로
+ *   --rec      #ff3b4f                            → --color-danger #FF6B68 [N6] 오류·꺼짐 점은 회사 빨강. 무대 녹음 표시는 C1에 따라 그대로 둘 수 있음
+ *   --ui       'Noto Sans KR',system-ui,-apple-sy → --font-family [N4] 이미 같은 글꼴. Google Fonts 굵기에 600·800 추가 필요 (지금 400;500;700)
+ *   --display  'Black Han Sans','Noto Sans KR',sa → (그대로) [C1] 무대 전용, 그대로
+ *   --lyric    'Do Hyeon','Noto Sans KR',sans-ser → (그대로) [C1] 무대 전용, 그대로 (remote.html에는 없음)
+ * 모서리: 버튼 8 → --radius-lg 14, 패널·카드 12 → --radius-xl 16, 대화상자 14 → --radius-sheet 22(위쪽) [N3]
+ */
+
+/* 색 — 다크 (기본) */
+:root, [data-theme="dark"] {
+  color-scheme: dark;
+  --color-bg: #121316;
+  --color-surface: #1C1E23;
+  --color-line: #2A2D33;
+  --color-text: #ECEEF1;
+  --color-text-muted: #8E949E;
+  --color-text-faint: #4E535B;
+  --color-danger: #FF6B68;
+  --color-info: #6A9CFF;
+  --color-accent: #ECEEF1;
+  --color-accent-on: #121316;
+  --color-today-bg: #ECEEF1;
+  --color-today-text: #121316;
+  --color-selected: #202329;
+  --color-drop: #1E2A44;
+  --color-today-column: #16181D;
+  --color-shadow: #000000;
+  --color-backdrop: rgba(0,0,0,0.18);
+  --color-event-0-fill: #495876; --color-event-0-text: #CFE0FF; /* 기본 */
+  --color-event-1-fill: #535776; --color-event-1-text: #DADFFB; /* 라벤더 */
+  --color-event-2-fill: #476457; --color-event-2-text: #CDEEDD; /* 세이지 */
+  --color-event-3-fill: #624A6D; --color-event-3-text: #E8D3F0; /* 포도 */
+  --color-event-4-fill: #73514F; --color-event-4-text: #F9D9D6; /* 플라밍고 */
+  --color-event-5-fill: #706340; --color-event-5-text: #FDF0C4; /* 바나나 */
+  --color-event-6-fill: #755146; --color-event-6-text: #FDDCCF; /* 귤 */
+  --color-event-7-fill: #416172; --color-event-7-text: #CDEBFA; /* 공작 */
+  --color-event-8-fill: #575759; --color-event-8-text: #E3E3E3; /* 흑연 */
+  --color-event-9-fill: #4C516B; --color-event-9-text: #D3D8F2; /* 블루베리 */
+  --color-event-10-fill: #445D50; --color-event-10-text: #CFE6D7; /* 바질 */
+  --color-event-11-fill: #6F4142; --color-event-11-text: #F8CCCC; /* 토마토 */
+}
+
+/* 색 — 라이트 (골라서 쓸 때) */
+[data-theme="light"] {
+  color-scheme: light;
+  --color-bg: #FFFFFF;
+  --color-surface: #F6F7F9;
+  --color-line: #ECEDF0;
+  --color-text: #1C1F24;
+  --color-text-muted: #8A9099;
+  --color-text-faint: #C3C7CE;
+  --color-danger: #F0524F;
+  --color-info: #3D7BF0;
+  --color-accent: #1C1F24;
+  --color-accent-on: #FFFFFF;
+  --color-today-bg: #1C1F24;
+  --color-today-text: #FFFFFF;
+  --color-selected: #F1F3F6;
+  --color-drop: #E6EEFF;
+  --color-today-column: #FAFBFF;
+  --color-shadow: #000000;
+  --color-backdrop: rgba(0,0,0,0.18);
+  --color-event-0-fill: #CFE0FF; --color-event-0-text: #1D3F8A; /* 기본 */
+  --color-event-1-fill: #DADFFB; --color-event-1-text: #353E8C; /* 라벤더 */
+  --color-event-2-fill: #CDEEDD; --color-event-2-text: #17603D; /* 세이지 */
+  --color-event-3-fill: #E8D3F0; --color-event-3-text: #5E1A78; /* 포도 */
+  --color-event-4-fill: #F9D9D6; --color-event-4-text: #8A2E26; /* 플라밍고 */
+  --color-event-5-fill: #FDF0C4; --color-event-5-text: #7A5A00; /* 바나나 */
+  --color-event-6-fill: #FDDCCF; --color-event-6-text: #8F2C0B; /* 귤 */
+  --color-event-7-fill: #CDEBFA; --color-event-7-text: #00577F; /* 공작 */
+  --color-event-8-fill: #E3E3E3; --color-event-8-text: #3A3A3A; /* 흑연 */
+  --color-event-9-fill: #D3D8F2; --color-event-9-text: #24306E; /* 블루베리 */
+  --color-event-10-fill: #CFE6D7; --color-event-10-text: #0A4D27; /* 바질 */
+  --color-event-11-fill: #F8CCCC; --color-event-11-text: #7D0000; /* 토마토 */
+}
+@media (prefers-color-scheme: light) {
+  [data-theme="system"] {
+    color-scheme: light;
+    --color-bg: #FFFFFF;
+    --color-surface: #F6F7F9;
+    --color-line: #ECEDF0;
+    --color-text: #1C1F24;
+    --color-text-muted: #8A9099;
+    --color-text-faint: #C3C7CE;
+    --color-danger: #F0524F;
+    --color-info: #3D7BF0;
+    --color-accent: #1C1F24;
+    --color-accent-on: #FFFFFF;
+    --color-today-bg: #1C1F24;
+    --color-today-text: #FFFFFF;
+    --color-selected: #F1F3F6;
+    --color-drop: #E6EEFF;
+    --color-today-column: #FAFBFF;
+    --color-shadow: #000000;
+    --color-backdrop: rgba(0,0,0,0.18);
+    --color-event-0-fill: #CFE0FF; --color-event-0-text: #1D3F8A; /* 기본 */
+    --color-event-1-fill: #DADFFB; --color-event-1-text: #353E8C; /* 라벤더 */
+    --color-event-2-fill: #CDEEDD; --color-event-2-text: #17603D; /* 세이지 */
+    --color-event-3-fill: #E8D3F0; --color-event-3-text: #5E1A78; /* 포도 */
+    --color-event-4-fill: #F9D9D6; --color-event-4-text: #8A2E26; /* 플라밍고 */
+    --color-event-5-fill: #FDF0C4; --color-event-5-text: #7A5A00; /* 바나나 */
+    --color-event-6-fill: #FDDCCF; --color-event-6-text: #8F2C0B; /* 귤 */
+    --color-event-7-fill: #CDEBFA; --color-event-7-text: #00577F; /* 공작 */
+    --color-event-8-fill: #E3E3E3; --color-event-8-text: #3A3A3A; /* 흑연 */
+    --color-event-9-fill: #D3D8F2; --color-event-9-text: #24306E; /* 블루베리 */
+    --color-event-10-fill: #CFE6D7; --color-event-10-text: #0A4D27; /* 바질 */
+    --color-event-11-fill: #F8CCCC; --color-event-11-text: #7D0000; /* 토마토 */
+  }
+}
+
+/* 글꼴·크기·간격·모서리·그림자·선·투명도 */
+:root {
+  --font-family: 'Noto Sans KR', system-ui, -apple-system, 'Malgun Gothic', sans-serif; /* Google Fonts Noto Sans KR 굵기 300;400;500;600;700;800;900 를 불러야 함 */
+  --font-weight-light: 300;
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+  --font-weight-heavy: 800;
+  --font-weight-black: 900;
+  --font-display-size: 34px; --font-display-weight: 800; --font-display: 800 34px/normal var(--font-family);
+  --font-title-screen-size: 24px; --font-title-screen-weight: 800; --font-title-screen: 800 24px/normal var(--font-family);
+  --font-title-input-size: 20px; --font-title-input-weight: 700; --font-title-input: 700 20px/normal var(--font-family);
+  --font-title-sheet-size: 19px; --font-title-sheet-weight: 800; --font-title-sheet: 800 19px/normal var(--font-family);
+  --font-stat-strong-size: 18px; --font-stat-strong-weight: 800; --font-stat-strong: 800 18px/normal var(--font-family);
+  --font-stat-size: 17px; --font-stat-weight: 800; --font-stat: 800 17px/normal var(--font-family);
+  --font-title-bar-size: 17px; --font-title-bar-weight: 700; --font-title-bar: 700 17px/normal var(--font-family);
+  --font-title-item-size: 16px; --font-title-item-weight: 600; --font-title-item: 600 16px/normal var(--font-family);
+  --font-body-size: 15px; --font-body-weight: 400; --font-body-line: 22px; --font-body: 400 15px/22px var(--font-family);
+  --font-body-small-size: 14px; --font-body-small-weight: 400; --font-body-small-line: 20px; --font-body-small: 400 14px/20px var(--font-family);
+  --font-label-size: 13px; --font-label-weight: 700; --font-label: 700 13px/normal var(--font-family);
+  --font-meta-size: 12px; --font-meta-weight: 400; --font-meta: 400 12px/normal var(--font-family);
+  --font-caption-size: 11px; --font-caption-weight: 400; --font-caption: 400 11px/normal var(--font-family);
+  --font-cell-size: 10px; --font-cell-weight: 400; --font-cell: 400 10px/normal var(--font-family);
+  --font-cell-small-size: 9px; --font-cell-small-weight: 400; --font-cell-small-line: 11px; --font-cell-small: 400 9px/11px var(--font-family);
+  --space-xxs: 2px; /* 라벨과 숫자 사이 */
+  --space-xs: 4px; /* 이모지와 이름 사이 */
+  --space-sm: 6px; /* 카드 안 줄 사이 */
+  --space-md: 8px; /* 칩 사이, 구역 제목과 내용 사이 */
+  --space-lg: 10px; /* 머리 줄 버튼 사이, 일기 카드 사이 (가장 많이 씀) */
+  --space-xl: 12px; /* 카드 사이, 입력칸 안쪽 가로 */
+  --space-card: 14px; /* 카드 안쪽 여백 */
+  --space-screen: 16px; /* 화면 좌우 여백, 시트 안 구역 사이 */
+  --space-sheet: 18px; /* 아래 시트 안쪽 여백 */
+  --space-section: 24px; /* 큰 구역 위 여백, 목록 끝 여백 */
+  --size-tab-bar: 68px; /* 탭 바 높이 (+ 폰 아래 여백). 위 여백 8 */
+  --size-tab-icon: 30px; /* 탭 바 아이콘 크기 */
+  --size-fab: 56px; /* 동그란 + 버튼 지름 (기록 탭은 52) */
+  --size-fab-inset: 20px; /* + 버튼과 화면 오른쪽·아래 사이 */
+  --size-hit-slop: 10px; /* 작은 버튼의 누르는 범위 넓히기 (캘린더는 6·8·10·12, 10이 가장 많음) */
+  --radius-block: 3px; /* 달력 일정 블록 (다음 날로 이어지면 그쪽 모서리 0) */
+  --radius-xs: 6px; /* 끄는 중인 일정 */
+  --radius-sm: 10px; /* 입력칸, 안내 띠, 보기 전환 */
+  --radius-md: 12px; /* 메모칸, 확인 버튼, 하루 시트의 일정 항목 */
+  --radius-lg: 14px; /* 버튼, 목록 카드, 일기 카드 (가장 많이 씀) */
+  --radius-xl: 16px; /* 칩, 요약 카드, 루틴 카드 */
+  --radius-xxl: 18px; /* 기념일 카드, 빈 화면 카드 */
+  --radius-sheet: 22px; /* 아래 시트 위쪽 두 모서리 */
+  --radius-full: 9999px; /* 동그라미: + 버튼, 습관 스티커, 체크 원, 오늘 날짜 (앱에서는 지름의 절반 / CircleShape) */
+  --shadow-raised: 0 0 2px rgba(0,0,0,0.08); /* 분절 버튼(월/주)의 고른 칸. 캘린더 코드에 아래로 밀기 값 없음 */
+  --shadow-fab: 0 2px 6px rgba(0,0,0,0.2); /* 동그란 + 버튼 */
+  --shadow-drag: 0 2px 6px rgba(0,0,0,0.25); /* 달력에서 끌고 있는 일정 */
+  --shadow-lift: 0 4px 10px rgba(0,0,0,0.2); /* 목록 줄을 길게 눌러 들어 올렸을 때 (ReorderList, 1.03배 커짐) */
+  --shadow-sheet: 0 6px 20px rgba(0,0,0,0.2); /* 아래 시트 */
+  --line-hairline: 1px;
+  --line-border: 1px;
+  --line-check: 2px;
+  --line-focus: 2px;
+  --opacity-out-of-month: 0.35;
+  --opacity-off: 0.25;
+  --opacity-disabled: 0.4;
+  --opacity-backdrop: 0.18;
+}
+
+/* 큰 글씨 — 제안값 — CR-005 시안 ②에서 확정 */
+[data-text-size="large"] {
+  --font-display-size: 38px; --font-display: 800 38px/normal var(--font-family);
+  --font-title-screen-size: 28px; --font-title-screen: 800 28px/normal var(--font-family);
+  --font-title-input-size: 23px; --font-title-input: 700 23px/normal var(--font-family);
+  --font-title-sheet-size: 22px; --font-title-sheet: 800 22px/normal var(--font-family);
+  --font-stat-strong-size: 21px; --font-stat-strong: 800 21px/normal var(--font-family);
+  --font-stat-size: 20px; --font-stat: 800 20px/normal var(--font-family);
+  --font-title-bar-size: 20px; --font-title-bar: 700 20px/normal var(--font-family);
+  --font-title-item-size: 18px; --font-title-item: 600 18px/normal var(--font-family);
+  --font-body-size: 17px; --font-body-line: 25px; --font-body: 400 17px/25px var(--font-family);
+  --font-body-small-size: 16px; --font-body-small-line: 23px; --font-body-small: 400 16px/23px var(--font-family);
+  --font-label-size: 15px; --font-label: 700 15px/normal var(--font-family);
+  --font-meta-size: 14px; --font-meta: 400 14px/normal var(--font-family);
+  --font-caption-size: 13px; --font-caption: 400 13px/normal var(--font-family);
+  --font-cell-size: 12px; --font-cell: 400 12px/normal var(--font-family);
+  --font-cell-small-size: 11px; --font-cell-small-line: 13px; --font-cell-small: 400 11px/13px var(--font-family);
+}

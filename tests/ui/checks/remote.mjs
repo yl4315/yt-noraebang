@@ -79,7 +79,9 @@ export default async function remote(ctx) {
     const bad = Object.entries(res).filter(([, v]) => !v).map(([k]) => k);
     ok('N7', !bad.length && keyK === '키 -1' && recK === '켜짐' && mrK === `볼륨 ${v0 - 5}`, bad.length ? `안 된 버튼: ${bad.join(',')}` : `11개 다 PC에서 실행 · 휴대폰 표시: "${keyK}", 녹음 "${recK}", "${mrK}"`);
     const vib = await ph.eval('__ui.vib.slice()');
-    ok('N12', vib.length >= 11 && vib.every(v => v === 12), `누를 때 진동 ${vib.length}번 (${[...new Set(vib)].join(',')}ms)`);
+    // 회사 진동 (js/haptics.js, CR-018): 누르기 tap [50], 취소는 warning [50,100,50]만
+    const kinds = vib.map(v => JSON.stringify(v));
+    ok('N12', vib.length >= 11 && kinds.every(k => k === '[50]' || k === '[50,100,50]') && kinds.filter(k => k === '[50,100,50]').length === 1, `누를 때 진동 ${vib.length}번 (${[...new Set(kinds)].join(' ')}ms, 취소만 경고 진동)`);
   });
 
   await step('번호 키패드 예약·우선예약, 검색 탭(초성·♡·우선·예약), 예약 탭(지금·맨 위로·취소), 내 목록 탭(사용자·전체 예약·곡 예약)', ['N8', 'N9', 'N10', 'N11', 'N12'], async () => {
@@ -93,7 +95,7 @@ export default async function remote(ctx) {
     for (const k of String(ids.longNo)) await ph.tap(`#pad3 button:not([data-k]):nth-child(${k === '0' ? 11 : +k})`);
     await tap('#pad3 [data-k="pri"]');
     const r2 = await cmd('reserve', `state.queue.length===2 && songById(state.queue[0]).no===${ids.longNo}`);
-    ok('N8', ns === '작은 방의 노래 · YT 노래방 데모 MR' && r1 && r2, `번호 → "${ns}" · 예약 · 우선예약 (PC 예약 ${(await pcs()).q.join(',')})`);
+    ok('N8', ns === '작은 방의 노래 · 예태 노래방 데모 MR' && r1 && r2, `번호 → "${ns}" · 예약 · 우선예약 (PC 예약 ${(await pcs()).q.join(',')})`);
     ok('N12', toastPh, '예약하면 휴대폰에 결과 안내 ("예약 · 작은 방의 노래")');
     // 검색 탭
     await tap('nav [data-tab="search"]');
