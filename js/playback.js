@@ -29,7 +29,7 @@ async function play() {
   if (fresh && !state.sync) { state.score = { frames: 0, voiced: 0, pitched: 0 }; countPlay(state.song); }
   if (state.armed && !state.sync) startRecording();
   startSources();
-  if (!state.micOn && fresh && !state.sync) toast('마이크를 켜면 녹음하고 점수도 받을 수 있어요');
+  if (!state.micOn && fresh && !state.sync && !state.armed) toast('마이크를 켜면 녹음하고 점수도 받을 수 있어요');   // 녹음 중이면 startRecording 안내가 먼저 (CR-018)
   updateTransportUI();
   if (state.tv) pokeUI();
 }

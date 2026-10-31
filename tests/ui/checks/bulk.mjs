@@ -39,7 +39,7 @@ export default async function bulk(ctx) {
     const r1 = await rows(p), h1 = await head(p);
     ok('D12', r1[0].cls === 'ok' && /가사 자동/.test(r1[0].st) && r1[0].t === 'QA 시험 첫째' && r1[0].a === 'QA가수A' && /바뀌어 있어서 바꿔 넣었어요/.test(r1[0].msg),
       `뒤집힌 이름: "${r1[0].t} / ${r1[0].a}" "${r1[0].st}"`);
-    ok('D14', r1[2].st === '서버가 바빠요 · 다시 찾기' && r1[3].st === '서버가 바빠요 · 다시 찾기' && r1[4].st === '대기' && /계속 바빠서 찾기를 멈췄어요/.test(h1.note) && /다시 찾을 곡 3/.test(h1.sum),
+    ok('D14', r1[2].st === '⟳ 서버가 바빠요 · 다시 찾기' && r1[3].st === '⟳ 서버가 바빠요 · 다시 찾기' && r1[2].cls === 'retry' && r1[4].st === '대기' && /계속 바빠서 찾기를 멈췄어요/.test(h1.note) && /다시 찾을 곡 3/.test(h1.sum),
       `두 곡 연달아 바쁨 → 멈춤: 셋째 "${r1[2].st}", 넷째 "${r1[3].st}", 열째 "${r1[4].st}", 위쪽 "${h1.note.slice(0, 30)}…"`);
     ok('D13', r1[1].cls === 'ask' && /골라 주세요 \(2개\)/.test(r1[1].st), `싱크 없음 → "${r1[1].st}"`);
     // 위쪽 "다시 찾기": 셋째는 못 찾음, 넷째·열째는 찾음
@@ -72,7 +72,7 @@ export default async function bulk(ctx) {
     await p.click(R(3, '.bk-find'));
     await sleep(300); await settled(p);
     const fixed = (await rows(p))[2];
-    ok('D14', off.st === '인터넷 끊김' && /인터넷이 끊겨 있어요/.test(hOff.note) && fixed.t === 'QA 시험 셋째 고침' && /가사 자동/.test(fixed.st),
+    ok('D14', off.st === '⟳ 인터넷 끊김' && /인터넷이 끊겨 있어요/.test(hOff.note) && fixed.t === 'QA 시험 셋째 고침' && /가사 자동/.test(fixed.st),
       `끊김 → "${off.st}" · 연결 뒤 고친 제목으로 다시 찾기 → "${fixed.st}"`);
     // 넷째: 가사 없이 넣기
     await p.click(R(4, '.bk-main'));

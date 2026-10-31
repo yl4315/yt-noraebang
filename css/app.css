@@ -34,6 +34,9 @@ body{background:var(--room);color:var(--ink);font:15px/1.5 var(--ui);
 button,input,textarea,select{font:inherit;color:inherit}
 button{cursor:pointer}
 :focus-visible{outline:2px solid var(--amber);outline-offset:2px}
+/* 한국어 낱말 중간에서 줄이 안 바뀌게 ("돼/요" → "돼요"). 무대는 예전 그대로 (CR-018) */
+.wrap,dialog{word-break:keep-all;overflow-wrap:break-word}
+.stage{word-break:normal;overflow-wrap:normal}
 .wrap{max-width:1320px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
 
 /* header */
@@ -73,7 +76,9 @@ select{background:var(--btn-bg);border:1px solid var(--btn-line);border-radius:v
 .song .no{font:700 13px/1 var(--ui);color:var(--muted);padding:5px 0;min-width:5ch;font-variant-numeric:tabular-nums}
 .song .meta{min-width:0}
 .song .t{font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.song .a{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.song .a{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;display:flex;align-items:baseline}
+.song .a .an{min-width:0;overflow:hidden;text-overflow:ellipsis}
+.song .a .stag{flex:none}
 .song .acts{display:flex;gap:2px}
 .icon-btn{background:none;border:0;color:var(--muted);padding:4px;border-radius:6px;display:inline-flex}
 .icon-btn:hover{color:var(--ink);background:var(--line)}
@@ -240,7 +245,7 @@ dialog h2{margin:0;font:var(--font-title-sheet)}
 /* 여러 곡 한 번에 넣기 · 가사 없는 곡 모아 찾기 (CR-017). 곡 추가 창·후보 목록과 같은 모양 */
 #bulkDialog{width:min(720px,calc(100vw - 32px))}
 .bulk-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
-.bulk-head .icon-btn{font-size:18px;width:36px;height:36px;align-items:center;justify-content:center}
+.bulk-head .icon-btn{font-size:18px;width:44px;height:44px;align-items:center;justify-content:center}
 .bulk-sum{display:flex;align-items:baseline;justify-content:space-between;gap:2px 12px;flex-wrap:wrap;font-size:14px}
 .bulk-sum b{font-variant-numeric:tabular-nums}
 .bulk-note{display:flex;align-items:center;gap:8px 12px;flex-wrap:wrap;background:var(--room);border-radius:var(--r-in);padding:8px 10px;font-size:13px}
@@ -249,7 +254,7 @@ dialog h2{margin:0;font:var(--font-title-sheet)}
 .bk-row{display:grid;grid-template-columns:auto minmax(0,1fr);border-bottom:1px solid var(--line)}
 .bk-row:last-child{border-bottom:0}
 .bk-row.open{background:var(--panel)}
-.bk-chk{display:flex;align-items:center;justify-content:center;padding:0 2px 0 10px;cursor:pointer}
+.bk-chk{display:flex;align-items:center;justify-content:center;min-width:48px;padding:0;cursor:pointer}
 .bk-chk input{accent-color:var(--amber);width:18px;height:18px;margin:0}
 .bk-main{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:4px 10px;align-items:center;width:100%;min-height:48px;background:none;border:0;text-align:left;padding:9px 10px 9px 8px}
 @media (hover:hover){.bk-main:hover{background:var(--hover)}}
@@ -261,7 +266,7 @@ dialog h2{margin:0;font:var(--font-title-sheet)}
 .bk-st.ok{background:color-mix(in srgb,var(--cyan) 15%,transparent);color:var(--cyan)}
 .bk-st.ask{background:color-mix(in srgb,var(--color-info) 16%,transparent);color:var(--color-info)}
 .bk-st.fail{background:color-mix(in srgb,var(--color-danger) 14%,transparent);color:var(--color-danger)}
-.bk-st.busy{color:var(--ink)}
+.bk-st.busy,.bk-st.retry{color:var(--ink)}
 .bk-st.dup{background:none;border:1px solid var(--line)}
 .bk-more{grid-column:1/-1;display:flex;flex-direction:column;gap:10px;padding:2px 12px 12px}
 .bk-more .lrc-results{max-height:220px}
@@ -341,6 +346,13 @@ dialog h2{margin:0;font:var(--font-title-sheet)}
 /* TV 대기 화면 */
 .tv-idle{position:absolute;inset:13% 4% 7% 4%;z-index:4;display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:4cqw;font-size:clamp(12px,1.5cqw,36px)}
 .stage.idle .lyrics{visibility:hidden}
+/* 조작 막대가 가리는 높이(--bar-h, js updateBarSpace)만큼 대기 화면 아래쪽과 — 막대가 보이는 동안 — 가사 두 줄을 올린다.
+   무대 아래 검은 띠가 있으면 그만큼 덜 올린다 (CR-018: 디자인실 CR-003 L1, QA R3, 점검 L6) */
+.tv .tv-idle{bottom:max(7%,calc(var(--bar-h,0px) + 8px - (100vh - min(100vh,100vw * 9 / 16)) / 2))}
+.tv .lyrics{transition:bottom .2s ease-out}
+.tv:not(.hide-ui) .lyrics{bottom:max(7%,calc(var(--bar-h,0px) + 8px - (100vh - min(100vh,100vw * 9 / 16)) / 2))}
+/* TV 화면의 알림은 조작 막대(더 보기 줄 포함) 위에 */
+body:has(#tv:not([hidden])) .toast{bottom:calc(var(--bar-h,80px) + 8px)}
 .idle-h{font:400 1.5em var(--display);display:flex;align-items:baseline;gap:.5em;margin-bottom:.5em}
 .idle-h span{font:500 .6em var(--ui);color:var(--muted)}
 .idle-q{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:.35em}
@@ -399,25 +411,24 @@ dialog h2{margin:0;font:var(--font-title-sheet)}
   .tv-remote.more-open .more-btn{color:var(--amber);border-color:var(--amber)}
   .tv-more{display:none}
   .tv-remote.more-open .tv-more{display:flex;flex-wrap:wrap;gap:6px;grid-column:1/-1;grid-row:1;padding-bottom:6px;border-bottom:1px solid var(--line)}
-  .tv-more .btn{flex:1 1 auto;height:44px;line-height:42px;font-size:14px;padding:0 8px}
+  .tv-more .btn{flex:1 1 auto;height:48px;line-height:46px;font-size:14px;padding:0 8px}
+  .tv .np-grid{grid-auto-rows:max(48px,3em)}
+  .tv .np-head .icon-btn{min-width:44px;min-height:44px}
   .tv.pad-open .tv-remote{opacity:0;pointer-events:none}
   .tv .ov-panel{align-items:flex-start;padding:2cqw 2cqw calc(76px + env(safe-area-inset-bottom,0px))}
   .tv .ov-card{width:100%;font-size:max(15px,1.35cqw);padding:.6em .8em;gap:.5em}
   .tv .ov-head .icon-btn{min-width:44px;min-height:44px;align-items:center;justify-content:center}
   .tv .ov-card input[type=search]{min-height:44px}
   .tv .ov-row{min-height:52px;padding:.3em .6em}
-  .tv .ov-row .acts .btn{min-height:40px;padding:0 .8em}
+  .tv .ov-row .acts .btn{min-height:48px;padding:0 .8em}
   .tv .next-card .btn,.tv .score-box .btn{min-height:44px}
-  body:has(#tv:not([hidden])) .toast{bottom:calc(80px + env(safe-area-inset-bottom,0px))}   /* 알림이 조작 막대를 가리지 않게 */
-}
-/* 폰 가로: 대기 화면 아래쪽이 조작 막대에 가리지 않게 (무대 아래 검은 띠가 막대보다 좁을 때만 그만큼 올린다) */
-@media (hover:none) and (orientation:landscape){
-  .tv .tv-idle{bottom:max(7%,calc(76px + env(safe-area-inset-bottom,0px) - (100vh - min(100vh,100vw * 9 / 16)) / 2))}
 }
 @media (hover:none) and (orientation:portrait){
   .tv .rotate-hint{display:block;position:absolute;top:calc(16px + env(safe-area-inset-top,0px));left:16px;right:16px;text-align:center;
     font:400 20px/1.3 var(--display);color:var(--amber)}
   .tv-remote{grid-template-columns:repeat(4,minmax(0,1fr))}
+  .tv .num-pad{top:2%;bottom:2%;transform:none;max-height:none}
+  .tv .np-grid{flex:1;min-height:0;grid-auto-rows:minmax(0,1fr)}
 }
 
 .toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--btn-bg);color:var(--ink);padding:10px 16px;border-radius:var(--r-in);word-break:keep-all;font-size:14px;box-shadow:0 10px 30px rgba(0,0,0,.4);z-index:30;max-width:calc(100vw - 32px);pointer-events:none}
@@ -514,9 +525,16 @@ details summary{cursor:pointer;font-weight:700;font-size:13px}
   .two,.mx-knobs{grid-template-columns:1fr}
   .bk-main{grid-template-columns:auto minmax(0,1fr)}
   .bk-st{grid-column:2;justify-self:start}
+  .bk-more .lrc-results{max-height:none}
+  .bk-name{white-space:normal}
+  .bk-name .t,.bk-name .a{display:block;margin-left:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .mic-status span{max-width:140px}
   .keys{display:none}
 }
+@media (hover:none),(max-width:560px){
+  #bulkDialog .btn{min-height:44px}
+}
 @media (prefers-reduced-motion:reduce){
   .lights,.badge.rec,.song.fresh{animation:none}
+  .tv .lyrics{transition:none}
 }

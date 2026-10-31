@@ -38,7 +38,9 @@ npm run test:ui                  # 화면 자동 점검: 헤드리스 Edge가 �
 
 | 파일 | 내용 |
 |---|---|
-| `js/util.js` | 공용 도구 (`$`, `el`, `fmt`, `pick`, `lsGet`, `norm`, `chosung` …) |
+| `js/util.js` | 공용 도구 (`$`, `el`, `fmt`, `pick`, `lsGet`, `norm`, `chosung`, 터치 화면 진동 `haptic` …) |
+| `js/haptics.js` | **디자인실 파일 복사본** (`departments/design/tokens/out/karaoke/`), 직접 고치지 않음. 회사 진동 `YenaHaptics.play('tap'·'success'·'warning')`. 앱(`util.js` 다음)과 `remote.html`이 같이 씀 |
+| `css/tokens.css` | **디자인실 파일 복사본**, 직접 고치지 않음. 회사 CSS 변수(`--color-*`·`--radius-*`·`--font-*`). `app.css`·`remote.html`보다 먼저 불러온다 |
 | `js/core.js` | **화면과 상관없는 순수 로직**: 가사(LRC) 읽기, 검색, Drive 동기화 합치기 규칙, 파일 이름 → 제목·가수, 가사 후보 정렬·자동 고르기, 백업 파일 형식, TV로 켜기 판단, 지연 자동 측정 계산, 숫자판 방향키 고르기. Node 테스트가 직접 불러 쓴다 |
 | `js/store.js` | IndexedDB, 설정 |
 | `js/demo.js` | 데모곡 반주 합성 + 기기 저장(캐시) |
@@ -58,6 +60,16 @@ npm run test:ui                  # 화면 자동 점검: 헤드리스 Edge가 �
 | `remote.html` | 휴대폰 리모컨 화면 (따로 동작, `remote.webmanifest`로 홈 화면 아이콘) |
 | `sw.js` | 서비스 워커: 앱 파일·글꼴을 저장해 오프라인에서도 열리게 |
 | `tests/ui/` | 화면 자동 점검 (`npm run test:ui`): `run.mjs` 차례·결과표, `edge.mjs` 헤드리스 Edge(CDP), `serve.py` 시험 서버, `checks/*.mjs` 흐름별 점검, `features.json` 기능 번호 연결표, `fixtures.mjs` 시험 파일(그때그때 만듦), `compare.mjs` 사진 비교, `selftest.mjs` 고장 잡는지 시험. 앱 파일이 아니라 `sw.js` 목록에 넣지 않는다 |
+
+## 디자인 (CR-018)
+
+- 관리 화면(위쪽 막대·곡 목록·창·조작부·싱크 편집기)과 휴대폰 리모컨은 **회사 다크** (캘린더 "예나의 하루"), **TV 무대는 노래방 색 그대로** (CEO 결정 C1).
+- `app.css` 맨 위 `:root`가 꽂는 자리: 예전 변수 이름(`--room`·`--panel`·`--amber` …)이 회사 변수를 가리키고, `.stage,.tv`에서 예전 무대 값으로 되돌린다. 그래서 **무대 선택자는 고치지 않아도 예전 모양**이다. 같이 쓰는 부품(`.btn`·`.round`·`kbd`)은 `--btn-bg`·`--btn-line`·`--r-btn`·`--on-amber` 같은 변수로 양쪽 값을 나눈다. 관리 화면에 색을 새로 쓸 때는 `#색` 대신 회사 변수(`--color-danger`·`--color-info` …).
+- `--amber`는 관리 화면에서 흰색(회사 강조)이다. 소리 막대처럼 "내용 색"은 직접 값으로 둔다.
+- 다크 고정. `<html data-theme="light">`로 바꿔 보면 관리 화면에 남은 직접 색을 찾을 수 있다 (무대는 남색 그대로가 맞음).
+- 디자인실이 토큰을 바꾸면 두 파일을 다시 복사한다 (`cmp`로 같은지 확인).
+- 진동은 손가락 화면에서만(`haptic()`): 누르기 `tap`, 예약·저장 `success`, 취소 `warning` (한 번 누르면 하나만). 리모컨은 `remote.html` 안 `buzz()`.
+- 조작 막대가 가리는 높이는 `updateBarSpace()`가 문서 `--bar-h`로 둔다 → 대기 화면 아래쪽, 막대가 보이는 동안 가사 두 줄, TV 화면 알림이 그만큼 올라간다.
 
 ## 꼭 지킬 것
 

@@ -500,3 +500,25 @@ test('방향키로 숫자판 버튼 고르기: 1~9, 아래 줄, 넓은 버튼, �
   assert.equal(C.pickByArrow(items, -1, 'ArrowDown'), 0);   // 아직 고른 게 없으면 첫 버튼
   assert.equal(C.pickByArrow([], -1, 'ArrowDown'), -1);
 });
+
+test('방향키로 숫자판: 위 오른쪽 ✕가 있어도 아래 줄 오른쪽 끝에서 → 는 그대로 (QA CR-003 R5)', () => {
+  // TV 화면 숫자판: 머리 줄 오른쪽에 ✕(닫기), 그 아래 1~9 / ⌫ 0 처음부터 / 우선예약 [예약 두 칸]
+  const at = (col, row) => ({ x: col * 70, y: row * 50 });
+  const items = [at(2.3, -1), at(0, 0), at(1, 0), at(2, 0), at(0, 1), at(1, 1), at(2, 1), at(0, 2), at(1, 2), at(2, 2),
+    at(0, 3), at(1, 3), at(2, 3), at(0, 4), at(1.5, 4)];
+  const L = ['close', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'del', '0', 'clr', 'pri', 'res'];
+  const go = (from, dir) => L[C.pickByArrow(items, L.indexOf(from), dir)];
+  assert.equal(go('clr', 'ArrowRight'), 'clr');
+  assert.equal(go('res', 'ArrowRight'), 'res');
+  assert.equal(go('9', 'ArrowRight'), '9');
+  assert.equal(go('3', 'ArrowUp'), 'close');     // 위로는 ✕에 간다
+  assert.equal(go('close', 'ArrowDown'), '3');
+  assert.equal(go('5', 'ArrowRight'), '6');
+});
+
+test('파일 이름 → 제목: 뒤에 숫자가 이어지는 앞 숫자는 트랙 번호가 아니다 (QA CR-017 R7)', () => {
+  same(C.titleFromFilename('1-800-273-8255 - Logic.mp3'), { title: '1-800-273-8255', artist: 'Logic' });
+  same(C.titleFromFilename('1. 밤편지 - 아이유.mp3'), { title: '밤편지', artist: '아이유' });
+  same(C.titleFromFilename('01 밤편지.mp3'), { title: '밤편지', artist: '' });
+  same(C.titleFromFilename('3-좋은 날.mp3'), { title: '좋은 날', artist: '' });
+});

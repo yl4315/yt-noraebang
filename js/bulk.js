@@ -61,7 +61,7 @@ function buildRow(r) {
   r.el = li;
   const q = s => li.querySelector(s), chk = q('.bk-chk input');
   chk.setAttribute('aria-label', Bulk.mode === 'add' ? '이 곡 넣기' : '이 곡 가사 저장');
-  chk.onchange = () => { r.checked = chk.checked; r.touched = true; renumber(); paintAll(); if (r.checked && r.st === 'wait') bulkRun(); };
+  chk.onchange = () => { haptic(); r.checked = chk.checked; r.touched = true; renumber(); paintAll(); if (r.checked && r.st === 'wait') bulkRun(); };
   q('.bk-main').onclick = () => { r.open = !r.open; paintRow(r); };
   q('.f-t').value = r.title; q('.f-a').value = r.artist;
   q('.f-t').oninput = () => { r.title = q('.f-t').value; paintRow(r, true); };
@@ -82,9 +82,10 @@ function rowState(r) {
     case 'picked': return ['ok', '✔ 고름 · ' + pickTags(r)];
     case 'ask': return ['ask', `? 골라 주세요 (${r.items.length}개)`];
     case 'none': return ['fail', '✕ 못 찾음 · 다시 찾기'];
-    case 'busy': return ['fail', '서버가 바빠요 · 다시 찾기'];
-    case 'offline': return ['fail', '인터넷 끊김'];
-    case 'err': return ['fail', `가사 서버 오류(${r.code}) · 다시 찾기`];
+    // 바빠요·끊김·서버 오류는 잠깐 생긴 문제라 "못 찾음"(빨강)과 다르게 회색 + ⟳ (디자인실 CR-017 L3)
+    case 'busy': return ['retry', '⟳ 서버가 바빠요 · 다시 찾기'];
+    case 'offline': return ['retry', '⟳ 인터넷 끊김'];
+    case 'err': return ['retry', `⟳ 가사 서버 오류(${r.code}) · 다시 찾기`];
     case 'skip': return ['', '가사 없이'];
   }
   return ['', ''];
@@ -124,7 +125,7 @@ function paintRow(r, light) {
   li.className = 'bk-row' + (r.open ? ' open' : '') + (r.checked ? '' : ' off');
   q('.no').textContent = r.no ?? '—';
   q('.t').textContent = r.title.trim() || '(제목 없음)';
-  q('.a').textContent = r.artist.trim() || '(가수 없음)';
+  q('.a').textContent = r.artist.trim() || '가수 미상';
   const [cls, txt] = rowState(r), st = q('.bk-st');
   st.className = 'bk-st ' + cls; st.textContent = txt;
   q('.bk-chk input').checked = r.checked;
@@ -185,6 +186,7 @@ function checkDup(r) {
   if (r.dup && r.checked && !r.touched) { r.checked = false; renumber(); paintAll(); }
 }
 function pickRow(r, it) {
+  haptic();
   if (r.pick !== it || r.st !== 'auto') { r.pick = it; r.st = 'picked'; }
   if (!r.artist.trim()) r.artist = it.artistName;   // 곡 추가 창과 같이: 가수가 비었으면 채운다
   r.open = false; paintRow(r); paintHead();
@@ -252,6 +254,7 @@ async function searchRow(r, my) {
 async function bulkSave() {
   const add = Bulk.mode === 'add', rows = Bulk.rows.filter(r => r.checked && (add || r.pick));
   if (!rows.length || Bulk.saving) return;
+  haptic('success');
   Bulk.saving = true; Bulk.sess++; Bulk.running = false;   // 찾기를 멈춘다 (아직 찾는 중인 곡은 가사 없이 저장)
   $('#blkCancel').disabled = true; paintHead();
   let fail = 0, lyr = 0, auto = 0;

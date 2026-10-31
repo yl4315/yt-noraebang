@@ -9,6 +9,8 @@ const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 let toastTimer;
+// 회사 진동 (js/haptics.js, 디자인실 복사본): 손가락으로 쓰는 화면에서만. tap 누르기 · success 예약·저장 · warning 취소 (CR-018)
+function haptic(kind = 'tap') { try { if (matchMedia('(hover:none)').matches) window.YenaHaptics?.play(kind); } catch {} }
 function toast(msg, ms = 3000) {
   const el = $('#toast'); el.textContent = msg; el.hidden = false;
   clearTimeout(toastTimer); toastTimer = setTimeout(() => el.hidden = true, ms);

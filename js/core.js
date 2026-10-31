@@ -119,7 +119,7 @@ function titleFromFilename(name) {
   // MR은 대문자·소문자만 ("Mr. Chu"의 Mr는 지키려고), Inst.·Instrumental은 대소문자 상관없이. 밑줄 옆도 뺀다 ("_MR")
   s = s.replace(/(?<![A-Za-z0-9])(?:MR|mr)(?![A-Za-z0-9.])/g, '').replace(/(?<![A-Za-z0-9])inst(?:rumental)?\.?(?![A-Za-z0-9])/ig, '');
   s = s.replace(/[(\[]\s*[)\]]/g, '');                                    // 위에서 비워진 () []
-  const noTrack = s.replace(/^\s*(?:0\d[\s.\-_)]+|\d{1,3}[.\-_)]\s*)/, ''); // "01 ", "1. " 같은 트랙 번호 ("10 Minutes"는 그대로)
+  const noTrack = s.replace(/^\s*(?:0\d[\s.\-_)]+|\d{1,3}[.\-_)](?!\d)\s*)/, ''); // "01 ", "1. " 같은 트랙 번호 ("10 Minutes"·"1-800-273-8255"는 그대로)
   if (noTrack.trim()) s = noTrack;
   s = s.replace(/\s+[–—]\s+/g, ' - ').replace(/^[\s_\-–]+|[\s_\-–]+$/g, '').replace(/\s{2,}/g, ' ').trim();
   const i = s.lastIndexOf(' - ');
@@ -265,7 +265,7 @@ function summarizeDelays(lat, maxMs = MEASURE.maxMs, unevenMs = MEASURE.unevenMs
 
 /* ---------------- 방향키로 버튼 고르기 (TV 화면 숫자판) ---------------- */
 // items: 버튼 가운데 좌표 [{x, y}], from: 지금 고른 버튼 번호, dir: 'ArrowUp'·'ArrowDown'·'ArrowLeft'·'ArrowRight'.
-// 그 방향에 있는 버튼 중 가장 가까운 것(옆으로 벗어난 거리는 2배로 친다)의 번호. 그 방향에 없으면 from 그대로.
+// 그 방향(45도 안)에 있는 버튼 중 가장 가까운 것(옆으로 벗어난 거리는 2배로 친다)의 번호. 그 방향에 없으면 from 그대로.
 // 아직 고른 버튼이 없으면(from이 없는 번호) 첫 버튼.
 function pickByArrow(items, from, dir) {
   const c = items && items[from];
@@ -275,7 +275,7 @@ function pickByArrow(items, from, dir) {
   items.forEach((p, i) => {
     if (i === from) return;
     const along = (h ? p.x - c.x : p.y - c.y) * sign, across = Math.abs(h ? p.y - c.y : p.x - c.x);
-    if (along <= 0.5) return;
+    if (along <= 0.5 || across > along) return;   // 옆으로 더 벗어난 버튼(45도 밖)은 그 방향이 아니다 (맨 아래 오른쪽에서 → 가 위 ✕로 가지 않게)
     const d = along + across * 2;
     if (d < bd) { bd = d; best = i; }
   });

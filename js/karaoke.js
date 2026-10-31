@@ -145,13 +145,15 @@ function padArrow(dir) {
 $('#numPad').addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b) return;
   const k = b.dataset.k;
+  if (k !== 'res' && k !== 'pri') haptic();
   if (/^[0-9]$/.test(k)) numKey(k);
   else if (k === 'del') { numBuf = numBuf.slice(0, -1); updateNumBox(); }
   else if (k === 'clr') { numBuf = ''; updateNumBox(); }
   else if (k === 'close') { cancelNumPad(); return; }
   else if (k === 'res' || k === 'pri') {
-    if (!numBuf) flash('곡 번호를 먼저 눌러 주세요');
-    else if (reserveByNumber(k === 'pri')) { closeNumPad(); return; }
+    if (!numBuf) { haptic('warning'); flash('곡 번호를 먼저 눌러 주세요'); }
+    else if (reserveByNumber(k === 'pri')) { haptic('success'); closeNumPad(); return; }
+    else haptic('warning');
   }
   if (e.detail) b.blur();   // 손가락·마우스로 누른 뒤에는 포커스를 두지 않는다 (키보드 Enter가 예약으로 가게)
 });
@@ -289,7 +291,7 @@ async function enterTV() {
   document.querySelectorAll('dialog[open]').forEach(d => d.close());
   const st = $('#stage'); stageHome = { parent: st.parentNode, next: st.nextSibling };
   $('#tvScreen').append(st); $('#tv').hidden = false; document.body.style.overflow = 'hidden';
-  state.tv = true; renderBest(); renderClock(); updateScreens(curTime()); pokeUI(); updateWakeLock();
+  state.tv = true; renderBest(); renderClock(); updateScreens(curTime()); pokeUI(); updateWakeLock(); updateBarSpace();
   try { document.documentElement.requestFullscreen?.().then(lockLandscape, () => {}); } catch {}
 }
 function exitTV() {
@@ -302,6 +304,14 @@ function exitTV() {
   if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
   updateScreens(curTime()); updateWakeLock();
 }
+// 조작 막대가 화면 아래를 가리는 높이 → 문서의 --bar-h (#tv 밖의 알림도 씀). 대기 화면 아래쪽과 (막대가 보이는 동안) 가사를 그만큼 올린다 (CR-018)
+function updateBarSpace() {
+  if (!state.tv) return;
+  const r = $('#tvRemote').getBoundingClientRect();
+  document.documentElement.style.setProperty('--bar-h', Math.max(0, Math.round(innerHeight - r.top)) + 'px');
+}
+addEventListener('resize', updateBarSpace);
+try { new ResizeObserver(updateBarSpace).observe($('#tvRemote')); } catch {}
 function pokeUI() {
   $('#tv').classList.remove('hide-ui'); clearTimeout(uiTimer);
   uiTimer = setTimeout(() => { if (state.playing) { $('#tv').classList.add('hide-ui'); setMore(false); } }, 3000);
@@ -417,6 +427,7 @@ $('#tvBtn').onclick = enterTV;
 $('#tvRemote').addEventListener('click', e => {
   const b = e.target.closest('[data-act]'); if (!b) return;
   if (e.detail && tapWhileHidden) { tapWhileHidden = false; b.blur(); return; }   // 숨은 막대를 누른 첫 톡 (키보드 Enter는 detail 0)
+  haptic(b.dataset.act === 'cancel' ? 'warning' : 'tap');
   ({
     num: () => $('#numPad').hidden ? openNumPad(e.detail === 0) : cancelNumPad(),
     start: startKey, pause: () => state.playing ? pause() : (state.offset > 0.5 && play()), cancel: cancelSong,

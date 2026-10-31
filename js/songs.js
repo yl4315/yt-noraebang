@@ -27,7 +27,7 @@ function renderSongs() {
     li.innerHTML = `<span class="no"></span><div class="meta"><div class="t"></div><div class="a"></div></div><div class="acts"></div>`;
     li.querySelector('.no').textContent = s.no;
     li.querySelector('.t').textContent = s.title;
-    li.querySelector('.a').textContent = s.artist || '가수 미상';
+    li.querySelector('.a').append(el('span', 'an', s.artist || '가수 미상'));   // 가수 이름만 말줄임, 뒤 표시는 그대로 보임
     if (s.video) li.querySelector('.t').append(videoTag());
     const st = songStatus(s);
     if (st) { const tg = el('span', 'stag ' + st.cls, st.text); tg.dataset.dl = s.id; li.querySelector('.a').append(tg); }

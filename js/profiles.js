@@ -30,7 +30,8 @@ function renderIdleUser() {
   const box = $('#idleUser'); box.textContent = '';
   const keys = el('span', 'for-keys');      // 터치 화면에서는 키 안내를 숨긴다 (사용자 바꾸기는 조작 막대 "⋯ 더 보기")
   keys.append(' · ', el('kbd', '', 'M'), ' 내 목록 · ', el('kbd', '', 'U'), ' 사용자 바꾸기');
-  box.append(avatar(me()), `${me().name} · ♥ ${me().favorites.filter(songById).length}곡`, keys);
+  const txt = el('span', '', `${me().name} · ♥ ${me().favorites.filter(songById).length}곡`); txt.append(keys);   // 한 칸에 넣어야 띄어쓰기가 안 사라짐
+  box.append(avatar(me()), txt);
 }
 function switchProfile(p) {
   Profiles.cur = p; saveProfiles();

@@ -225,7 +225,8 @@ function renderCloudPanel() {
   // 클라이언트 ID가 앱에 들어 있으면 입력 칸은 접어 둔다
   if (!$('#cloudDialog').open) $('#clientAdv').open = !Cloud.clientId;
   const st = $('#cloudStatus');
-  st.textContent = !Cloud.clientId ? '아직 설정 전이에요. 아래 "클라이언트 ID 설정"에서 ID를 넣어 주세요.'
+  st.textContent = !Cloud.connected && Cloud.msg ? Cloud.msg   // 연결 전에도 클라이언트 ID 저장 결과 등은 창에 보인다
+    : !Cloud.clientId ? '아직 설정 전이에요. 아래 "클라이언트 ID 설정"에서 ID를 넣어 주세요.'
     : !Cloud.connected ? '"Google 계정 연결"을 누르면 시작해요.'
     : Cloud.msg ? Cloud.msg
     : Cloud.lastSync ? `연결됨 · 마지막 동기화 ${ago(Cloud.lastSync)}` : '연결됨';

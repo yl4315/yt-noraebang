@@ -48,14 +48,13 @@ export default async function basics(ctx) {
     const howto = await p.eval(`[...document.querySelectorAll('#clientAdv details summary')].some(s=>s.textContent.includes('만드는 방법')) && document.querySelector('#clientAdv .steps').textContent.includes('Google Cloud 콘솔')`);
     // (연결 전에는 저장 결과 글이 설정 창 상태 줄이 아니라 Drive 버튼 풍선 글(Cloud.msg)에만 나온다 → 그 글로 본다)
     await p.eval(`document.querySelector('#gClientId').value='잘못된 값'`); await p.click('#gClientSave');
-    const bad = await p.eval(`({m:Cloud.msg, id:Cloud.clientId})`);
+    const bad = await p.eval(`({m:Cloud.msg, id:Cloud.clientId, st:document.querySelector('#cloudStatus').textContent})`);
     await p.eval(`document.querySelector('#gClientId').value='qa-test-123.apps.googleusercontent.com'`); await p.click('#gClientSave');
-    const saved = await p.eval(`({m:Cloud.msg, id:Cloud.clientId, ls:localStorage.getItem('nb-gclient')})`);
+    const saved = await p.eval(`({m:Cloud.msg, id:Cloud.clientId, ls:localStorage.getItem('nb-gclient'), st:document.querySelector('#cloudStatus').textContent})`);
     await p.eval(`document.querySelector('#gClientId').value=${q(cid)}`); await p.click('#gClientSave');
     const back = await p.eval(`Cloud.clientId`);
-    ok('O3', /\.apps\.googleusercontent\.com$/.test(cid) && howto && /apps\.googleusercontent\.com/.test(bad.m) && bad.id === cid && /저장했어요/.test(saved.m) && saved.ls === 'qa-test-123.apps.googleusercontent.com' && back === cid,
-      `기본 ID 들어 있음 · 만드는 방법 안내 · 틀린 값은 저장 안 하고 안내 · 바꾸기 저장 · 원래대로 되돌림`);
-    ctx.finding?.('O3', '설정 창: Drive 연결 전에는 클라이언트 ID "저장" 결과 글(틀린 값 안내·저장했어요)이 창에 안 보이고 Drive 버튼 풍선 글에만 들어감 (renderCloudPanel이 연결 전에는 Cloud.msg를 안 씀)');
+    ok('O3', /\.apps\.googleusercontent\.com$/.test(cid) && howto && /apps\.googleusercontent\.com/.test(bad.m) && bad.st === bad.m && bad.id === cid && /저장했어요/.test(saved.m) && saved.st === saved.m && saved.ls === 'qa-test-123.apps.googleusercontent.com' && back === cid,
+      `기본 ID 들어 있음 · 만드는 방법 안내 · 틀린 값은 저장 안 하고 안내 · 바꾸기 저장 · 원래대로 되돌림 · 결과 글이 창에 보임 (연결 전)`);
     await p.click('#cloudClose');
   });
 
