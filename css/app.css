@@ -517,7 +517,7 @@ input.ren{background:var(--panel);border:1px solid var(--amber);border-radius:va
 .travel-state.warn{background:var(--color-event-5-fill);color:var(--color-event-5-text)}
 .travel-msg{margin:0;font-size:13px;line-height:1.5}
 .travel-msg.ok{color:var(--color-event-2-text)}
-.travel-msg.warn{color:var(--color-event-5-text)}
+.travel-msg.warn{background:var(--color-event-5-fill);color:var(--color-event-5-text);padding:8px 10px;border-radius:var(--r-in)}
 .travel-msg.err{color:var(--color-danger)}
 @media (hover:none){.sync-band .btn,.travel .btn{min-height:48px}.sync-band-x{min-width:48px}}
 details summary{cursor:pointer;font-weight:700;font-size:13px}

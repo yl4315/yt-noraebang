@@ -142,12 +142,13 @@ export default async function devsync(ctx) {
       await p.click('#travelGo');
       const warned = await p.until(`/^공간이 모자라요/.test(document.querySelector('#travelMsg').textContent)`, 8000);
       const msg = await txt(p, '#travelMsg');
-      const btns = { nv: await visible(p, '#travelNoVideo'), any: await visible(p, '#travelAnyway') };
+      const btns = { nv: await visible(p, '#travelNoVideo'), any: await visible(p, '#travelAnyway'), go: await visible(p, '#travelGo') };
+      const warnBox = await p.eval(`getComputedStyle(document.querySelector('#travelMsg')).backgroundColor`);
       const dl0 = await fd(`L.slice(${n0}).filter(x=>x.startsWith('download')).length`);
       plan1 = await p.eval(`downloadPlan({skipVideo:true}).list.map(s=>s.fileId)`);
       await shot('cr039-02-travel-space-phone.png');
-      ok('P7', warned && /^공간이 모자라요: 받을 곡 약 \d+MB · 남은 공간 약 20MB\. 동영상 곡 1곡을 빼고 받거나/.test(msg) && btns.nv && btns.any && dl0 === 0,
-        `"${st0}" → "${msg}" · [동영상 곡 빼고 받기] [인기 곡부터 받다가 멈추기] · 받기 전이라 받은 곡 0`);
+      ok('P7', warned && /^공간이 모자라요: 받을 곡 약 \d+MB · 남은 공간 약 20MB\. 동영상 곡 1곡을 빼고 받거나/.test(msg) && btns.nv && btns.any && !btns.go && !/rgba\(0, 0, 0, 0\)|transparent/.test(warnBox) && dl0 === 0,
+        `"${st0}" → "${msg}" (바나나 칸 ${warnBox}) · [동영상 곡 빼고 받기] [인기 곡부터 받다가 멈추기]만 ([여행 준비] ${btns.go ? '보임' : '숨김'}) · 받기 전이라 받은 곡 0`);
     });
 
     await step('동영상 빼고 받기 → 많이 부른 곡부터, [멈추기] → 이유, 다시 누르면 받은 곡 건너뛰고 이어서 / 로그인 끝남 → "다시 연결하고 이어서 받기"', ['P6', 'P8'], async () => {
@@ -172,7 +173,7 @@ export default async function devsync(ctx) {
       await p.eval(`delete __fd.api.fail['m-qa-r2']`);
       const n2 = await fd('L.length');
       await p.click('#travelGo');
-      await p.until(`!Travel.running && /여행 준비 끝|새로고침/.test(document.querySelector('#travelMsg').textContent)`, 10000);
+      await p.until(`!Travel.running && /^이번에|새로고침/.test(document.querySelector('#travelMsg').textContent)`, 10000);
       const third = await fd(`L.slice(${n2}).filter(x=>x.startsWith('download')).map(x=>x.slice(9)).join(',')`);
       const at = plan2.indexOf('m-qa-r2'), k = first.split(',').length;
       ok('P8', new RegExp(`^③ 받는 중 1 / ${plan1.length} · QA 원격 인기곡`).test(prog) && stopMsg === `멈췄어요. 받은 ${k}곡은 그대로예요 · ${plan1.length - k}곡 남았어요` && resume === '이어서 받기'
@@ -190,14 +191,15 @@ export default async function devsync(ctx) {
       await p.eval(`(()=>{const f=[...__fd.files.values()].find(f=>f.name==='library.json'); const lib=typeof f.data==='string'?JSON.parse(f.data):f.data; lib.songs.push(${JSON.stringify(song('qa-r5', 20005, 'QA 원격 새곡', { updatedAt: T }))}); f.data=lib; f.modifiedTime=new Date(Date.now()+9e5).toISOString(); __fd.api.missing.add('m-qa-r5');})()`);
       await p.eval('syncNow()'); await synced();
       await p.until(`/새 곡 1곡이 이 기기에 없어요/.test(document.querySelector('#travelState').textContent)`, 5000);
-      const st2 = await txt(p, '#travelState');
+      const st2 = await txt(p, '#travelState'), msgGone = !(await visible(p, '#travelMsg'));
+      await shot('cr039-06-travel-again-phone.png');
       const m = await marks(p);
       await p.click('#dlAllBtn');
       const miss = await sawToast(p, /^0곡을 받았어요 · 1곡은 Drive에 파일이 없어요$/, m, 5000);
       await p.click('#cloudClose');
       ok('P9', shell && new RegExp(`^여행 준비 끝 · 곡 ${local}곡이 이 기기에 있어요 · 인터넷 없이 부를 수 있어요 · (영구 저장 켜짐|영구 저장이 꺼져 있어요)`).test(st) && /마지막 준비 \d+월 \d+일 \d+시 \d\d분$/.test(st)
-        && /\b(ok|warn)\b/.test(cls) && /^여행 준비 끝 · 이번에 \d+곡을 받았어요/.test(msg) && tip && st2 === '새 곡 1곡이 이 기기에 없어요 · 다시 준비해 주세요',
-        `"${st}" · "${msg}" · 안내 "비행기 모드로…" ${tip ? '보임' : '안 보임'} → Drive에 새 곡 → "${st2}"`);
+        && /\b(ok|warn)\b/.test(cls) && /^이번에 \d+곡을 받았어요/.test(msg) && tip && st2 === '새 곡 1곡이 이 기기에 없어요 · 다시 준비해 주세요' && msgGone,
+        `"${st}" · "${msg}" · 안내 "비행기 모드로…" ${tip ? '보임' : '안 보임'} → Drive에 새 곡 → "${st2}" · 지난 결과 줄 ${msgGone ? '지워짐' : '남음'}`);
       ok('P6', miss, '"모두 받기"도 같은 순서·같은 받기: 파일 없는 곡은 건너뛰고 "1곡은 Drive에 파일이 없어요"');
     });
 

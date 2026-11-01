@@ -109,7 +109,7 @@ if ($('#syncBand')) {
 /* ================= 설정 창 "여행 준비" ================= */
 // ① 로그인 + 맞추기 → ② 남은 공간 확인 → ③ Drive에만 있는 곡 받기(많이 부른 곡부터) → ④ 영구 저장 요청 → ⑤ 앱 화면 저장 확인.
 // "준비 끝"은 저장해 둔 표시가 아니라 열 때마다 지금 상태로 판단한다 (새 곡이 생기면 저절로 "다시 준비").
-const Travel = { running: false, stop: false, msg: '', cls: '', choice: null, resume: null, last: +(lsGet('nb-travel') || 0) };
+const Travel = { running: false, stop: false, msg: '', cls: '', choice: null, resume: null, okLeft: 0, last: +(lsGet('nb-travel') || 0) };
 const whenText = t => { const d = new Date(t); return `${d.getMonth() + 1}월 ${d.getDate()}일 ${d.getHours()}시 ${pad2(d.getMinutes())}분`; };
 // 서비스 워커가 앱 화면(index.html)을 저장해 뒀는지
 async function shellCached() {
@@ -142,7 +142,10 @@ async function renderTravel() {
   $('#travelTip').hidden = !st.done;
   $('#travelUp').hidden = !st.pendingUpload;
   $('#travelUpTxt').textContent = st.pendingUpload ? `Drive에 아직 안 올라간 곡 ${st.pendingUpload}곡 (이 기기에서 넣은 곡은 Drive에 있어야 다른 기기가 받아요)` : '';
+  // 지난 "받았어요" 결과 줄은 그 뒤 Drive에 새 곡이 생겨 "다시 준비"가 되면 지운다 (위 칸과 반대로 남지 않게)
+  if (!Travel.running && Travel.cls === 'ok' && !st.done && st.cloudOnly > Travel.okLeft) Travel.msg = '';
   const go = $('#travelGo');
+  go.hidden = !Travel.running && !!Travel.choice;   // 공간이 모자라 고르는 중에는 고르기 버튼 둘만
   go.disabled = Travel.running || !navigator.onLine;
   if (!Travel.running) go.textContent = !navigator.onLine ? '인터넷이 필요해요' : Travel.resume || (st.done ? '다시 확인하기' : '여행 준비');
   $('#travelStop').hidden = !Travel.running;
@@ -199,7 +202,8 @@ async function travelRun(syncP, { skipVideo = false, anyway = false } = {}) {
     if (!(await shellCached())) { travelSay('곡은 받았어요. 앱 화면이 아직 이 기기에 저장되지 않았어요: 한 번 새로고침한 뒤 다시 눌러 주세요' + miss, 'warn'); return; }
     let persisted = false; try { persisted = await navigator.storage.persisted(); } catch {}
     Travel.last = Date.now(); lsSet('nb-travel', String(Travel.last));
-    travelSay(`여행 준비 끝 · 이번에 ${res.got}곡을 받았어요${res.failed ? ` · ${res.failed}곡은 받지 못했어요` : ''}${miss}`
+    Travel.okLeft = state.songs.filter(s => !s.demo && needsDownload(s)).length;   // 동영상 곡을 빼고 받았으면 그만큼은 남아 있음
+    travelSay(`이번에 ${res.got}곡을 받았어요${res.failed ? ` · ${res.failed}곡은 받지 못했어요` : ''}${miss}`
       + (persisted ? '' : ' · 영구 저장이 꺼져 있어요: 홈 화면에 앱을 설치하면 켜지는 경우가 많아요'), res.failed || res.missing ? 'warn' : 'ok');
     haptic('success');
   } catch (e) {

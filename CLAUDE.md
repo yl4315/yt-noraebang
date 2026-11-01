@@ -78,7 +78,7 @@ npm run test:ui                  # 화면 자동 점검: 헤드리스 Edge가 �
 - **IndexedDB 이름 `hanbam-noraebang`은 바꾸지 않는다.** 앱 예전 이름이지만, 바꾸면 사용자가 넣은 곡·녹음이 안 보인다. 저장소를 추가할 땐 버전을 올리고 `onupgradeneeded`에서 없는 것만 만든다.
 - localStorage 키도 예전 `nb-` 접두어를 그대로 쓴다.
 - **스크립트 순서가 중요하다.** 파일 맨 위에서 바로 실행되는 코드는 앞 파일(또는 같은 파일)의 이름만 쓸 수 있다. 함수 안에서는 어느 파일 이름이든 쓸 수 있다.
-- **JS 파일을 더하거나 빼면** `index.html`의 `<script>` 목록, `sw.js`의 `SHELL_FILES`를 같이 고치고 `SHELL` 버전을 올린다.
+- **JS 파일을 더하거나 빼면** `index.html`의 `<script>` 목록, `sw.js`의 `SHELL_FILES`를 같이 고치고 `SHELL` 버전을 올린다. 새 파일의 함수를 다른 파일에서 부를 때는 `typeof 이름 === 'function'`으로 감싼다 (배포 직후 캐시로 옛 `index.html` + 새 JS가 섞이면 그 파일이 없을 수 있다. 예: `backup.js`의 `deviceId`·`saveDevStats`).
 - `js/core.js`에는 DOM 코드를 넣지 않는다 (테스트가 브라우저 없이 돈다). 새 순수 로직은 여기에 두고 `tests/core.test.js`에 테스트를 더한다.
 - 데모곡(반주·멜로디)을 바꾸면 `js/demo.js`의 `DEMO_CACHE_KEY` 숫자를 올린다. 안 올리면 예전 반주가 계속 나온다.
 - 곡·녹음 내용이 바뀌면 `persistSong(s)` / `recTouch(r)`로 `updatedAt`을 남긴다. Drive 동기화는 `updatedAt`이 더 나중인 쪽이 이기고, 지운 것은 지움 기록(tombstone)으로 남긴다.
