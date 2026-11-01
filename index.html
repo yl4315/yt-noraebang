@@ -32,6 +32,12 @@
       <span>마이크 켜기</span>
     </button>
   </header>
+  <!-- 켤 때 "Drive와 맞추기" 띠 (CR-039, js/devsync.js) -->
+  <div class="sync-band" id="syncBand" role="status" hidden>
+    <span class="sync-band-txt" id="syncBandTxt"></span>
+    <button class="btn primary small" id="syncBandGo" type="button">맞추기</button>
+    <button class="btn ghost small sync-band-x" id="syncBandX" type="button" aria-label="이번에는 닫기" title="이번에는 닫기">✕</button>
+  </div>
 
   <div class="layout">
     <aside class="side">
@@ -405,12 +411,27 @@
 <dialog id="cloudDialog">
   <div class="mix">
     <h2>Drive · 저장 공간</h2>
+    <section class="set-sec travel" id="travelSec">
+      <h3>여행 준비</h3>
+      <p class="travel-state" id="travelState"></p>
+      <p class="hint" id="travelTip" hidden>비행기 모드로 한 곡 불러 보세요. 노래가 나오면 인터넷 없이도 돼요.</p>
+      <p class="travel-msg" id="travelMsg" hidden></p>
+      <div class="meter-line" id="travelBarBox" hidden><i id="travelBar"></i></div>
+      <div class="set-row">
+        <button class="btn primary" id="travelGo" type="button">여행 준비</button>
+        <button class="btn" id="travelNoVideo" type="button" hidden>동영상 곡 빼고 받기</button>
+        <button class="btn" id="travelAnyway" type="button" hidden>인기 곡부터 받다가 멈추기</button>
+        <button class="btn" id="travelStop" type="button" hidden>멈추기</button>
+      </div>
+      <div class="set-row" id="travelUp" hidden><span class="hint" id="travelUpTxt"></span><button class="btn small" id="travelUpBtn" type="button">지금 맞추기</button></div>
+      <p class="hint">한 번 누르면 로그인 → Drive와 맞추기 → Drive에만 있는 곡 받기(많이 부른 곡부터) → 영구 저장까지 차례로 해요. 받기 전에 남은 공간을 보고, 받는 동안 화면을 켜 둬요 (다른 앱으로 가면 멈출 수 있어요). 멈춰도 다시 누르면 받은 곡은 건너뛰고 이어서 받아요.</p>
+    </section>
     <section class="set-sec">
       <h3>Google Drive 곡 창고</h3>
       <p class="hint" id="cloudStatus"></p>
       <label class="set-row chk"><input type="checkbox" id="recBackup"> 녹음도 Drive에 백업하기 <span class="hint">(4분 녹음에 약 23MB)</span></label>
       <div class="set-row"><button class="btn primary" id="gConnect" type="button">Google 계정 연결</button><button class="btn ghost danger" id="gDisconnect" type="button" hidden>연결 끊기</button></div>
-      <p class="hint">내 Drive의 'YT 노래방' 폴더에 MR과 곡 목록(가사·싱크·사용자·재생목록)을 저장해요. 이 폴더에 MR 파일을 직접 넣어도 다음 동기화 때 곡 목록에 들어와요. 앱이 만들지 않은 파일은 읽기만 해요. 녹음은 위를 켜면 함께 올라가요. 로그인은 한 시간쯤 유지돼서, 그 뒤에는 Drive 버튼을 한 번 눌러 주면 돼요.</p>
+      <p class="hint">내 Drive의 'YT 노래방' 폴더에 MR과 곡 목록(가사·싱크·사용자·재생목록), 기기마다 점수·부른 횟수 파일(stats-…json)을 저장해요. 폴더의 stats 파일은 지우지 마세요 (지우면 그 기기 기록이 다른 기기에서 안 보여요). 이 폴더에 MR 파일을 직접 넣어도 다음 동기화 때 곡 목록에 들어와요. 앱이 만들지 않은 파일은 읽기만 해요. 녹음은 위를 켜면 함께 올라가요. 로그인은 한 시간쯤 유지돼서, 그 뒤에는 Drive 버튼을 한 번 눌러 주면 돼요.</p>
       <details id="clientAdv">
         <summary>클라이언트 ID 설정 (보통은 안 바꿔도 돼요)</summary>
         <div class="set-row" style="margin-top:8px"><input type="text" id="gClientId" placeholder="클라이언트 ID (….apps.googleusercontent.com)" spellcheck="false" autocomplete="off" aria-label="Google 클라이언트 ID"><button class="btn small" id="gClientSave" type="button">저장</button></div>
@@ -421,7 +442,7 @@
           <li><b>API 및 서비스 → 라이브러리</b>에서 <b>Google Drive API</b>를 찾아 <b>사용</b>을 눌러요.</li>
           <li><b>OAuth 동의 화면</b>(또는 Google 인증 플랫폼)에서 앱 이름·이메일을 넣고, 대상은 <b>외부</b>, <b>테스트 사용자</b>에 내 Gmail을 추가해요.</li>
           <li><b>사용자 인증 정보 → OAuth 클라이언트 ID 만들기</b>, 유형은 <b>웹 애플리케이션</b>.</li>
-          <li><b>승인된 JavaScript 원본</b>에 <code>http://localhost:5173</code>을 넣어요. 나중에 휴대폰용 주소가 생기면 그 주소도 추가해요.</li>
+          <li><b>승인된 JavaScript 원본</b>에 <code>http://localhost:5173</code>과 휴대폰·노트북에서 여는 주소 <code>https://yl4315.github.io</code>를 넣어요.</li>
           <li>만들어진 <b>클라이언트 ID</b>를 복사해 위 칸에 붙여넣고 저장 → <b>Google 계정 연결</b>.</li>
           <li>"확인되지 않은 앱" 안내가 나오면 내가 만든 테스트용 앱이라 그런 거예요. <b>계속</b>을 누르면 돼요.</li>
         </ol>
@@ -476,6 +497,7 @@
 <script src="js/key.js"></script>
 <script src="js/remote.js"></script>
 <script src="js/backup.js"></script>
+<script src="js/devsync.js"></script>
 <script src="js/main.js"></script>
 </body>
 </html>

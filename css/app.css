@@ -507,6 +507,19 @@ input.ren{background:var(--panel);border:1px solid var(--amber);border-radius:va
 .set-row input[type=checkbox]{accent-color:var(--amber);width:16px;height:16px}
 .meter-line{height:8px;border-radius:4px;background:var(--panel);overflow:hidden}
 .meter-line i{display:block;height:100%;background:var(--cyan);width:0}
+/* 기기 맞추기 (CR-039): 켤 때 "Drive와 맞추기" 띠, 설정 창 "여행 준비" */
+.sync-band{display:flex;align-items:center;gap:8px 12px;flex-wrap:wrap;margin:0 0 12px;padding:8px 8px 8px 14px;border-radius:var(--r-card);background:var(--panel);border:1px solid var(--line);font-size:14px}
+.sync-band-txt{flex:1;min-width:12em}
+.sync-band.err .sync-band-txt{color:var(--color-danger)}
+.sync-band-x{color:var(--muted)}
+.travel-state{margin:0;font-size:14px;line-height:1.5;padding:8px 10px;border-radius:var(--r-in);background:var(--panel)}
+.travel-state.ok{background:var(--color-event-2-fill);color:var(--color-event-2-text)}
+.travel-state.warn{background:var(--color-event-5-fill);color:var(--color-event-5-text)}
+.travel-msg{margin:0;font-size:13px;line-height:1.5}
+.travel-msg.ok{color:var(--color-event-2-text)}
+.travel-msg.warn{color:var(--color-event-5-text)}
+.travel-msg.err{color:var(--color-danger)}
+@media (hover:none){.sync-band .btn,.travel .btn{min-height:48px}.sync-band-x{min-width:48px}}
 details summary{cursor:pointer;font-weight:700;font-size:13px}
 .steps{margin:8px 0 0;padding-left:1.3em;font-size:13px;line-height:1.75;color:var(--muted)}
 .steps b{color:var(--ink)}

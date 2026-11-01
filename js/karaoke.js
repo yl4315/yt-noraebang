@@ -255,16 +255,18 @@ const scores = (() => { try { return JSON.parse(localStorage.getItem('nb-scores'
 function addScore(s, score) {
   scores.unshift({ id: s.id, no: s.no, title: s.title, score, at: Date.now(), who: me().name }); scores.splice(30);
   try { localStorage.setItem('nb-scores', JSON.stringify(scores)); } catch {}
+  statsChanged(); if (typeof scheduleStatsUpload === 'function') scheduleStatsUpload();
 }
 function renderBest() {
   const box = $('#bestBox'), el = (tag, cls, text) => Object.assign(document.createElement(tag), { className: cls, textContent: text });
   box.textContent = '';
-  const today = new Date().toDateString(), td = scores.filter(x => new Date(x.at).toDateString() === today);
+  // 점수는 이 기기 것 + 다른 기기 기록 사본 (CR-039)
+  const all = totals().scores, today = new Date().toDateString(), td = all.filter(x => new Date(x.at).toDateString() === today);
   const best = td.length ? td.reduce((a, b) => b.score > a.score ? b : a) : null;
   box.append(el('div', 'lbl', '오늘 최고 점수'), el('div', 'val', best ? `${best.score}점` : '–'));
   const ol = document.createElement('ol');
   if (best) ol.append(el('li', '', best.title));
-  if (scores.length) scores.slice(0, 3).forEach(x => ol.append(el('li', '', `최근 · ${x.score}점 ${x.title}${x.who ? ` (${x.who})` : ''}`)));
+  if (all.length) all.slice(0, 3).forEach(x => ol.append(el('li', '', `최근 · ${x.score}점 ${x.title}${x.who ? ` (${x.who})` : ''}`)));
   else ol.append(el('li', '', '마이크를 켜고 부르면 점수가 쌓여요'));
   box.append(ol);
 }
@@ -292,12 +294,14 @@ async function enterTV() {
   const st = $('#stage'); stageHome = { parent: st.parentNode, next: st.nextSibling };
   $('#tvScreen').append(st); $('#tv').hidden = false; document.body.style.overflow = 'hidden';
   state.tv = true; renderBest(); renderClock(); updateScreens(curTime()); pokeUI(); updateWakeLock(); updateBarSpace();
+  if (typeof renderBand === 'function') renderBand();
   try { document.documentElement.requestFullscreen?.().then(lockLandscape, () => {}); } catch {}
 }
 function exitTV() {
   if (!state.tv) return;
   disarmFirstInputFullscreen();
   state.tv = false; closeOverlays(); setMore(false);
+  if (typeof renderBand === 'function') renderBand();
   stageHome.parent.insertBefore($('#stage'), stageHome.next);
   $('#tv').hidden = true; document.body.style.overflow = '';
   unlockOrientation();
@@ -325,10 +329,10 @@ function setMore(open) {
 /* 화면 켜 두기: TV 화면이 열려 있거나 노래가 나오는 동안 폰·PC 화면이 꺼지지 않게 (Screen Wake Lock) */
 // 폰을 TV에 이어 화면 복제 중일 때 폰 화면이 꺼지면 TV 화면도 꺼진다. 앱이 뒤로 가면 브라우저가 저절로 풀어서
 // 돌아오면 다시 건다. 안 되는 브라우저(https가 아닌 주소 등)에서는 조용히 넘어간다. 저장하는 것은 없다.
-const Wake = { lock: null, busy: false };
+const Wake = { lock: null, busy: false, travel: false };   // travel: 여행 준비로 곡을 받는 중 (CR-039)
 async function updateWakeLock() {
   if (!navigator.wakeLock) return;
-  const want = !!(state.tv || state.playing) && document.visibilityState === 'visible';
+  const want = !!(state.tv || state.playing || Wake.travel) && document.visibilityState === 'visible';
   if (want && !Wake.lock && !Wake.busy) {
     Wake.busy = true;
     try {
@@ -337,7 +341,7 @@ async function updateWakeLock() {
       Wake.lock = l;
     } catch {}
     Wake.busy = false;
-    if (!(state.tv || state.playing)) updateWakeLock();     // 기다리는 사이에 TV에서 나가고 노래도 멈췄으면 바로 푼다
+    if (!(state.tv || state.playing || Wake.travel)) updateWakeLock();     // 기다리는 사이에 TV에서 나가고 노래도 멈췄으면 바로 푼다
   } else if (!want && Wake.lock) {
     const l = Wake.lock; Wake.lock = null; l.release().catch(() => {});
   }
@@ -515,13 +519,20 @@ function countPlay(s) {
   const p = plays[s.id] || (plays[s.id] = { n: 0, last: 0 });
   p.n++; p.last = Date.now();
   try { localStorage.setItem('nb-plays', JSON.stringify(plays)); } catch {}
-  renderIdleChart();
+  statsChanged(); renderIdleChart();
+  if (typeof scheduleStatsUpload === 'function') scheduleStatsUpload();
 }
-const playsOf = s => plays[s.id]?.n || 0;
+/* 다른 기기 기록 (CR-039): Drive의 stats-<기기 id>.json에서 받은 사본(nb-devstats). 이 기기 기록(plays·scores)에는 섞지 않고
+   보여 줄 때만 더한다 (인기차트·대기 화면 TOP 5·최고 점수·오늘 최고 점수). 합계 표는 바뀔 때 한 번만 만든다. */
+const Dev = { others: (() => { try { const o = JSON.parse(localStorage.getItem('nb-devstats') || '{}'); return o && typeof o === 'object' ? o : {}; } catch { return {}; } })(), tot: null };
+function statsChanged() { Dev.tot = null; }
+const totals = () => Dev.tot || (Dev.tot = statsTotals({ plays, scores }, Dev.others, Dev.id || lsGet('nb-device')));
+const playsOf = s => totals().plays[s.id]?.n || 0;
 function chartSongs() {
-  return state.songs.slice().sort((a, b) => playsOf(b) - playsOf(a) || (plays[b.id]?.last || 0) - (plays[a.id]?.last || 0) || a.no - b.no);
+  const t = totals().plays;
+  return state.songs.slice().sort((a, b) => playsOf(b) - playsOf(a) || (t[b.id]?.last || 0) - (t[a.id]?.last || 0) || a.no - b.no);
 }
-function bestScoreOf(s) { let b = null; for (const x of scores) if ((x.id ? x.id === s.id : x.no === s.no) && (b == null || x.score > b)) b = x.score; return b; }
+function bestScoreOf(s) { let b = null; for (const x of totals().scores) if ((x.id ? x.id === s.id : x.no === s.no) && (b == null || x.score > b)) b = x.score; return b; }
 function chartStat(s) {
   const n = playsOf(s), best = bestScoreOf(s);
   return n ? `${n}회 부름${best != null ? ` · 최고 ${best}점` : ''}` : '아직 안 부름';

@@ -61,6 +61,7 @@ function onFinish() {
 const ICON_PLAY = '<svg viewBox="0 0 24 24"><path d="M7 4.5v15l13-7.5z"/></svg>';
 const ICON_PAUSE = '<svg viewBox="0 0 24 24"><path d="M6 4h4v16H6zM14 4h4v16h-4z"/></svg>';
 function updateTransportUI() {
+  if (typeof renderBand === 'function') renderBand();     // 노래 중에는 "Drive와 맞추기" 띠를 숨긴다 (CR-039)
   $('#playBtn').innerHTML = state.playing ? ICON_PAUSE : ICON_PLAY;
   $('#playBtn').setAttribute('aria-label', state.playing ? '일시정지' : '시작');
   $('#syPlay').textContent = state.playing ? '일시정지' : '재생';

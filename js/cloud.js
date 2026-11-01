@@ -12,24 +12,53 @@ function songStatus(s) {
   if (Cloud.connected && s.blob && (!s.fileId || s.mediaDirty)) return { cls: '', text: '올릴 예정' };
   return null;
 }
-async function ensureMedia(s) {
+// quiet: 여러 곡을 받을 때는 곡마다 목록을 다시 그리지 않는다 (끝에 한 번)
+async function ensureMedia(s, { quiet = false } = {}) {
   if (s.demo || s.blob) return;
   if (!s.fileId) throw Object.assign(new Error('nomedia'), { nomedia: true });
   if (!navigator.onLine) throw Object.assign(new Error('offline'), { offline: true });
-  s._dl = 0; renderSongs();
+  s._dl = 0; if (!quiet) renderSongs();
   try {
-    s.blob = await Cloud.api.download(s.fileId, p => {
+    const b = await Cloud.api.download(s.fileId, p => {
       s._dl = p; const tg = document.querySelector(`[data-dl="${s.id}"]`); if (tg) tg.textContent = `받는 중 ${Math.round(p * 100)}%`;
     });
-    s.mime ||= s.blob.type;
-    await DB.put('songs', songRecord(s));
+    // 기기에 먼저 저장하고 나서 곡에 넣는다: 저장이 실패하면(공간 부족) "기기에 있음"으로 보였다가 새로고침하면 사라지는 일이 없게 (CR-039 F1)
+    try { await DB.put('songs', { ...songRecord(s), blob: b, mime: s.mime || b.type }); }
+    catch (e) { throw Object.assign(new Error('저장 실패'), { storage: true, quota: e?.name === 'QuotaExceededError', cause: e }); }
+    s.blob = b; s.mime ||= b.type;
     requestPersist();
-  } finally { s._dl = null; renderSongs(); }
+  } finally { s._dl = null; if (!quiet) renderSongs(); }
+}
+// 여러 곡 받기 ("모두 받기"·여행 준비, CR-039 F2): 곡 하나가 Drive에 없으면(404·403) 건너뛰고 끝에 알린다.
+// 로그인 끝남·인터넷 끊김·공간 부족·[멈추기]에서는 멈춘다. 다시 부르면 이미 받은 곡은 목록에서 빠져서 이어서 받는다.
+async function downloadSongs(list, { onStep, stopped } = {}) {
+  const r = { got: 0, missing: 0, failed: 0, stop: null, err: null, left: 0 };
+  try {
+    for (let i = 0; i < list.length; i++) {
+      if (stopped?.()) { r.stop = 'user'; break; }
+      onStep?.(i, list[i]);
+      try { await ensureMedia(list[i], { quiet: true }); r.got++; }
+      catch (e) {
+        if (e.status === 404 || e.status === 403) { r.missing++; continue; }
+        r.err = e;
+        if (e.needLogin) r.stop = 'login'; else if (e.offline || !navigator.onLine) r.stop = 'offline'; else if (e.storage) r.stop = 'space';
+        else { r.failed++; continue; }
+        break;
+      }
+    }
+  } finally { r.left = list.filter(needsDownload).length; renderSongs(); }
+  return r;
+}
+// 받을 순서: 많이 부른 곡(모든 기기 합계) → 누구든 좋아요한 곡 → 번호 순 (CR-039 F3)
+function downloadPlan(opts = {}) {
+  const favorites = Profiles.list.filter(p => !p.deleted).flatMap(p => p.favorites || []);
+  return planDownload({ songs: state.songs, plays: totals().plays, favorites, ...opts });
 }
 function mediaErrText(e) {
   if (e.offline) return '인터넷이 연결되면 받을 수 있어요. 지금은 기기에 저장된 곡만 부를 수 있어요';
   if (e.needLogin) return 'Drive에서 받으려면 위쪽 Drive 버튼을 눌러 다시 연결해 주세요';
   if (e.nomedia) return '이 곡의 MR 파일이 없어요. 곡 수정에서 파일을 다시 넣어 주세요';
+  if (e.storage) return '기기 저장 공간이 모자라 저장하지 못했어요. 안 쓰는 곡을 기기에서 지우거나 공간을 비운 뒤 다시 받아 주세요';
   if (e.status) return `Drive에서 받지 못했어요 (${e.status})`;
   return 'MR 파일을 읽지 못했어요. mp3·m4a·wav 파일인지 확인해 주세요.';
 }
@@ -50,13 +79,12 @@ async function renderStorage() {
 }
 let dlAllRunning = false;
 $('#dlAllBtn').onclick = async () => {
-  const b = $('#dlAllBtn'), list = state.songs.filter(s => !s.demo && !s.blob && s.fileId);
+  const b = $('#dlAllBtn'), list = downloadPlan().list;
   dlAllRunning = true; b.disabled = true;
   try {
-    for (let i = 0; i < list.length; i++) {
-      b.textContent = `받는 중 ${i + 1} / ${list.length}`;
-      try { await ensureMedia(list[i]); } catch (e) { toast(mediaErrText(e), 5000); break; }
-    }
+    const r = await downloadSongs(list, { onStep: i => { b.textContent = `받는 중 ${i + 1} / ${list.length}`; } });
+    if (r.stop) toast(mediaErrText(r.err), 5000);
+    else if (r.missing || r.failed) toast(`${r.got}곡을 받았어요` + (r.missing ? ` · ${r.missing}곡은 Drive에 파일이 없어요` : '') + (r.failed ? ` · ${r.failed}곡은 받지 못했어요` : ''), 5000);
   } finally { dlAllRunning = false; renderStorage(); }
 };
 $('#persistBtn').onclick = async () => { await requestPersist(); renderStorage(); };
@@ -141,6 +169,16 @@ const DriveApi = {
     } while (page);
     return out;
   },
+  // 폴더 안의 JSON 파일 목록 (library.json·기기별 stats-<기기 id>.json). 이름은 코드에서 거른다 (CR-039)
+  async listFolderJson(folderId) {
+    const q = encodeURIComponent(`'${folderId}' in parents and trashed=false and mimeType='application/json'`);
+    const out = []; let page = '';
+    do {
+      const r = await this.req('GET', `${DRIVE}/files?q=${q}&fields=nextPageToken,files(id,name,modifiedTime)&pageSize=1000${page ? '&pageToken=' + page : ''}`);
+      out.push(...r.files); page = r.nextPageToken || '';
+    } while (page);
+    return out;
+  },
   async findLibrary(folderId) {
     const q = encodeURIComponent(`name='library.json' and '${folderId}' in parents and trashed=false`);
     return (await this.req('GET', `${DRIVE}/files?q=${q}&fields=files(id)`)).files[0]?.id || null;
@@ -200,12 +238,15 @@ function cloudErrText(e) {
   if (e.offline || !navigator.onLine) return '인터넷이 끊겨 있어요. 연결되면 다시 동기화해요';
   if (e.noClient) return '설정에서 Google 클라이언트 ID를 먼저 넣어 주세요';
   if (e.gisLoading) return 'Google 로그인 도구를 불러오는 중이에요. 잠시 후 다시 눌러 주세요';
+  if (e.message === 'popup_failed_to_open') return '로그인 창이 막혔어요. 주소창의 팝업 차단 표시를 눌러 이 사이트를 허용한 뒤 다시 눌러 주세요';
+  if (e.message === 'popup_closed') return '로그인 창이 닫혔어요. 다시 눌러 끝까지 진행해 주세요. Google 화면에 "액세스 차단됨"이 보였다면 앱 등록 문제예요 (설정 → 클라이언트 ID 만드는 방법 3·5번)';
   if (e.popup) return '로그인 창이 닫혔거나 막혔어요. 팝업을 허용하고 다시 눌러 주세요';
+  if (e.message === 'access_denied') return '로그인을 허용하지 않았어요. 다시 눌러 Google 화면에서 "계속"과 "허용"을 눌러 주세요';
   if (e.needLogin) return 'Google 로그인이 필요해요. Drive 버튼을 눌러 다시 연결하세요';
   if (e.status === 403) return 'Drive 권한이 없어요 (403). 앱 등록에서 Drive API를 켰는지 확인하세요';
   return '동기화하지 못했어요: ' + (e.message || e);
 }
-function setCloud(st, msg = '') { Cloud.state = st; Cloud.msg = msg; renderCloudChip(); if ($('#cloudDialog').open) renderCloudPanel(); }
+function setCloud(st, msg = '') { Cloud.state = st; Cloud.msg = msg; renderCloudChip(); if ($('#cloudDialog').open) { renderCloudPanel(); if (st !== 'syncing') renderStorage(); if (typeof renderTravel === 'function') renderTravel(); } }
 function renderCloudChip() {
   const b = $('#cloudBtn'), on = Cloud.connected;
   const cls = !on ? '' : !navigator.onLine ? 'off' : { ok: 'ok', syncing: 'syncing', login: 'warn', error: 'warn' }[Cloud.state] || '';
@@ -217,6 +258,7 @@ function renderCloudChip() {
     : Cloud.state === 'error' ? '동기화 실패'
     : Cloud.lastSync ? `동기화 ${ago(Cloud.lastSync)}` : 'Drive 동기화';
   b.title = Cloud.msg || 'Google Drive와 곡 목록 맞추기';
+  if (typeof renderBand === 'function') renderBand();     // 켤 때 "Drive와 맞추기" 띠 (CR-039)
 }
 function renderCloudPanel() {
   $('#gClientId').value = $('#gClientId').value || Cloud.clientId;
@@ -232,7 +274,7 @@ function renderCloudPanel() {
     : Cloud.lastSync ? `연결됨 · 마지막 동기화 ${ago(Cloud.lastSync)}` : '연결됨';
   st.classList.toggle('err', Cloud.state === 'error' || Cloud.state === 'login');
 }
-function openCloudDialog() { $('#gClientId').value = Cloud.clientId; renderCloudPanel(); renderStorage(); $('#cloudDialog').showModal(); }
+function openCloudDialog() { $('#gClientId').value = Cloud.clientId; renderCloudPanel(); renderStorage(); if (typeof renderTravel === 'function') renderTravel(); $('#cloudDialog').showModal(); }
 $('#settingsBtn').onclick = openCloudDialog;
 $('#cloudClose').onclick = () => $('#cloudDialog').close();
 $('#cloudBtn').onclick = () => { if (!Cloud.connected || !Cloud.clientId) openCloudDialog(); else syncNow({ interactive: true }); };
@@ -250,18 +292,23 @@ $('#gDisconnect').onclick = e => confirmButton(e.currentTarget, () => {
   try { if (Cloud.token && window.google?.accounts?.oauth2) google.accounts.oauth2.revoke(Cloud.token, () => {}); } catch {}
   Object.assign(Cloud, { connected: false, token: null, exp: 0, folderId: null, libId: null, lastSync: 0 });
   for (const k of ['nb-gconnected', 'nb-gfolder', 'nb-glib', 'nb-glast']) lsSet(k, null);
+  // 다른 기기 기록 사본은 지운다 (다른 계정으로 다시 연결했을 때 섞이지 않게). 이 기기 기록(nb-plays·nb-scores)은 그대로 (CR-039 R11)
+  for (const k of ['nb-devstats', 'nb-gstats']) lsSet(k, null);
+  Dev.others = {}; statsChanged(); renderBest(); renderIdleChart();
   setCloud('off'); renderSongs();
   toast('Drive 연결을 끊었어요. 기기에 있는 곡은 그대로 남아요');
 });
 
 /* 동기화: Drive의 library.json과 이 기기의 곡·사용자 목록을 합친다 (더 나중에 바뀐 쪽이 이김) */
+// 돌려주는 값: { ok: true, newSongs, devices } / { ok: false, error } / { busy: true } (이미 하는 중이면 끝난 뒤 한 번 더)
 async function syncNow({ interactive = false, connect = false } = {}) {
-  if (!Cloud.connected && !connect) return;
-  if (Cloud.syncing) { Cloud.again = true; return; }
-  if (!navigator.onLine) { setCloud('offline'); return; }
+  if (!Cloud.connected && !connect) return { ok: false, error: { notConnected: true } };
+  if (Cloud.syncing) { Cloud.again = true; return { busy: true }; }
+  if (!navigator.onLine) { setCloud('offline'); return { ok: false, error: { offline: true } }; }
   const tokenP = getToken(interactive);   // 팝업이 필요하면 지금 바로 열린다
   Cloud.syncing = true; setCloud('syncing', '동기화 중…');
-  const api = Cloud.api, touched = new Set();
+  const api = Cloud.api, touched = new Set(), had = new Set(state.songs.map(s => s.id));
+  let result = null;
   try {
     await tokenP;
     if (connect && !Cloud.connected) { Cloud.connected = true; lsSet('nb-gconnected', '1'); }
@@ -293,6 +340,7 @@ async function syncNow({ interactive = false, connect = false } = {}) {
         imported = added.length;
       } catch (e) { if (e.needLogin) throw e; console.warn('folder list', e); }
     }
+    const newSongs = state.songs.filter(s => !had.has(s.id)).length;
     // 2) 이 기기에서 넣거나 바꾼 MR 올리기
     for (const s of state.songs) {
       if (s.demo || !s.blob || (s.fileId && !s.mediaDirty)) continue;
@@ -343,6 +391,12 @@ async function syncNow({ interactive = false, connect = false } = {}) {
     }
     state.recs.sort((a, b) => b.createdAt - a.createdAt);
     saveProfiles();
+    // 8) 점수·부른 횟수: 이 기기 파일(stats-<기기 id>.json)을 올리고 다른 기기 파일을 받는다 (CR-039, 못 해도 동기화는 계속)
+    let stats = null;
+    if (typeof syncDeviceStats === 'function') {
+      try { stats = await syncDeviceStats(api); } catch (e) { if (e.needLogin) throw e; console.warn('stats', e); }
+    }
+    result = { ok: true, newSongs, devices: stats?.devices || 0 };
     Cloud.lastSync = Date.now(); lsSet('nb-glast', String(Cloud.lastSync));
     setCloud('ok');
     afterSync(touched);
@@ -350,11 +404,13 @@ async function syncNow({ interactive = false, connect = false } = {}) {
     else if (!Cloud.canReadFolder) toast('Drive 폴더에 직접 넣은 파일을 가져오려면, 연결할 때 "Drive 파일 보기" 권한도 허용해 주세요', 6000);
   } catch (e) {
     console.warn('sync', e);
+    result = { ok: false, error: e };
     setCloud(e.needLogin || e.popup ? 'login' : 'error', cloudErrText(e));
   } finally {
     Cloud.syncing = false;
     if (Cloud.again) { Cloud.again = false; Cloud.schedule(1000); }
   }
+  return result;
 }
 function mergeProfiles(remoteList) {
   if (!remoteList.length) return;

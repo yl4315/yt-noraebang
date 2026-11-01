@@ -20,7 +20,8 @@ async function exportBackup() {
   const add = b => { if (!b) return null; blobs.push(b); return blobs.length - 1; };
   const songs = state.songs.filter(x => !x.demo && (withVideo || !x.video)).map(x => ({ ...pick(x, SONG_FIELDS), mediaDirty: !!x.mediaDirty, blob: add(x.blob) }));
   const recs = withRecs ? state.recs.map(r => ({ ...pick(r, REC_FIELDS), media: add(recMedia(r)) })) : [];
-  const file = packBackup({ version: 1, app: 'YT 노래방', createdAt: Date.now(), songs, recs, profiles: Profiles.list, scores, plays }, blobs);
+  // device: 이 기기 id (CR-039). 다른 기기에서 불러오면 점수·횟수가 이 기기 칸에 합쳐져 Drive 기록과 두 번 세지 않는다
+  const file = packBackup({ version: 1, app: 'YT 노래방', createdAt: Date.now(), device: deviceId(), songs, recs, profiles: Profiles.list, scores, plays }, blobs);
   const d = new Date(), p2 = n => String(n).padStart(2, '0');
   download(file, `YT노래방_백업_${d.getFullYear()}${p2(d.getMonth() + 1)}${p2(d.getDate())}.ytbackup`);
   return { songs: songs.length, recs: recs.length, size: file.size };
@@ -43,10 +44,16 @@ async function importBackup(file) {
     state.recs.push(meta); await DB.put('recs', meta); addR++;
   }
   mergeProfiles(head.profiles || []); saveProfiles();
-  for (const x of head.scores || []) if (!scores.some(y => y.at === x.at && y.title === x.title)) scores.push(x);
-  scores.sort((a, b) => b.at - a.at); scores.splice(30);
-  for (const [id, pl] of Object.entries(head.plays || {})) if (!plays[id] || pl.n > plays[id].n) plays[id] = pl;
-  try { localStorage.setItem('nb-scores', JSON.stringify(scores)); localStorage.setItem('nb-plays', JSON.stringify(plays)); } catch {}
+  // 점수·횟수: 다른 기기의 백업이면 그 기기 칸(nb-devstats)에, device가 없는 옛 백업이나 이 기기 것이면 예전 규칙 그대로 (CR-039)
+  const ms = mergeBackupStats(head, Dev.id || lsGet('nb-device'), { plays, scores }, Dev.others);
+  if (ms.target === 'other') saveDevStats(ms.others);
+  else {
+    scores.splice(0, scores.length, ...ms.scores);
+    for (const k of Object.keys(plays)) delete plays[k];
+    Object.assign(plays, ms.plays);
+    try { localStorage.setItem('nb-scores', JSON.stringify(scores)); localStorage.setItem('nb-plays', JSON.stringify(plays)); } catch {}
+  }
+  statsChanged();
   state.recs.sort((a, b) => b.createdAt - a.createdAt);
   afterSync(new Set()); renderBest(); renderIdleChart(); renderStorage();
   Cloud.schedule();
