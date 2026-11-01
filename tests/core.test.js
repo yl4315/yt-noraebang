@@ -522,3 +522,133 @@ test('파일 이름 → 제목: 뒤에 숫자가 이어지는 앞 숫자는 트�
   same(C.titleFromFilename('01 밤편지.mp3'), { title: '밤편지', artist: '' });
   same(C.titleFromFilename('3-좋은 날.mp3'), { title: '좋은 날', artist: '' });
 });
+
+/* ---------------- 기기 맞추기 (CR-039) ---------------- */
+const P = (n, last = 0) => ({ n, last });
+const S = (id, score, at, extra = {}) => ({ id, no: 10000 + at % 100, title: '곡' + id, score, at, who: '나', ...extra });
+
+test('기기 맞추기: 횟수 합치기는 곡마다 큰 쪽·늦은 시각, 순서를 바꿔도·두 번 해도 같고 줄지 않는다', () => {
+  const a = { s1: P(3, 100), s2: P(1, 50) }, b = { s1: P(2, 300), s3: P(4, 10) };
+  const ab = C.mergePlays(a, b), ba = C.mergePlays(b, a);
+  same(ab, { s1: P(3, 300), s2: P(1, 50), s3: P(4, 10) });
+  same(ab, ba);
+  same(C.mergePlays(ab, b), ab);
+  same(C.mergePlays(ab, {}), ab);
+  // 모양이 틀린 줄(숫자 아님·음수·빈 값)은 뺀다
+  same(C.mergePlays({ x: { n: 'a' }, y: { n: -1 }, z: null, w: P(2) }, 'oops'), { w: P(2) });
+});
+
+test('기기 맞추기: 점수 합치기는 합집합 (시각·곡·점수가 같으면 한 번), 최근 순, 기기마다 30개', () => {
+  const a = [S('s1', 80, 3), S('s2', 70, 1)], b = [S('s1', 80, 3), S('s3', 90, 2)];
+  same(C.mergeScores(a, b).map(x => x.at), [3, 2, 1]);
+  same(C.mergeScores(a, b), C.mergeScores(b, a));
+  same(C.mergeScores(C.mergeScores(a, b), b), C.mergeScores(a, b));
+  const many = Array.from({ length: 40 }, (_, i) => S('s' + i, 50, i + 1));
+  assert.equal(C.mergeScores(many, []).length, 30);
+  assert.equal(C.mergeScores(many, []).at(-1).at, 11);
+  assert.equal(C.mergeScores(many, [], 0).length, 40);
+  assert.equal(C.mergeScores([{ score: 'x', at: 1, id: 'a' }, { score: 1, at: 2 }], []).length, 0);
+});
+
+test('기기 맞추기: 합계 = 이 기기 + 다른 기기 사본들, 내 id 사본은 두 번 세지 않고 틀린 모양은 무시', () => {
+  const mine = { plays: { s1: P(2, 100) }, scores: [S('s1', 80, 10)] };
+  const others = {
+    pc: { mt: 5, plays: { s1: P(5, 200), s2: P(1, 50) }, scores: [S('s1', 95, 20), S('s1', 80, 10)] },
+    me: { mt: 9, plays: { s1: P(100) }, scores: [S('s1', 100, 30)] },        // 내 id 사본: 빼야 함
+    bad: { mt: 1, plays: 'x', scores: 'y' }, nul: null,
+  };
+  const t = C.statsTotals(mine, others, 'me');
+  same(t.plays, { s1: P(7, 200), s2: P(1, 50) });
+  same(t.scores.map(x => x.score), [95, 80]);
+  assert.equal(t.devices, 2);    // pc + bad (모양만 틀린 칸은 0으로 셈)
+  same(C.statsTotals(mine, {}, 'me').plays, mine.plays);
+  same(C.statsTotals({}, undefined, null), { plays: {}, scores: [], devices: 0 });
+});
+
+test('기기 맞추기: 비교값은 키 순서가 달라도 같고, 내용이 바뀌면 달라진다', () => {
+  const a = C.statsSig({ plays: { s1: P(1, 2), s2: P(3, 4) }, scores: [S('a', 1, 2), S('b', 3, 1)] });
+  const b = C.statsSig({ plays: { s2: P(3, 4), s1: P(1, 2) }, scores: [S('b', 3, 1), S('a', 1, 2)] });
+  assert.equal(a, b);
+  assert.notEqual(a, C.statsSig({ plays: { s1: P(2, 2), s2: P(3, 4) }, scores: [S('a', 1, 2), S('b', 3, 1)] }));
+});
+
+test('기기 맞추기: Drive 파일 모양 (v·device), 깨진 파일은 null', () => {
+  const f = C.buildStatsFile('dev1', { s1: P(2, 5) }, [S('s1', 80, 3)], 1000);
+  same(f, { v: 1, app: 'YT 노래방', device: 'dev1', updatedAt: 1000, plays: { s1: P(2, 5) }, scores: [S('s1', 80, 3)] });
+  assert.equal(C.statsFileName('dev1'), 'stats-dev1.json');
+  same(C.parseStatsFile(f), { device: 'dev1', plays: { s1: P(2, 5) }, scores: [S('s1', 80, 3)] });
+  for (const bad of [null, 'x', {}, { device: 'd' }, { v: 1 }, { v: '1', device: 'd' }]) assert.equal(C.parseStatsFile(bad), null);
+  same(C.parseStatsFile({ v: 2, device: 'd', plays: { s: { n: -3 } }, scores: 5, extra: 1 }), { device: 'd', plays: {}, scores: [] });
+});
+
+test('기기 맞추기: 폴더 JSON 목록 → 내 파일 + 다른 기기 파일 (같은 이름 둘이면 나중 것, 내 id가 없으면 모두 남의 것)', () => {
+  const files = [
+    { id: 'L', name: 'library.json', modifiedTime: '2026-10-30T00:00:00Z' },
+    { id: 'm1', name: 'stats-me.json', modifiedTime: '2026-10-30T00:00:00Z' },
+    { id: 'p1', name: 'stats-pc.json', modifiedTime: '2026-10-29T00:00:00Z' },
+    { id: 'p2', name: 'stats-pc.json', modifiedTime: '2026-10-31T00:00:00Z' },
+    { id: 'x', name: 'stats-.json' }, { id: 'y', name: 'my stats-pc.json' },
+  ];
+  const r = C.pickStatsFiles(files, 'me');
+  assert.equal(r.mine.id, 'm1');
+  same(r.others.map(x => [x.id, x.device]), [['p2', 'pc']]);
+  const n = C.pickStatsFiles(files, null);
+  assert.equal(n.mine, null);
+  same(n.others.map(x => x.device).sort(), ['me', 'pc']);
+});
+
+test('기기 맞추기: 백업 파일 점수·횟수 — 다른 기기 것은 그 기기 칸, 옛 백업·같은 기기는 예전 규칙', () => {
+  const mine = { plays: { s1: P(3, 1) }, scores: [S('s1', 70, 5)] };
+  const head = { plays: { s1: P(5, 2), s2: P(1, 1) }, scores: [S('s1', 90, 6), S('s1', 70, 5)] };
+  // 옛 백업 (device 없음): 횟수는 큰 쪽, 점수는 (시각, 제목)으로 합집합
+  const old = C.mergeBackupStats(head, 'me', mine, {});
+  assert.equal(old.target, 'mine');
+  same(old.plays, { s1: P(5, 2), s2: P(1, 1) });
+  same(old.scores.map(x => x.score), [90, 70]);
+  // 같은 기기
+  assert.equal(C.mergeBackupStats({ ...head, device: 'me' }, 'me', mine, {}).target, 'mine');
+  // 다른 기기: 내 기록은 그대로, 그 기기 칸에 합침. 두 번 불러와도 같음
+  const o = C.mergeBackupStats({ ...head, device: 'pc' }, 'me', mine, {});
+  assert.equal(o.target, 'other');
+  same(o.plays, mine.plays); same(o.scores, mine.scores);
+  same(o.others.pc.plays, head.plays);
+  const o2 = C.mergeBackupStats({ ...head, device: 'pc' }, 'me', mine, o.others);
+  same(o2.others, o.others);
+  // 내 id가 아직 없으면 (처음 쓰는 기기) device가 있는 백업은 다른 기기 것
+  assert.equal(C.mergeBackupStats({ ...head, device: 'pc' }, null, mine, {}).target, 'other');
+});
+
+test('여행 준비: 받을 순서는 많이 부른 곡 → 좋아요 → 번호, 동영상 빼기, 크기 모르는 곡, 여유 10%', () => {
+  const songs = [
+    { id: 'demo', no: 10001, demo: true },
+    { id: 'a', no: 10002, fileId: 'fa', size: 100 },
+    { id: 'b', no: 10003, fileId: 'fb', size: 200, video: true },
+    { id: 'c', no: 10004, fileId: 'fc' },                      // 크기 모름
+    { id: 'd', no: 10005, fileId: 'fd', size: 300 },
+    { id: 'e', no: 10006, fileId: 'fe', size: 50, blob: {} },  // 이미 기기에 있음
+    { id: 'f', no: 10007, size: 50, blob: {} },                // Drive에 없음
+  ];
+  const plays = { d: P(5, 1), b: P(5, 9), a: P(1, 1) };
+  const r = C.planDownload({ songs, plays, favorites: ['c'], free: 1000 });
+  same(r.list.map(s => s.id), ['b', 'd', 'a', 'c']);
+  assert.equal(r.need, 600); assert.equal(r.unknown, 1); assert.equal(r.fits, true); assert.equal(r.video, 1);
+  assert.equal(C.planDownload({ songs, plays, free: 650 }).fits, false);   // 600 + 10% > 650
+  const nv = C.planDownload({ songs, plays, free: 650, skipVideo: true });
+  same(nv.list.map(s => s.id), ['d', 'a', 'c']);
+  assert.equal(nv.need, 400); assert.equal(nv.fits, true); assert.equal(nv.skippedVideo, 1);
+  assert.equal(C.planDownload({ songs, free: null }).fits, true);           // 남은 공간을 모르면 받다가 막히면 멈춤
+  same(C.planDownload({ songs }).list.map(s => s.id), ['a', 'b', 'c', 'd']);
+  same(C.planDownload({ songs, favorites: ['d', 'c'] }).list.map(s => s.id), ['c', 'd', 'a', 'b']);
+});
+
+test('여행 준비: 끝 판정은 지금 상태로 — 새 곡이 생기면 아직, 영구 저장 꺼짐은 끝 + 경고, 앱 화면 저장 안 됨은 아직', () => {
+  const on = [{ id: 'demo', demo: true }, { id: 'a', fileId: 'fa', blob: {} }, { id: 'b', fileId: 'fb', blob: {} }];
+  same(C.travelStatus({ songs: on, persisted: true, shellCached: true }), { done: true, why: null, cloudOnly: 0, local: 2, pendingUpload: 0, warnPersist: false });
+  assert.equal(C.travelStatus({ songs: on, persisted: false, shellCached: true }).warnPersist, true);
+  const more = C.travelStatus({ songs: [...on, { id: 'c', fileId: 'fc' }], persisted: true, shellCached: true });
+  same([more.done, more.why, more.cloudOnly], [false, 'songs', 1]);
+  assert.equal(C.travelStatus({ songs: on, persisted: true, shellCached: false }).why, 'shell');
+  assert.equal(C.travelStatus({ songs: on, connected: false, shellCached: true }).why, 'connect');
+  // PC: 이 기기에서 넣고 아직 Drive에 안 올라간 곡
+  assert.equal(C.travelStatus({ songs: [...on, { id: 'n', blob: {} }, { id: 'm', fileId: 'fm', blob: {}, mediaDirty: true }], shellCached: true }).pendingUpload, 2);
+});

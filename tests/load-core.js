@@ -7,7 +7,8 @@ const vm = require('node:vm');
 const NAMES = ['fmtMs', 'norm', 'chosung', 'pick', 'parseLyrics', 'toLRC', 'searchIn', 'SONG_FIELDS', 'REC_FIELDS',
   'mergeRemoteInto', 'mergeProfileLists', 'renumberDuplicates', 'buildLibrary', 'librarySig', 'packBackup', 'unpackBackup', 'BK_MAGIC', 'titleFromFilename', 'songsFromFolderFiles', 'tvParam', 'fillsScreen',
   'MEASURE', 'findClickDelays', 'summarizeDelays', 'pickByArrow',
-  'isMediaFile', 'byFileName', 'nextSongNumbers', 'findSameSong', 'lacksLyrics', 'artistNames', 'artistMatches', 'titleRank', 'rankLyrics', 'chooseLyrics', 'AUTO_SEC'];
+  'isMediaFile', 'byFileName', 'nextSongNumbers', 'findSameSong', 'lacksLyrics', 'artistNames', 'artistMatches', 'titleRank', 'rankLyrics', 'chooseLyrics', 'AUTO_SEC',
+  'STATS_CAP', 'statsFileName', 'cleanPlays', 'mergePlays', 'mergeScores', 'statsTotals', 'statsSig', 'buildStatsFile', 'parseStatsFile', 'pickStatsFiles', 'mergeBackupStats', 'planDownload', 'travelStatus'];
 
 function loadCore() {
   const ctx = vm.createContext({ console, Blob, TextEncoder, TextDecoder, DataView, Uint8Array, URLSearchParams, crypto: globalThis.crypto });

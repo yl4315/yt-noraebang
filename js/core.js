@@ -301,3 +301,120 @@ async function unpackBackup(file) {
   if (off > file.size) throw new Error('백업 파일이 잘렸어요');
   return { head, blobAt };
 }
+
+/* ---------------- 기기 맞추기 (CR-039): 점수·부른 횟수를 기기마다 세고 화면에서 합친다 ---------------- */
+// 기기마다 Drive 'YT 노래방' 폴더에 stats-<기기 id>.json 하나씩. 자기 파일만 쓰고 남의 파일은 읽기만 해서 쓰기 충돌이 없다.
+// 이 기기 기록(nb-plays·nb-scores)에는 남의 기록을 섞지 않는다. 합계는 보여 줄 때만 더한다.
+const STATS_CAP = 30;                                  // 점수는 기기마다 최근 30개 (지금 규칙 그대로)
+const statsFileName = dev => `stats-${dev}.json`;
+const okNum = v => typeof v === 'number' && isFinite(v) && v >= 0;
+// 부른 횟수 칸 { 곡 id: { n, last } } 에서 모양이 틀린 줄을 뺀다
+function cleanPlays(o) {
+  const out = {};
+  if (!o || typeof o !== 'object' || Array.isArray(o)) return out;
+  for (const [id, p] of Object.entries(o)) if (p && okNum(p.n)) out[id] = { n: Math.floor(p.n), last: okNum(p.last) ? p.last : 0 };
+  return out;
+}
+function cleanScores(a) {
+  return Array.isArray(a) ? a.filter(x => x && typeof x === 'object' && okNum(x.score) && okNum(x.at) && (x.id || x.no != null)) : [];
+}
+// 횟수 합치기 (같은 기기의 두 사본): 곡마다 큰 n, 늦은 last → 순서를 바꿔도·두 번 해도 같고 줄지 않는다
+function mergePlays(a, b) {
+  const out = cleanPlays(a);
+  for (const [id, p] of Object.entries(cleanPlays(b))) {
+    const o = out[id];
+    out[id] = o ? { n: Math.max(o.n, p.n), last: Math.max(o.last, p.last) } : p;
+  }
+  return out;
+}
+const scoreKey = x => `${x.at}|${x.id || x.no}|${x.score}`;
+// 점수 합치기: 합집합 (시각·곡·점수가 같으면 한 번), 최근 순, cap개까지 (0이면 제한 없음)
+function mergeScores(a, b, cap = STATS_CAP) {
+  const seen = new Set(), out = [];
+  for (const x of [...cleanScores(a), ...cleanScores(b)]) { const k = scoreKey(x); if (!seen.has(k)) { seen.add(k); out.push(x); } }
+  out.sort((x, y) => y.at - x.at);
+  return cap ? out.slice(0, cap) : out;
+}
+// 보이는 합계 = 이 기기 + 다른 기기 사본들 (내 id의 사본은 빼서 두 번 세지 않음)
+// mine = { plays, scores }, others = { 기기 id: { mt, plays, scores } } → { plays: { 곡 id: { n, last } }, scores: [...], devices }
+function statsTotals(mine, others, myId) {
+  const plays = {}, add = src => {
+    for (const [id, p] of Object.entries(cleanPlays(src))) {
+      const o = plays[id] || (plays[id] = { n: 0, last: 0 });
+      o.n += p.n; o.last = Math.max(o.last, p.last);
+    }
+  };
+  add(mine?.plays);
+  let scores = cleanScores(mine?.scores), devices = 0;
+  for (const [dev, c] of Object.entries(others && typeof others === 'object' ? others : {})) {
+    if (dev === myId || !c || typeof c !== 'object') continue;
+    devices++; add(c.plays); scores = scores.concat(cleanScores(c.scores));
+  }
+  return { plays, scores: mergeScores(scores, [], 0), devices };
+}
+// 올릴 내용의 비교값 (키 순서가 달라도 같음) → 같으면 다시 쓰지 않는다
+function statsSig({ plays, scores }) {
+  const p = cleanPlays(plays);
+  return JSON.stringify([Object.keys(p).sort().map(k => [k, p[k].n, p[k].last]), mergeScores(scores, [], 0).map(scoreKey)]);
+}
+function buildStatsFile(device, plays, scores, now = Date.now()) {
+  return { v: 1, app: 'YT 노래방', device, updatedAt: now, plays: cleanPlays(plays), scores: mergeScores(scores, [], STATS_CAP) };
+}
+// Drive에서 읽은 파일 → { device, plays, scores } (모양이 틀리면 null: 그 기기 사본은 지난번 값 그대로)
+function parseStatsFile(o) {
+  if (!o || typeof o !== 'object' || typeof o.v !== 'number' || typeof o.device !== 'string' || !o.device) return null;
+  return { device: o.device, plays: cleanPlays(o.plays), scores: cleanScores(o.scores) };
+}
+// 폴더의 JSON 파일 목록 [{ id, name, modifiedTime }] → 내 파일 하나 + 다른 기기 파일들 (같은 이름이 둘이면 나중에 고친 것)
+function pickStatsFiles(files, myId) {
+  const byDev = new Map();
+  for (const f of files || []) {
+    const m = /^stats-(.+)\.json$/.exec(f?.name || ''); if (!m || !f.id) continue;
+    const mt = Date.parse(f.modifiedTime) || 0, cur = byDev.get(m[1]);
+    if (!cur || mt > cur.mt) byDev.set(m[1], { id: f.id, device: m[1], mt });
+  }
+  const mine = myId ? byDev.get(myId) || null : null;
+  return { mine, others: [...byDev.values()].filter(x => x.device !== myId) };
+}
+// 백업 파일의 점수·횟수 (Q2): device가 있고 내 id와 다르면 그 기기 사본에 합친다 (Drive에서 같은 기기 파일이 와도 같은 칸이라
+// 두 번 세지 않음). device가 없는 옛 백업이나 내 id와 같으면 예전 규칙 그대로 (점수 합집합 최근 30개, 횟수는 큰 쪽).
+function mergeBackupStats(head, myId, mine, others) {
+  const dev = typeof head?.device === 'string' && head.device ? head.device : null;
+  if (dev && dev !== myId) {
+    const c = others[dev] || {};
+    return { target: 'other', device: dev, plays: mine.plays, scores: mine.scores,
+      others: { ...others, [dev]: { mt: c.mt || 0, plays: mergePlays(c.plays, head.plays), scores: mergeScores(c.scores, head.scores) } } };
+  }
+  const scores = mine.scores.slice();
+  for (const x of head?.scores || []) if (!scores.some(y => y.at === x.at && y.title === x.title)) scores.push(x);
+  scores.sort((a, b) => b.at - a.at); scores.splice(STATS_CAP);
+  const plays = { ...mine.plays };
+  for (const [id, pl] of Object.entries(head?.plays || {})) if (!plays[id] || pl.n > plays[id].n) plays[id] = pl;
+  return { target: 'mine', device: dev, plays, scores, others };
+}
+
+/* 여행 준비 (CR-039): 무엇을 어떤 순서로 받을지, 다 됐는지 */
+const needsDownload = s => !!s && !s.demo && !s.blob && !!s.fileId;
+// 많이 부른 곡 → 누구든 좋아요한 곡 → 번호 순. 공간이 모자라 멈춰도 중요한 곡은 이미 받아져 있다.
+// free = 남은 공간(바이트, 모르면 null), margin = 여유(10%, 기기 시험으로 조정)
+function planDownload({ songs, plays = {}, favorites = [], free = null, skipVideo = false, margin = 0.1 }) {
+  const fav = new Set(favorites), n = s => plays[s.id]?.n || 0;
+  const all = (songs || []).filter(needsDownload);
+  const list = all.filter(s => !(skipVideo && s.video)).sort((a, b) =>
+    n(b) - n(a) || (plays[b.id]?.last || 0) - (plays[a.id]?.last || 0) || (fav.has(b.id) - fav.has(a.id)) || a.no - b.no);
+  const sized = list.filter(s => okNum(s.size) && s.size > 0);
+  const need = sized.reduce((t, s) => t + s.size, 0);
+  const videos = all.filter(s => s.video), videoBytes = videos.reduce((t, s) => t + (okNum(s.size) ? s.size : 0), 0);
+  return { list, need, unknown: list.length - sized.length, fits: free == null || need * (1 + margin) <= free,
+    video: skipVideo ? 0 : list.filter(s => s.video).length, skippedVideo: skipVideo ? videos.length : 0, videoBytes };
+}
+// 준비 끝 판정 (저장해 둔 표시가 아니라 지금 상태로): Drive에만 있는 곡 0곡 + 앱 화면 저장됨 → 끝.
+// 영구 저장이 꺼져 있어도 끝으로 치되 경고. 이 기기에서 넣고 아직 Drive에 안 올라간 곡 수도 같이 (PC용).
+function travelStatus({ songs, connected = true, persisted = false, shellCached = false }) {
+  const real = (songs || []).filter(s => !s.demo);
+  const cloudOnly = real.filter(needsDownload).length, local = real.filter(s => !!s.blob).length;
+  const pendingUpload = connected ? real.filter(s => s.blob && (!s.fileId || s.mediaDirty)).length : 0;
+  const done = connected && cloudOnly === 0 && shellCached;
+  const why = !connected ? 'connect' : cloudOnly ? 'songs' : !shellCached ? 'shell' : null;
+  return { done, why, cloudOnly, local, pendingUpload, warnPersist: done && !persisted };
+}
