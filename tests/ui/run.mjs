@@ -248,7 +248,7 @@ function writeResults({ shots, compare, cleanup, edgeErrors, elapsed, aborted })
     L.push('', '## 실패한 번호', '', '| 번호 | 내용 | 왜 |', '|---|---|---|');
     for (const x of rows.filter(x => x.status === 'fail')) L.push(`| ${x.id} | ${md(x.text.slice(0, 60))} | ${md(x.detail)} |`);
   }
-  L.push('', '## 기능 번호별 (208줄)', '', '| 번호 | 분류 | 조건 | 결과 | 내용 | 확인한 것 / 이유 |', '|---|---|---|---|---|---|');
+  L.push('', `## 기능 번호별 (${FEATURES.features.length}줄)`, '', '| 번호 | 분류 | 조건 | 결과 | 내용 | 확인한 것 / 이유 |', '|---|---|---|---|---|---|');
   for (const x of rows) L.push(`| ${x.id} | ${CLS_KO[x.cls]} | ${x.cond.join('·')} | ${x.status === 'fail' ? '**실패**' : ST_KO[x.status]} | ${md(x.text.length > 70 ? x.text.slice(0, 70) + '…' : x.text)} | ${md(x.detail.length > 400 ? x.detail.slice(0, 400) + '…' : x.detail)} |`);
   if (shots?.length) {
     L.push('', `## 스크린샷 (${shots.length}장, \`shots/\`)`, '', '| 파일 | 크기 | 맞음 |', '|---|---|---|');
@@ -339,7 +339,7 @@ try {
   if ((!ONLY && !CHECKS) || SHOTS_ONLY) shots = await shotMod.default(ctx);
   // 2) 기능 점검
   if (!SHOTS_ONLY) {
-    const order = ['basics', 'songs', 'bulk', 'video', 'reserve', 'profiles', 'keys', 'syncedit', 'tv', 'touch', 'record', 'mic', 'settings', 'backup', 'remote', 'offline'];
+    const order = ['basics', 'songs', 'bulk', 'video', 'reserve', 'profiles', 'keys', 'syncedit', 'tv', 'touch', 'record', 'mic', 'settings', 'backup', 'remote', 'offline', 'devsync'];
     // 마이크는 '거부' 상태로 시작한다 (마이크가 꺼진 채의 안내를 먼저 본다. 가짜 마이크는 mic 점검에서 켠다)
     await ctx.p.eval(`localStorage.setItem('__ui-mic','deny')`);
     ctx.ids = {};

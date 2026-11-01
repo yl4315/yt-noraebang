@@ -38,13 +38,13 @@ export default async function backup(ctx) {
     await b.setFiles('#bkFile', [file]);
     await b.until(`/^불러왔어요|불러오지 못했어요|백업 파일/.test(document.querySelector('#bkStatus').textContent)`, 20000);
     const st = await txt(b, '#bkStatus');
-    const got = await b.eval(`({songs:state.songs.filter(s=>!s.demo).length, recs:state.recs.length, profiles:liveProfiles().map(x=>x.name), scores:scores.length, list:document.querySelectorAll('#songList li').length})`);
+    const got = await b.eval(`({songs:state.songs.filter(s=>!s.demo).length, recs:state.recs.length, profiles:liveProfiles().map(x=>x.name), scores:totals().scores.length, mine:scores.length, other:Object.keys(Dev.others).length, list:document.querySelectorAll('#songList li').length})`);
     await b.setFiles('#bkFile', [ctx.fx.notBackup]);
     await b.until(`!/^불러왔어요/.test(document.querySelector('#bkStatus').textContent) && document.querySelector('#bkStatus').textContent!=='불러오는 중…'`, 10000);
     const bad = await txt(b, '#bkStatus');
     await b.close();
     ok('Q2', empty && st === `불러왔어요 · 새 곡 ${want.songs}개, 새 녹음 ${want.recs}개 (이미 있던 건 더 최신 쪽으로 맞췄어요)` && got.songs === want.songs && got.recs === want.recs && got.list === want.songs + 1
-      && want.profiles.every(n => got.profiles.includes(n)) && got.scores >= want.scores && /백업 파일|불러오지 못했어요/.test(bad),
-      `"${st}" · 사용자 ${got.profiles.join(',')} · 점수 ${got.scores}개 · 다른 파일 → "${bad}"`);
+      && want.profiles.every(n => got.profiles.includes(n)) && got.scores >= want.scores && got.mine === 0 && got.other === 1 && /백업 파일|불러오지 못했어요/.test(bad),
+      `"${st}" · 사용자 ${got.profiles.join(',')} · 점수 ${got.scores}개 (다른 기기 백업이라 그 기기 칸에: CR-039) · 다른 파일 → "${bad}"`);
   });
 }
