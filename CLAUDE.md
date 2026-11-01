@@ -13,7 +13,8 @@ npm run test:ui                  # 화면 자동 점검: 헤드리스 Edge가 �
 ```
 
 - **화면을 고친 CR은 끝내기 전에 `npm test`와 `npm run test:ui`를 둘 다 돌린다.** 결과·사진은 PC 임시 폴더(`--out`으로 바꿈, 저장소 안은 git에서 빠지는 `tests/ui/out/`만). 옵션은 `tests/ui/run.mjs` 맨 위.
-- **기능을 더하거나 바꾸면 `tests/ui/features.json`(기능 번호 → 분류 auto/test/partial/human/device, 조건 P·V·O·M·W·S·L)과 그 번호를 보는 `tests/ui/checks/*.mjs`를 같이 고친다.** 결과표에 208줄이 다 나오는지, 자동 줄에 확인 기록이 있는지 점검이 스스로 본다 (기록이 없으면 실패).
+- **기능을 더하거나 바꾸면 `tests/ui/features.json`(기능 번호 → 분류 auto/test/partial/human/device, 조건 P·V·O·M·W·S·L)과 그 번호를 보는 `tests/ui/checks/*.mjs`를 같이 고친다.** 결과표에 216줄이 다 나오는지, 자동 줄에 확인 기록이 있는지 점검이 스스로 본다 (기록이 없으면 실패).
+- Drive가 필요한 흐름은 `tests/ui/checks/devsync.mjs`처럼 페이지 안 `Cloud.api`를 가짜 Drive(메모리)로 바꿔 본다 (`getToken`은 가짜 API면 `'test'`). 실제 Google에는 요청하지 않는다. 이 점검은 같이 쓰는 탭에서 맨 마지막에 돌고 넣은 것을 지운다.
 - 점검 도구는 npm 패키지 없이 CDP로 Edge를 움직인다 (`tests/ui/edge.mjs`). 시험 서버 `tests/ui/serve.py`는 `server.PIN_FILE`을 임시 폴더로 바꾸고 127.0.0.1에만 켠다 (저장소 `.remote.json`을 안 건드림). 밖으로 나가는 요청은 글꼴·QR 라이브러리만 허용, `lrclib.net`은 가짜 답, Google은 막음.
 - 점검이 찾은 앱 문제는 고치지 않고 결과표 "점검하다 본 것"에 적는다. 바로 못 고치는 실패는 `features.json`의 `known`(설명 + 맞는 실패 글)으로 "알려진 문제"로 따로 보이게 하고, 고치면 지운다.
 - 점검이 고장을 잡는지: `node tests/ui/selftest.mjs` (사본에서 단축키 C 빼기·검색 ✕ 숨기기·데모곡 번호 바꾸기 → M4·M10·I9·I12·S1·S4가 실패로 나와야 함).
@@ -56,6 +57,7 @@ npm run test:ui                  # 화면 자동 점검: 헤드리스 Edge가 �
 | `js/key.js` | 키 바꾸기 (WSOLA, 워커에서 처리) |
 | `js/remote.js` | 휴대폰 리모컨 중계 (`server.py`의 `/api/remote/*`) |
 | `js/backup.js` | 녹음 Drive 백업, 백업 파일 |
+| `js/devsync.js` | 기기 맞추기 (CR-039): 켤 때 "Drive와 맞추기" 띠, 점수·부른 횟수 기기별 Drive 파일 올리기·받기, 설정 창 "여행 준비" |
 | `js/main.js` | 메인 루프, 앱 시작 (항상 마지막) |
 | `remote.html` | 휴대폰 리모컨 화면 (따로 동작, `remote.webmanifest`로 홈 화면 아이콘) |
 | `sw.js` | 서비스 워커: 앱 파일·글꼴을 저장해 오프라인에서도 열리게 |
@@ -80,6 +82,9 @@ npm run test:ui                  # 화면 자동 점검: 헤드리스 Edge가 �
 - `js/core.js`에는 DOM 코드를 넣지 않는다 (테스트가 브라우저 없이 돈다). 새 순수 로직은 여기에 두고 `tests/core.test.js`에 테스트를 더한다.
 - 데모곡(반주·멜로디)을 바꾸면 `js/demo.js`의 `DEMO_CACHE_KEY` 숫자를 올린다. 안 올리면 예전 반주가 계속 나온다.
 - 곡·녹음 내용이 바뀌면 `persistSong(s)` / `recTouch(r)`로 `updatedAt`을 남긴다. Drive 동기화는 `updatedAt`이 더 나중인 쪽이 이기고, 지운 것은 지움 기록(tombstone)으로 남긴다.
+- **기기 맞추기 (CR-039)**: 점수·부른 횟수는 `library.json`·`SONG_FIELDS`에 넣지 않는다 (예전 판이 지운다). 기기마다 Drive `stats-<기기 id>.json`을 자기 것만 쓰고, 다른 기기 것은 `nb-devstats`에 사본으로 둔다. `nb-plays`·`nb-scores`는 이 기기가 센 것만 (남의 기록을 섞지 않는다). 화면 합계는 `totals()`(core.js `statsTotals`)로 보여 줄 때만 더한다. 새 키: `nb-device`(기기 id) · `nb-devstats` · `nb-gstats`(내 파일 id·비교값) · `nb-travel`(마지막 여행 준비). 연결 끊기는 `nb-devstats`·`nb-gstats`만 지운다.
+- 로그인 창은 누른 줄에서 바로 열어야 막히지 않는다: 띠·여행 준비 버튼은 `await` 앞에서 `syncNow({ interactive: true })`를 부른다. `syncNow`는 `{ ok, newSongs, devices }` / `{ ok: false, error }` / `{ busy }`를 돌려준다. 로그인 토큰은 저장하지 않는다.
+- 여러 곡 받기는 `downloadSongs(list)` 하나 ("모두 받기"·여행 준비): 404·403은 건너뛰고, 로그인 끝남·끊김·공간 부족·멈추기에서 멈춘다. `ensureMedia`는 기기에 저장한 뒤에만 `s.blob`을 넣는다.
 - 사용자에게 보이는 글은 쉬운 한국어로, 이유와 해결 방법을 같이 쓴다.
 
 ## 곡 넣기 자동화 (CR-017, `js/bulk.js`)
