@@ -54,7 +54,7 @@ function buildRow(r) {
     <button type="button" class="bk-main" aria-expanded="false"><span class="no"></span><span class="bk-name"><b class="t"></b><span class="a"></span></span><span class="bk-st"></span></button>
     <div class="bk-more" hidden>
       <div class="two"><label class="field"><span>제목</span><input type="text" class="f-t" maxlength="80"></label><label class="field"><span>가수</span><input type="text" class="f-a" maxlength="60"></label></div>
-      <div class="lrc-row"><button class="btn small bk-find" type="button">다시 찾기</button><button class="btn small ghost bk-skip" type="button"></button></div>
+      <div class="lrc-row"><button class="btn small bk-find" type="button">다시 찾기</button><button class="btn small bk-skip" type="button"></button></div>
       <p class="hint bk-msg"></p>
       <ul class="lrc-results" hidden></ul>
     </div>`;

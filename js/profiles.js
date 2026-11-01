@@ -148,7 +148,7 @@ function mineSection(title, ids, pl) {
     h.append(el('span', 'ttl', title), el('small', '', `${songs.length}곡`), el('span', 'grow'));
     mk('전체 예약', 'primary', () => reserveMany(ids, title));
     if (pl) {
-      mk('이름', 'ghost', () => { plRenaming = pl.id; renderMine(); });
+      mk('이름', '', () => { plRenaming = pl.id; renderMine(); });
       mk('삭제', 'ghost danger', b => confirmButton(b, () => { me().playlists = me().playlists.filter(x => x !== pl); saveProfiles(me()); renderMine(); }));
     }
   }

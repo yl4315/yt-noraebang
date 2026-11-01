@@ -73,6 +73,8 @@ select{background:var(--btn-bg);border:1px solid var(--btn-line);border-radius:v
 .song{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:center;padding:9px 10px;border-radius:var(--r-btn);border:1px solid transparent;cursor:pointer}
 .song:hover{background:var(--hover)}
 .song.on{background:var(--sel)}
+/* 고른 줄 안의 버튼: 버튼과 고른 줄이 둘 다 --line이라 글자만 남아서, 주 버튼이 아닌 버튼만 바탕색 알약으로 (디자인실 CR-018 S1) */
+.song.on .btn:not(.primary):not(.ghost),.prof-row.on .btn:not(.primary):not(.ghost),.sy-row.sel .sy-time,.sy-row.sel .nud{background:var(--room)}
 .song .no{font:700 13px/1 var(--ui);color:var(--muted);padding:5px 0;min-width:5ch;font-variant-numeric:tabular-nums}
 .song .meta{min-width:0}
 .song .t{font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -385,6 +387,12 @@ body:has(#tv:not([hidden])) .toast{bottom:calc(var(--bar-h,80px) + 8px)}
 .best .val{font:400 2.2em/1.1 var(--display);color:var(--pink)}
 .best ol{margin:.4em 0 0;padding:0;list-style:none;color:var(--muted);font-size:.85em}
 .best ol li{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* 키가 낮은 TV 화면(폰 가로 412 등): 리모컨 칸이 시계 옆으로 오며 "91점"이 막대에 가려서, 칸 사이를 좁히고 점수 이름·점수를 한 줄로 (디자인실 CR-018 L1) */
+@media (max-height:480px){
+  .tv .idle-right{gap:.6em}
+  .tv .best{display:flex;flex-wrap:wrap;align-items:baseline;gap:0 .6em;padding-top:.5em}
+  .tv .best ol{flex-basis:100%}
+}
 .deck-q{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
 
 /* TV 모드: 화면 전체를 노래방 화면으로 */

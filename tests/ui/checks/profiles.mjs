@@ -102,7 +102,7 @@ export default async function profiles(ctx) {
     const order = await p.eval(`me().playlists[0].songs.slice()`);
     await p.click('#mineBody .mine-sec:nth-child(2) .mine-row:nth-child(2) .icon-btn[title="목록에서 빼기"]');
     const afterX = await p.eval(`me().playlists[0].songs.length`);
-    await p.click('#mineBody .mine-sec:nth-child(2) h4 .ghost:not(.danger)');      // 이름
+    await p.click('#mineBody .mine-sec:nth-child(2) h4 .btn:not(.primary):not(.danger)');      // 이름
     await p.eval(`(()=>{const i=document.querySelector('#mineBody input.ren'); i.focus(); i.select()})()`);
     await p.type('QA 바꾼 목록'); await p.key('Enter');
     const renamed = await p.eval(`me().playlists[0].name`);
