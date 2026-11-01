@@ -184,7 +184,7 @@ export default async function devsync(ctx) {
 
     await step('"여행 준비 끝"은 지금 상태로: 곡 수·영구 저장·마지막 준비 시각, 새 곡이 Drive에 생기면 "다시 준비"', ['P9', 'P6'], async () => {
       const msg = await txt(p, '#travelMsg'), st = await txt(p, '#travelState'), cls = await p.eval(`document.querySelector('#travelState').className`);
-      const local = await p.eval('state.songs.filter(s=>!s.demo&&s.blob).length'), shell = await p.eval('shellCached()');
+      const local = await p.eval('state.songs.filter(s=>!s.demo&&s.blob).length'), shell = await p.eval('shellCached()'), tip = await visible(p, '#travelTip');
       await shot('cr039-04-travel-done-phone.png');
       // 새 곡이 Drive에 생김 (파일 없는 곡: "모두 받기"가 건너뛰고 끝에 알림)
       await p.eval(`(()=>{const f=[...__fd.files.values()].find(f=>f.name==='library.json'); const lib=typeof f.data==='string'?JSON.parse(f.data):f.data; lib.songs.push(${JSON.stringify(song('qa-r5', 20005, 'QA 원격 새곡', { updatedAt: T }))}); f.data=lib; f.modifiedTime=new Date(Date.now()+9e5).toISOString(); __fd.api.missing.add('m-qa-r5');})()`);
@@ -196,8 +196,8 @@ export default async function devsync(ctx) {
       const miss = await sawToast(p, /^0곡을 받았어요 · 1곡은 Drive에 파일이 없어요$/, m, 5000);
       await p.click('#cloudClose');
       ok('P9', shell && new RegExp(`^여행 준비 끝 · 곡 ${local}곡이 이 기기에 있어요 · 인터넷 없이 부를 수 있어요 · (영구 저장 켜짐|영구 저장이 꺼져 있어요)`).test(st) && /마지막 준비 \d+월 \d+일 \d+시 \d\d분$/.test(st)
-        && /\b(ok|warn)\b/.test(cls) && /^여행 준비 끝 · 이번에 \d+곡을 받았어요/.test(msg) && await p.eval(`!document.querySelector('#travelTip').hidden`) && st2 === '새 곡 1곡이 이 기기에 없어요 · 다시 준비해 주세요',
-        `"${st}" → Drive에 새 곡 → "${st2}"`);
+        && /\b(ok|warn)\b/.test(cls) && /^여행 준비 끝 · 이번에 \d+곡을 받았어요/.test(msg) && tip && st2 === '새 곡 1곡이 이 기기에 없어요 · 다시 준비해 주세요',
+        `"${st}" · "${msg}" · 안내 "비행기 모드로…" ${tip ? '보임' : '안 보임'} → Drive에 새 곡 → "${st2}"`);
       ok('P6', miss, '"모두 받기"도 같은 순서·같은 받기: 파일 없는 곡은 건너뛰고 "1곡은 Drive에 파일이 없어요"');
     });
 

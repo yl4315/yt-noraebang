@@ -258,6 +258,7 @@ function addScore(s, score) {
   statsChanged(); if (typeof scheduleStatsUpload === 'function') scheduleStatsUpload();
 }
 function renderBest() {
+  statsChanged();   // 그릴 때마다 합계 표를 새로 (기록을 직접 고친 경우에도 맞게)
   const box = $('#bestBox'), el = (tag, cls, text) => Object.assign(document.createElement(tag), { className: cls, textContent: text });
   box.textContent = '';
   // 점수는 이 기기 것 + 다른 기기 기록 사본 (CR-039)
@@ -540,6 +541,7 @@ function chartStat(s) {
 let chartSel = 0, chartItems = [];
 function openChart() { if (state.sync) return; closeOverlays(); chartSel = 0; $('#chartOv').hidden = false; renderChart(); }
 function renderChart() {
+  statsChanged();
   const ul = $('#chartList'); ul.textContent = '';
   chartItems = chartSongs();
   chartItems.forEach((s, i) => {
@@ -560,6 +562,7 @@ function chartKey(e) {
   e.preventDefault();
 }
 function renderIdleChart() {
+  statsChanged();
   const top = chartSongs().filter(playsOf).slice(0, 5), box = $('#idleChart'), ol = $('#idleChartList');
   box.hidden = !top.length || state.queue.length > 3;
   ol.textContent = '';

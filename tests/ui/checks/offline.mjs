@@ -1,7 +1,10 @@
 // 흐름 14·16: 서버 없이 연 화면(정적 서버 = GitHub Pages와 같은 상태), 설치 파일(manifest·아이콘·바로가기),
 // 오프라인: 정적 서버를 실제로 끄고 + 인터넷 끊김 흉내 → 앱 화면이 열리고(서비스 워커 저장본) 기기에 저장된 곡을 부를 수 있음
+import fs from 'node:fs';
 import { PC, openPage, txt, sleep, q, seedSong } from './_lib.mjs';
 import { LRC_SHORT } from '../fixtures.mjs';
+// 서비스 워커 저장소 이름은 sw.js의 SHELL (JS 파일을 더하면 버전이 오른다)
+const SHELL = /const SHELL = '([^']+)'/.exec(fs.readFileSync(new URL('../../../sw.js', import.meta.url), 'utf8'))[1];
 export const areas = ['A', 'R', 'L'];
 
 export default async function offline(ctx) {
@@ -27,8 +30,8 @@ export default async function offline(ctx) {
 
   await step('오프라인: 정적 서버를 끄고 인터넷 끊김 흉내 → 앱 화면이 열림, 기기에 저장된 곡은 부를 수 있음', ['R2', 'R3'], async () => {
     // 서비스 워커가 화면 파일을 저장해 둘 때까지
-    const sw = await s.until(`navigator.serviceWorker.controller && caches.has('yt-shell-v5')`, 20000, 250);
-    await s.until(`caches.open('yt-shell-v5').then(c=>c.keys()).then(k=>k.length>=20)`, 20000, 250);
+    const sw = await s.until(`navigator.serviceWorker.controller && caches.has(${q(SHELL)})`, 20000, 250);
+    await s.until(`caches.open(${q(SHELL)}).then(c=>c.keys()).then(k=>k.length>=20)`, 20000, 250);
     const song = await seedSong(s, { title: 'QA 시험 오프라인 곡', artist: 'QA가수', lyrics: LRC_SHORT, wav: ctx.fx.short });
     await ctx.stopStatic();
     await s.offline(true);
