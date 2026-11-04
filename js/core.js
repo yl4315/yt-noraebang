@@ -418,3 +418,32 @@ function travelStatus({ songs, connected = true, persisted = false, shellCached 
   const why = !connected ? 'connect' : cloudOnly ? 'songs' : !shellCached ? 'shell' : null;
   return { done, why, cloudOnly, local, pendingUpload, warnPersist: done && !persisted };
 }
+
+/* MR 만들기 (CR-089): 집 AI 서버의 "MR 만들기 창"을 새 탭으로 열고, 다 만든 MR을 창끼리(postMessage) 받는다.
+   노래방은 서버에 직접 요청하지 않는다 (https 노래방 → http 서버는 막힘). 주소는 짧은 기계 이름만 (tailnet 뒷부분·IP 없음) */
+const MR_DEFAULT_SERVER = 'http://dgxspark-yena:8765';
+const MR_MAX_FILES = 30, MR_MAX_BYTES = 120 * 1024 * 1024;
+// 서버 주소 다듬기·검사 → { ok:true, url, origin } | { ok:false, why:'empty'|'scheme'|'userinfo'|'bad' }
+// http:// 또는 https://로 시작, 사용자·비밀번호(@) 없음, ?·# 없음, 끝 / 는 뗀다 (창은 url + '/'로 연다)
+function normalizeMrServer(input) {
+  const s = String(input ?? '').trim();
+  if (!s) return { ok: false, why: 'empty' };
+  if (!/^https?:\/\/[^/]/i.test(s)) return { ok: false, why: 'scheme' };
+  if (s.includes('@')) return { ok: false, why: 'userinfo' };
+  if (/[\s?#\\]/.test(s)) return { ok: false, why: 'bad' };
+  let u;
+  try { u = new URL(s); } catch { return { ok: false, why: 'bad' }; }
+  if (!/^https?:$/.test(u.protocol) || !u.hostname) return { ok: false, why: 'bad' };
+  return { ok: true, url: u.origin + u.pathname.replace(/\/+$/, ''), origin: u.origin };
+}
+// 받은 메시지가 믿을 만한가. from = { origin(보낸 주소), mine(내가 연 창에서 왔나) }, want = 설정한 서버 주소의 origin
+// 돌려주는 것: null(무시) | { type } | files면 { type:'files', files } 또는 { type:'files', bad:true } (→ nack bad)
+// isFile: 브라우저에서는 f => f instanceof File (Node 시험은 모양만 봄)
+function mrMessageOk(msg, from, want, isFile = f => !!f && typeof f.name === 'string' && typeof f.size === 'number') {
+  if (!from || from.mine !== true || !want || from.origin !== want) return null;
+  if (!msg || typeof msg !== 'object' || msg.app !== 'yena-mr' || msg.v !== 1 || typeof msg.type !== 'string') return null;
+  if (msg.type !== 'files') return { type: msg.type };
+  const files = Array.isArray(msg.files) ? msg.files : [];
+  const ok = files.length > 0 && files.length <= MR_MAX_FILES && files.every(f => isFile(f) && f.size > 0 && f.size <= MR_MAX_BYTES && isMediaFile(f));
+  return ok ? { type: 'files', files } : { type: 'files', bad: true };
+}

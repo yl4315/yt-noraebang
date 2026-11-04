@@ -48,6 +48,8 @@
       </div>
       <section class="panel" id="songsPanel">
         <button class="btn primary" id="addSongBtn" type="button">+ 곡 추가 (MR 업로드)</button>
+        <button class="btn mr-btn" id="mrBtn" type="button" title="집 AI 서버가 노래 파일에서 목소리를 빼 MR을 만들어요">내 노래 파일에서 MR 만들기</button>
+        <p class="mr-msg" id="mrMsg" role="status" hidden><span id="mrMsgTxt"></span><button class="btn small" id="mrRetry" type="button" hidden>다시 열기</button></p>
         <button class="btn small miss-btn" id="missBtn" type="button" hidden title="가사가 없는 곡의 가사를 한꺼번에 찾아요">가사 없음 · 찾기</button>
         <ul class="list" id="songList"></ul>
         <p class="hint">MR 파일(mp3, m4a, wav, mp4 등)과 가사를 넣으면 곡이 추가돼요. MR을 여러 개 고르면 한 번에 넣고 가사도 찾아 줘요 (PC에서는 여기로 끌어다 놓아도 돼요). 곡은 이 기기에 저장되고, Drive에 연결하면 다른 기기와 맞춰져요.</p>
@@ -464,6 +466,14 @@
       <div class="set-row"><button class="btn" id="bkExport" type="button">백업 파일 만들기</button><label class="btn" for="bkFile" tabindex="0">백업 파일 불러오기</label><input type="file" id="bkFile" accept=".ytbackup" hidden></div>
       <p class="hint" id="bkStatus"></p>
     </section>
+    <section class="set-sec" id="mrSec">
+      <h3>MR 만들기 (집 AI 서버)</h3>
+      <p class="hint">노래 파일에서 목소리를 빼 MR을 만드는 집 AI 서버의 주소예요.</p>
+      <div class="set-row"><input type="text" id="mrServer" inputmode="url" spellcheck="false" autocomplete="off" autocapitalize="off" placeholder="http://dgxspark-yena:8765" aria-label="MR 만들기 서버 주소"><button class="btn small" id="mrSave" type="button">저장</button><button class="btn small ghost" id="mrReset" type="button">기본값으로</button></div>
+      <p class="hint">주소창에 '안전하지 않음'이 보여도 집 Tailscale 안에서만 열리는 창이에요</p>
+      <p class="hint">이 기기에만 저장돼요. 집 밖에서는 Tailscale을 켜 주세요.</p>
+      <p class="hint" id="mrSetMsg" role="status" hidden></p>
+    </section>
     <section class="set-sec">
       <h3>휴대폰 리모컨</h3>
       <div class="remote-info" id="remoteSet">"YT 노래방 켜기"로 연 화면에서만 쓸 수 있어요. 같은 와이파이의 휴대폰으로 예약·검색·시작·취소를 할 수 있어요.</div>
@@ -488,6 +498,7 @@
 <script src="js/audio.js"></script>
 <script src="js/songs.js"></script>
 <script src="js/bulk.js"></script>
+<script src="js/mr.js"></script>
 <script src="js/playback.js"></script>
 <script src="js/recording.js"></script>
 <script src="js/syncedit.js"></script>

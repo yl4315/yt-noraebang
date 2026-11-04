@@ -652,3 +652,44 @@ test('여행 준비: 끝 판정은 지금 상태로 — 새 곡이 생기면 아
   // PC: 이 기기에서 넣고 아직 Drive에 안 올라간 곡
   assert.equal(C.travelStatus({ songs: [...on, { id: 'n', blob: {} }, { id: 'm', fileId: 'fm', blob: {}, mediaDirty: true }], shellCached: true }).pendingUpload, 2);
 });
+
+test('MR 만들기: 서버 주소 다듬기 — 기본값, 끝 / 떼기, http·https만, @·?·# 안 됨', () => {
+  assert.equal(C.MR_DEFAULT_SERVER, 'http://dgxspark-yena:8765');
+  same(C.normalizeMrServer('http://dgxspark-yena:8765'), { ok: true, url: 'http://dgxspark-yena:8765', origin: 'http://dgxspark-yena:8765' });
+  same(C.normalizeMrServer('  http://dgxspark-yena:8765///  '), { ok: true, url: 'http://dgxspark-yena:8765', origin: 'http://dgxspark-yena:8765' });
+  same(C.normalizeMrServer('HTTPS://Dgx.Example:8443/mr/'), { ok: true, url: 'https://dgx.example:8443/mr', origin: 'https://dgx.example:8443' });
+  assert.equal(C.normalizeMrServer('http://127.0.0.1:80').url, 'http://127.0.0.1');       // 기본 포트는 빠진다 (origin과 같게)
+  assert.equal(C.normalizeMrServer('').why, 'empty');
+  assert.equal(C.normalizeMrServer(null).why, 'empty');
+  for (const bad of ['dgxspark-yena:8765', 'ftp://dgx:21', 'http:/dgx', 'http:///x', 'javascript:alert(1)']) assert.equal(C.normalizeMrServer(bad).why, 'scheme', bad);
+  for (const bad of ['http://me:pw@dgx:8765', 'http://@dgx']) assert.equal(C.normalizeMrServer(bad).why, 'userinfo', bad);
+  for (const bad of ['http://dgx:8765/?a=1', 'http://dgx:8765/#x', 'http://dg x:8765', 'http://dgx:99999', 'http://dgx\\evil']) assert.equal(C.normalizeMrServer(bad).ok, false, bad);
+});
+
+test('MR 만들기: 받은 메시지 — 내가 연 창 + 서버 주소 + {app,v}일 때만, 파일은 30개·120MB·MR 파일만', () => {
+  const want = 'http://dgxspark-yena:8765', from = { origin: want, mine: true };
+  const mp3 = (name = '밤편지 - 아이유 (MR).mp3', size = 9e6, type = 'audio/mpeg') => ({ name, size, type });
+  same(C.mrMessageOk({ app: 'yena-mr', v: 1, type: 'hello', base: want, https: null }, from, want), { type: 'hello' });
+  // 무시: 다른 주소, 내가 열지 않은 창, 서버 주소를 모름, 약속 밖 모양
+  assert.equal(C.mrMessageOk({ app: 'yena-mr', v: 1, type: 'hello' }, { origin: 'http://evil.test', mine: true }, want), null);
+  assert.equal(C.mrMessageOk({ app: 'yena-mr', v: 1, type: 'hello' }, { origin: want, mine: false }, want), null);
+  assert.equal(C.mrMessageOk({ app: 'yena-mr', v: 1, type: 'hello' }, from, ''), null);
+  for (const m of [null, 'hello', { app: 'other', v: 1, type: 'hello' }, { app: 'yena-mr', v: 2, type: 'hello' }, { app: 'yena-mr', v: '1', type: 'hello' }, { app: 'yena-mr', v: 1 }])
+    assert.equal(C.mrMessageOk(m, from, want), null, JSON.stringify(m));
+  // 파일
+  const files = [mp3(), mp3('산책 - 백예린 (MR).mp3')];
+  const r = C.mrMessageOk({ app: 'yena-mr', v: 1, type: 'files', files }, from, want);
+  assert.equal(r.type, 'files'); assert.equal(r.files.length, 2); assert.equal(r.bad, undefined);
+  assert.equal(C.mrMessageOk({ app: 'yena-mr', v: 1, type: 'files', files: [mp3('a (MR).mp3', C.MR_MAX_BYTES)] }, from, want).bad, undefined);   // 120MB 꼭 맞으면 됨
+  const bad = f => C.mrMessageOk({ app: 'yena-mr', v: 1, type: 'files', files: f }, from, want);
+  for (const [why, f] of [['없음', []], ['배열 아님', 'x'], ['파일 아님', ['밤편지.mp3']], ['120MB 넘음', [mp3('a.mp3', C.MR_MAX_BYTES + 1)]], ['빈 파일', [mp3('a.mp3', 0)]],
+    ['MR 파일 아님', [mp3('메모.txt', 10, 'text/plain')]], ['하나라도 틀리면', [mp3(), { name: 'x.mp3' }]], ['31개', Array.from({ length: 31 }, (_, i) => mp3(`${i} (MR).mp3`))]])
+    same(bad(f), { type: 'files', bad: true }, why);
+  assert.equal(bad(Array.from({ length: 30 }, (_, i) => mp3(`${i} (MR).mp3`))).bad, undefined);
+  // 브라우저처럼 isFile을 넘기면 그것으로 본다 (모양만 같은 가짜는 안 됨)
+  assert.equal(C.mrMessageOk({ app: 'yena-mr', v: 1, type: 'files', files: [mp3()] }, from, want, () => false).bad, true);
+  // 받은 MR 이름 → 제목·가수 (서비스 이름 규칙 "제목 - 가수 (MR).mp3"와 맞물림)
+  same(C.titleFromFilename('밤편지 - 아이유 (MR).mp3'), { title: '밤편지', artist: '아이유' });
+  same(C.titleFromFilename('[TJ노래방] 산책 - 백예린 _ TJ Karaoke (MR).mp3'), { title: '산책', artist: '백예린' });
+  same(C.titleFromFilename('1부 행진곡_멸종위기사랑 (MR).mp3'), { title: '1부 행진곡', artist: '멸종위기사랑' });
+});

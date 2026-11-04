@@ -273,6 +273,10 @@ dialog h2{margin:0;font:var(--font-title-sheet)}
 .bk-more{grid-column:1/-1;display:flex;flex-direction:column;gap:10px;padding:2px 12px 12px}
 .bk-more .lrc-results{max-height:220px}
 .miss-btn{justify-content:flex-start}
+/* MR 만들기 (CR-089): 곡 추가 아래 보통 단추 + 못 열었을 때 한 줄 안내 */
+.mr-msg{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0;font-size:12px;color:var(--muted)}
+.mr-msg span{flex:1 1 160px}
+@media (hover:none){.mr-btn,.mr-msg .btn,#mrSec .btn{min-height:44px}}
 #songsPanel.drop{outline:2px dashed var(--amber);outline-offset:-4px;background:var(--color-drop)}
 #songsPanel.drop::before{content:"MR 파일을 여기에 놓으면 곡으로 넣어요";display:block;text-align:center;font-weight:700;padding:10px;border-radius:var(--r-in);background:var(--room)}
 .song.fresh{animation:fresh 2.4s ease-out}

@@ -14,7 +14,8 @@ function bulkRow(o) {
     st: 'wait', items: [], pick: null, why: '', retry: '', code: 0, swapped: false, open: false, el: null, ...o };
 }
 // 파일들 → 새 곡 줄 (MR이 아닌 파일은 빼고, 파일 이름 순서). 제목·가수가 같은 곡이 이미 있으면 체크를 끈다
-function openBulk(files) {
+// note(선택): 창 위 안내 줄에 먼저 보일 글 (MR 만들기 CR-089: "MR 만들기로 만든 곡 N개예요…"). 없으면 예전과 똑같다
+function openBulk(files, note) {
   const all = [...(files || [])], media = all.filter(isMediaFile).sort(byFileName), skipped = all.length - media.length;
   if (!media.length) { toast('MR 파일(음악·동영상)이 아니라서 넣지 않았어요. mp3·m4a·wav·mp4 같은 파일을 골라 주세요', 4500); return; }
   Bulk.mode = 'add';
@@ -22,7 +23,7 @@ function openBulk(files) {
     const { title, artist } = titleFromFilename(f.name), dup = !!findSameSong(state.songs, title, artist);
     return bulkRow({ file: f, title, artist, dup, checked: !dup });
   });
-  showBulk(skipped ? `${skipped}개는 MR 파일(음악·동영상)이 아니라서 뺐어요` : '');
+  showBulk([note, skipped ? `${skipped}개는 MR 파일(음악·동영상)이 아니라서 뺐어요` : ''].filter(Boolean).join(' · '));
 }
 // 가사가 빈 곡 모아 찾기. MR 길이는 기기에 있는 파일에서 읽고, Drive에만 있으면 모름(→ 저절로 넣지 않음)
 function openMissing() {
