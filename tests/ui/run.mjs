@@ -276,7 +276,7 @@ function writeResults({ shots, compare, cleanup, edgeErrors, elapsed, aborted })
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'yt-ui-check-'));     // 코드 파일·시험 파일·내려받은 파일
 const pinDir = path.join(tmp, 'pin'), dlDir = path.join(tmp, 'downloads');
 fs.mkdirSync(pinDir); fs.mkdirSync(dlDir);
-let mainSrv = null, staticSrv = null, aborted = null;
+let mainSrv = null, staticSrv = null, fakeMrSrv = null, aborted = null;
 const browsers = new Set();
 let shots = [], compare = null;
 const edgeErrors = [];
@@ -296,6 +296,12 @@ try {
   ctx.staticBase = `http://127.0.0.1:${staticPort}`;
   ctx.startStatic = async () => { if (!staticSrv) staticSrv = await startServer([String(staticPort), '--static', '--root', ROOT], '정적'); };
   ctx.stopStatic = async () => { await stopServer(staticSrv); staticSrv = null; };
+  // MR 만들기(CR-089): 가짜 "MR 만들기 창" (집 AI 서버 대신). 노래방과 다른 포트 = 다른 origin. 주소를 돌려준다
+  ctx.startFakeMr = async () => {
+    if (!fakeMrSrv) { const fp = await freePortNot5173(); fakeMrSrv = await startServer([String(fp), '--static', '--root', path.join(HERE, 'fake-mr')], '가짜 MR 창'); fakeMrSrv.base = `http://127.0.0.1:${fp}`; }
+    return fakeMrSrv.base;
+  };
+  ctx.stopFakeMr = async () => { await stopServer(fakeMrSrv); fakeMrSrv = null; };
   await ctx.startStatic();
   log(`시험 서버 127.0.0.1:${port} (리모컨 코드 파일: 임시 폴더) · 정적 서버 127.0.0.1:${staticPort}`);
   ctx.fx = makeFixtures(path.join(tmp, 'files'));
@@ -339,7 +345,7 @@ try {
   if ((!ONLY && !CHECKS) || SHOTS_ONLY) shots = await shotMod.default(ctx);
   // 2) 기능 점검
   if (!SHOTS_ONLY) {
-    const order = ['basics', 'songs', 'bulk', 'video', 'reserve', 'profiles', 'keys', 'syncedit', 'tv', 'touch', 'record', 'mic', 'settings', 'backup', 'remote', 'offline', 'devsync'];
+    const order = ['basics', 'songs', 'bulk', 'video', 'reserve', 'profiles', 'keys', 'syncedit', 'tv', 'touch', 'record', 'mic', 'settings', 'backup', 'remote', 'mr', 'offline', 'devsync'];
     // 마이크는 '거부' 상태로 시작한다 (마이크가 꺼진 채의 안내를 먼저 본다. 가짜 마이크는 mic 점검에서 켠다)
     await ctx.p.eval(`localStorage.setItem('__ui-mic','deny')`);
     ctx.ids = {};
@@ -363,7 +369,7 @@ try {
 } finally {
   // 정리
   for (const b of [...browsers]) { try { await b.closeAll(); } catch {} }
-  await stopServer(mainSrv); await stopServer(staticSrv);
+  await stopServer(mainSrv); await stopServer(staticSrv); await stopServer(fakeMrSrv);
   for (const pr of [...procs]) await stopServer(pr);
 }
 

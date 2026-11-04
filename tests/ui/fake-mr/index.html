@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MR 만들기 (가짜, 화면 점검용)</title>
+<style>
+  body{font:15px/1.5 system-ui,'Malgun Gothic',sans-serif;margin:16px;background:#121316;color:#ECEEF1}
+  pre{white-space:pre-wrap;word-break:break-all;font-size:12px;color:#8E949E}
+</style>
+</head>
+<body>
+<!--
+  화면 자동 점검(CR-089)용 가짜 "MR 만들기 창". 진짜는 집 AI 서버의 yena-mr 서비스(GET /)다.
+  run.mjs가 serve.py --static --root tests/ui/fake-mr로 다른 포트(= 다른 origin)에 띄우고, 노래방 설정의 서버 주소를 그 주소로 둔다.
+  메시지 약속(yena-mr README)의 창 쪽만 흉내 낸다:
+  - 열리자마자 opener에 hello {base, https:null}를 1초마다 5번까지 (welcome을 받을 때까지)
+  - welcome을 보낸 주소로만 files를 보낸다. 받은 메시지는 window.__got에 적는다 (점검이 CDP로 읽음)
+  - 진짜 창은 ack 뒤에 서버 파일을 지우고 닫히지만, 이 가짜는 점검이 __got을 읽을 수 있게 열어 둔다
+  점검이 부르는 것: sendFiles([{name, type, sec}]) (짧은 WAV 소리를 만들어 File로) · sendRaw(msg) · sendBig() (121MB)
+  소리 파일은 저작권 없는 사인파를 그때그때 만든다. 이름은 진짜 서비스처럼 "제목 - 가수 (MR).mp3"를 쓴다 (내용은 WAV, 브라우저는 내용으로 읽음)
+-->
+<h1>MR 만들기 (가짜)</h1>
+<pre id="log"></pre>
+<script>
+'use strict';
+window.__got = [];
+window.__linked = false;
+window.__nbOrigin = null;
+const log = s => { document.getElementById('log').textContent += s + '\n'; };
+const msg = o => Object.assign({ app: 'yena-mr', v: 1 }, o);
+
+addEventListener('message', ev => {
+  if (!window.opener || ev.source !== window.opener) return;
+  const d = ev.data;
+  if (!d || d.app !== 'yena-mr' || d.v !== 1) return;
+  window.__got.push({ type: d.type, n: d.n, reason: d.reason, origin: ev.origin });
+  log('받음 ' + d.type + (d.n != null ? ' ' + d.n : '') + (d.reason ? ' ' + d.reason : ''));
+  if (d.type === 'welcome') { window.__linked = true; window.__nbOrigin = ev.origin; }
+});
+
+// hello: welcome까지 1초마다 5번
+(function hello(i) {
+  if (!window.opener || window.__linked || i >= 5) return;
+  window.opener.postMessage(msg({ type: 'hello', base: location.origin, https: null }), '*');
+  log('hello ' + (i + 1));
+  setTimeout(() => hello(i + 1), 1000);
+})(0);
+
+// 8kHz 8비트 모노 WAV (tests/ui/fixtures.mjs wav()와 같은 모양)
+function wavBytes(sec, f1 = 262, f2 = 330) {
+  const rate = 8000, n = Math.round(rate * sec), b = new Uint8Array(44 + n), v = new DataView(b.buffer);
+  const str = (o, s) => { for (let i = 0; i < s.length; i++) b[o + i] = s.charCodeAt(i); };
+  str(0, 'RIFF'); v.setUint32(4, 36 + n, true); str(8, 'WAVEfmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+  v.setUint32(24, rate, true); v.setUint32(28, rate, true); v.setUint16(32, 1, true); v.setUint16(34, 8, true); str(36, 'data'); v.setUint32(40, n, true);
+  for (let i = 0; i < n; i++) { const f = Math.floor(i / rate) % 2 ? f2 : f1; b[44 + i] = 128 + Math.round(40 * Math.sin(2 * Math.PI * f * i / rate)); }
+  return b;
+}
+window.makeFile = ({ name, type = 'audio/mpeg', sec = 3, text = null }) =>
+  new File([text != null ? text : wavBytes(sec)], name, { type });
+function send(o) {
+  if (!window.opener || !window.__nbOrigin) return false;
+  window.opener.postMessage(o, window.__nbOrigin);
+  return true;
+}
+window.sendFiles = specs => {
+  const files = specs.map(window.makeFile);
+  log('보냄 files ' + files.map(f => f.name + ' ' + f.size + 'B').join(', '));
+  return send(msg({ type: 'files', files })) ? files.map(f => ({ name: f.name, size: f.size, type: f.type })) : null;
+};
+window.sendRaw = m => send(m);
+// 한 파일 120MB 넘음 (121MB)
+window.sendBig = () => send(msg({ type: 'files', files: [new File([new Uint8Array(121 * 1024 * 1024)], 'QA 시험 큰곡 - QA가수 (MR).mp3', { type: 'audio/mpeg' })] }));
+</script>
+</body>
+</html>
