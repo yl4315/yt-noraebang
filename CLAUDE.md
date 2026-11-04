@@ -13,7 +13,7 @@ npm run test:ui                  # 화면 자동 점검: 헤드리스 Edge가 �
 ```
 
 - **화면을 고친 CR은 끝내기 전에 `npm test`와 `npm run test:ui`를 둘 다 돌린다.** 결과·사진은 PC 임시 폴더(`--out`으로 바꿈, 저장소 안은 git에서 빠지는 `tests/ui/out/`만). 옵션은 `tests/ui/run.mjs` 맨 위.
-- **기능을 더하거나 바꾸면 `tests/ui/features.json`(기능 번호 → 분류 auto/test/partial/human/device, 조건 P·V·O·M·W·S·L)과 그 번호를 보는 `tests/ui/checks/*.mjs`를 같이 고친다.** 결과표에 216줄이 다 나오는지, 자동 줄에 확인 기록이 있는지 점검이 스스로 본다 (기록이 없으면 실패).
+- **기능을 더하거나 바꾸면 `tests/ui/features.json`(기능 번호 → 분류 auto/test/partial/human/device, 조건 P·V·O·M·W·S·L)과 그 번호를 보는 `tests/ui/checks/*.mjs`를 같이 고친다.** 결과표에 223줄이 다 나오는지, 자동 줄에 확인 기록이 있는지 점검이 스스로 본다 (기록이 없으면 실패).
 - Drive가 필요한 흐름은 `tests/ui/checks/devsync.mjs`처럼 페이지 안 `Cloud.api`를 가짜 Drive(메모리)로 바꿔 본다 (`getToken`은 가짜 API면 `'test'`). 실제 Google에는 요청하지 않는다. 이 점검은 같이 쓰는 탭에서 맨 마지막에 돌고 넣은 것을 지운다.
 - 점검 도구는 npm 패키지 없이 CDP로 Edge를 움직인다 (`tests/ui/edge.mjs`). 시험 서버 `tests/ui/serve.py`는 `server.PIN_FILE`을 임시 폴더로 바꾸고 127.0.0.1에만 켠다 (저장소 `.remote.json`을 안 건드림). 밖으로 나가는 요청은 글꼴·QR 라이브러리만 허용, `lrclib.net`은 가짜 답, Google은 막음.
 - 점검이 찾은 앱 문제는 고치지 않고 결과표 "점검하다 본 것"에 적는다. 바로 못 고치는 실패는 `features.json`의 `known`(설명 + 맞는 실패 글)으로 "알려진 문제"로 따로 보이게 하고, 고치면 지운다.
@@ -48,6 +48,7 @@ npm run test:ui                  # 화면 자동 점검: 헤드리스 Edge가 �
 | `js/audio.js` | 오디오 엔진, 목소리 효과, 마이크, 녹음 캡처 워클릿, 지연 측정 |
 | `js/songs.js` | 앱 상태(`state`), 곡 목록, 곡 추가/수정, LRCLIB 가사 찾기 (`findLyrics`·`lyricItem`·`mediaDuration`은 `bulk.js`도 씀) |
 | `js/bulk.js` | 여러 곡 한 번에 넣기(MR 여러 개 + 가사 자동 찾기), "가사 없음" 곡 모아 찾기, PC 곡 목록에 끌어다 놓기 |
+| `js/mr.js` | MR 만들기 (CR-089): 집 AI 서버의 "MR 만들기 창"을 새 탭으로 열고, 다 만든 MR을 창끼리 받아 `openBulk`로. 설정 창 서버 주소 칸 |
 | `js/playback.js` | 재생, 노래방식 두 줄 가사, 음정·점수 |
 | `js/recording.js` | 녹음 저장, 녹음 믹스, 내 녹음, 싱크·믹스 조절 |
 | `js/syncedit.js` | 가사 싱크 편집기 |
@@ -95,6 +96,15 @@ npm run test:ui                  # 화면 자동 점검: 헤드리스 Edge가 �
 - 저절로 넣는 기준은 `chooseLyrics` (싱크 + 제목 같음 + 가수 같음 + MR 길이 `AUTO_SEC` 3초 안, 넷 다). 가수 비교는 `artistMatches` (괄호 앞·안 이름, Feat. 뒤는 뺌). 정렬은 `rankLyrics` (곡 추가 창도 같이 씀).
 - **"가사 자동" 표시는 곡에 저장하지 않는다.** Drive `library.json` 칸(`SONG_FIELDS`)을 늘리면 예전 판 화면이 동기화할 때 그 칸을 지운다. 새 곡은 곡 추가 창과 같은 모양으로 `persistSong`(여러 곡이면 `quiet`로 실패 알림을 한 번만).
 - 창을 닫으면(취소·✕·Esc·TV 화면) 아무것도 저장하지 않고 찾기도 멈춘다 (`Bulk.sess`). 저장해도 무대의 곡은 그대로 두고 목록만 첫 새 곡으로 옮긴다.
+
+## MR 만들기 (CR-089, `js/mr.js`)
+
+- 서비스는 따로 저장소 `C:\dev\yena-mr` (집 AI 서버 DGX의 도커). 노래방은 **서버에 요청하지 않는다** (https 노래방 → http 서버는 막힘). 곡 목록 `#mrBtn`이 서버 주소 + `/`("MR 만들기 창")를 이름 있는 창 `yena-mr`로 열고(클릭 안에서 바로, `noopener` 쓰지 않음), 창이 다 만든 MR 파일을 `postMessage`로 넘긴다. 노래방이 DGX로 `fetch`하는 코드를 넣지 않는다 (2단계 HTTPS는 따로 CR).
+- 메시지 약속은 yena-mr README와 같다: 모두 `{app:'yena-mr', v:1, type}`. 창 → `hello`·`files{files}`, 노래방 → `welcome`·`ack{n}`·`nack{reason:'busy'|'bad'}`. 받는 규칙은 `core.js mrMessageOk` (보낸 창이 `Mr.win`, 보낸 주소가 설정 주소의 origin, 파일 30개·한 파일 120MB·`isMediaFile`). 다른 창이 열려 있거나 TV·싱크 편집 중이면 `nack busy` + 알림 (열린 창·입력은 그대로).
+- 받은 파일은 `openBulk(files, note)` 그대로 (둘째 인자 = 안내 줄 "MR 만들기로 만든 곡 N개예요…", 없으면 예전과 같다). 곡 저장 구조·`SONG_FIELDS`는 안 바꾼다.
+- 서버 주소: 기본값 `MR_DEFAULT_SERVER` = `http://dgxspark-yena:8765` (짧은 기계 이름만. tailnet 뒷부분·IP를 코드·문서에 적지 않는다). 설정 창 "MR 만들기 (집 AI 서버)" 칸에서 이 기기만 바꾼다 → `nb-mrserver` (기본값과 같으면 지움, `normalizeMrServer`로 검사). Drive `library.json`·백업 파일에 넣지 않는다.
+- 10초(`MR_HELLO_MS`) 안에 창이 `hello`를 안 하면 "못 닿았어요" + [다시 열기]. 이어진 창이 열려 있으면 다시 누를 때 새로 열지 않는다 (올리는 중인 곡이 끊기지 않게).
+- 화면 점검은 `tests/ui/fake-mr/index.html`(가짜 창, 다른 포트)과 `checks/mr.mjs`. 진짜 창의 진행·실패 안내(U4·U5)는 yena-mr 저장소 시험이 본다.
 
 ## 녹음 구조
 
