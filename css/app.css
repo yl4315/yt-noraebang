@@ -277,6 +277,7 @@ dialog h2{margin:0;font:var(--font-title-sheet)}
 .mr-msg{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0;font-size:12px;color:var(--muted)}
 .mr-msg span{flex:1 1 160px}
 @media (hover:none){.mr-btn,.mr-msg .btn,#mrSec .btn{min-height:44px}}
+@media (max-width:560px){#mrSec .set-row input[type=text]{flex-basis:100%}}   /* 폰: 주소 칸은 한 줄 전부, [저장]·[기본값으로]는 아래 줄에 같이 */
 #songsPanel.drop{outline:2px dashed var(--amber);outline-offset:-4px;background:var(--color-drop)}
 #songsPanel.drop::before{content:"MR 파일을 여기에 놓으면 곡으로 넣어요";display:block;text-align:center;font-weight:700;padding:10px;border-radius:var(--r-in);background:var(--room)}
 .song.fresh{animation:fresh 2.4s ease-out}
