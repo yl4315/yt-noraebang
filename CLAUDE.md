@@ -103,7 +103,7 @@ npm run test:ui                  # 화면 자동 점검: 헤드리스 Edge가 �
 - 메시지 약속은 yena-mr README와 같다: 모두 `{app:'yena-mr', v:1, type}`. 창 → `hello`·`files{files}`, 노래방 → `welcome`·`ack{n}`·`nack{reason:'busy'|'bad'}`. 받는 규칙은 `core.js mrMessageOk` (보낸 창이 `Mr.win`, 보낸 주소가 설정 주소의 origin, 파일 30개·한 파일 120MB·`isMediaFile`). 다른 창이 열려 있거나 TV·싱크 편집 중이면 `nack busy` + 알림 (열린 창·입력은 그대로).
 - 받은 파일은 `openBulk(files, note)` 그대로 (둘째 인자 = 안내 줄 "MR 만들기로 만든 곡 N개예요…", 없으면 예전과 같다). 곡 저장 구조·`SONG_FIELDS`는 안 바꾼다.
 - 서버 주소: 기본값 `MR_DEFAULT_SERVER` = `http://dgxspark-yena:8765` (짧은 기계 이름만. tailnet 뒷부분·IP를 코드·문서에 적지 않는다). 설정 창 "MR 만들기 (집 AI 서버)" 칸에서 이 기기만 바꾼다 → `nb-mrserver` (기본값과 같으면 지움, `normalizeMrServer`로 검사). Drive `library.json`·백업 파일에 넣지 않는다.
-- 10초(`MR_HELLO_MS`) 안에 창이 `hello`를 안 하면 "못 닿았어요" + [다시 열기]. 이어진 창이 열려 있으면 다시 누를 때 새로 열지 않는다 (올리는 중인 곡이 끊기지 않게).
+- 10초(`MR_HELLO_MS`) 안에 창이 `hello`를 안 하면 "못 닿았어요" + [다시 해보기]. 이어진 창이 열려 있으면 다시 누를 때 새로 열지 않는다 (올리는 중인 곡이 끊기지 않게).
 - 화면 점검은 `tests/ui/fake-mr/index.html`(가짜 창, 다른 포트)과 `checks/mr.mjs`. 진짜 창의 진행·실패 안내(U4·U5)는 yena-mr 저장소 시험이 본다.
 
 ## 녹음 구조

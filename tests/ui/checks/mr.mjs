@@ -147,12 +147,12 @@ export default async function mr(ctx) {
     await closePopups(ctx, FAKE);      // 노래방을 새로고침하면 Mr.win을 잃는다: 창도 닫는다
   });
 
-  await step('못 열 때 안내: 팝업 막힘 · 10초 안에 인사 없음 → [다시 열기] · 인터넷 끊김이면 창을 열지 않음', ['U2'], async () => {
+  await step('못 열 때 안내: 팝업 막힘 · 10초 안에 인사 없음 → [다시 해보기] · 인터넷 끊김이면 창을 열지 않음', ['U2'], async () => {
     await p.eval(`window.__wo = window.open; window.open = () => null`);
     await p.click('#mrBtn');
     const blocked = await msgState(p);
     await p.eval(`window.open = window.__wo`);
-    ok('U2', blocked.shown && blocked.text === '새 창이 막혔어요. 주소창 오른쪽에서 이 사이트의 팝업을 허용해 주세요' && blocked.retry, `팝업 막힘 → "${blocked.text}" + [다시 열기]`);
+    ok('U2', blocked.shown && blocked.text === '새 창이 막혔어요. 주소창 오른쪽에서 이 사이트의 팝업을 허용해 주세요' && blocked.retry, `팝업 막힘 → "${blocked.text}" + [다시 해보기]`);
 
     // 인사하지 않는 주소 (가짜 서버의 없는 곳 = 404 화면): 10초 동안 기다린 뒤 안내
     await p.eval(`localStorage.setItem('nb-mrserver', ${q(FAKE + '/no-such-place')})`);
@@ -164,12 +164,12 @@ export default async function mr(ctx) {
     const sec = (Date.now() - t0) / 1000;
     const late = await msgState(p);
     ok('U2', !early.shown && shown && sec >= 9.5 && late.text === '⟳ 집 AI 서버에 못 닿았어요 · Tailscale이 켜져 있는지 확인해 주세요' && late.retry && await p.eval('MR_HELLO_MS') === 10000,
-      `인사 없음 → ${sec.toFixed(1)}초 뒤 "${late.text}" + [다시 열기] (3초엔 안내 없음)`);
-    // 주소를 고치고 [다시 열기] → 이어지면 안내가 사라짐
+      `인사 없음 → ${sec.toFixed(1)}초 뒤 "${late.text}" + [다시 해보기] (3초엔 안내 없음)`);
+    // 주소를 고치고 [다시 해보기] → 이어지면 안내가 사라짐
     await p.eval(`localStorage.setItem('nb-mrserver', ${q(FAKE)})`);
     await p.click('#mrRetry');
     const again = await p.until(`Mr.linked && document.querySelector('#mrMsg').hidden`, 8000);
-    ok('U2', again && await popups(ctx, FAKE) === 1, '[다시 열기] → 같은 창(yena-mr)이 다시 열려 이어지고 안내가 사라짐');
+    ok('U2', again && await popups(ctx, FAKE) === 1, '[다시 해보기] → 같은 창(yena-mr)이 다시 열려 이어지고 안내가 사라짐');
     await closePopups(ctx, FAKE);
 
     // 인터넷 끊김: 창을 열지 않고 안내만 (앱 화면은 그대로)
