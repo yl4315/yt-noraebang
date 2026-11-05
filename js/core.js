@@ -1,4 +1,4 @@
-// YT 노래방 · 화면과 상관없는 핵심 로직: 가사 읽기, 검색, Drive 동기화 합치기, 파일 이름 해석·가사 찾기 결과 고르기, 백업 파일 형식, 지연 측정 계산
+// YT 노래방 · 화면과 상관없는 핵심 로직: 가사 읽기, 검색, Drive 동기화 합치기, 파일 이름 해석·가사 찾기 결과 고르기, 백업 파일 형식, 지연 측정 계산, 녹음 파일 이름·작은 파일(m4a) 틀
 // 자동 테스트(tests/)가 이 파일과 util.js를 브라우저 없이 불러서 검사한다. 여기에는 화면(DOM)을 건드리는 코드를 넣지 않는다.
 'use strict';
 
@@ -1035,4 +1035,88 @@ function myRemoteUrl(href) {
   const u = new URL('remote.html', href);
   u.search = ''; u.hash = ''; u.username = ''; u.password = '';
   return u.href;
+}
+
+/* 녹음 나누기 (CR-031): 파일 이름 규칙 하나, 작은 파일(m4a) 틀, 기기에 따라 단추 고르기.
+   m4a는 브라우저 AudioEncoder(WebCodecs)가 준 AAC 날 프레임을 MP4 틀에 넣은 것 (외부 코드·빌드 도구 없음) */
+const REC_TITLE_MAX = 50;          // 파일 이름의 제목 부분 (날짜·확장자는 안 자름)
+const SHARE_GESTURE_MS = 5000;     // 공유 창은 누른 뒤 이 시간 안에만 열린다 (브라우저 규칙). 넘으면 [보내기]로 한 번 더
+const SMALL_BITRATE = 128000;      // AAC-LC 128kbps 스테레오 (4분 곡 약 3.7MB)
+// 눈에 안 보이는 글자: 제어 글자(0~1F, 7F~9F), 소프트 하이픈, 폭 없는 공백·방향 표시(200B~200F, 2028~202E, 2060~206F), BOM(FEFF)
+const INVISIBLE_CHARS = new RegExp('[' + [[0x00, 0x1f], [0x7f, 0x9f], [0xad, 0xad], [0x200b, 0x200f], [0x2028, 0x202e], [0x2060, 0x206f], [0xfeff, 0xfeff]]
+  .map(([a, b]) => String.fromCharCode(a) + '-' + String.fromCharCode(b)).join('') + ']', 'g');
+// 녹음 파일 이름: 곡이름_YYYYMMDD-HHMM.확장자 (시각 = 녹음한 시각, 이 기기 시간). 한글 그대로.
+// 풀어 쓴 한글(NFD) → 한 글자로(NFC), 눈에 안 보이는 제어 글자 빼기, \ / : * ? " < > | → _, 앞뒤 공백·점 빼기, 제목 50자, 빈 제목은 "녹음"
+function recFileName(title, createdAt, ext) {
+  let t = String(title ?? '').normalize('NFC')
+    .replace(INVISIBLE_CHARS, '')
+    .replace(/[\\/:*?"<>|]/g, '_')
+    .replace(/^[\s.]+|[\s.]+$/g, '');
+  const cps = [...t];
+  if (cps.length > REC_TITLE_MAX) t = cps.slice(0, REC_TITLE_MAX).join('').replace(/[\s.]+$/, '');
+  if (!t) t = '녹음';
+  const d = new Date(createdAt), p = n => String(n).padStart(2, '0');
+  return `${t}_${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}.${ext}`;
+}
+// 파일 크기 글: 1MB 미만은 KB, 그 위는 MB 소수 한 자리 ("3.7MB")
+const sizeLabel = b => b < 1e6 ? Math.max(1, Math.round(b / 1e3)) + 'KB' : (b / 1e6).toFixed(1) + 'MB';
+// 나누기 단추 (기획안 "동작" 표). touch = 손가락 화면 (hover:none), share = 파일 공유 됨, small = 작은 파일을 만들 수 있음,
+// legacy = 예전 방식(v1) 녹음 (이미 작은 파일이라 그대로 공유, PC에는 [다운로드]가 있어서 새 단추 없음)
+// → { act:'share'|'save', file:'small'|'wav'|'orig' } 또는 null (단추 없음 = 지금과 같음)
+function shareChoice({ touch, share, small, legacy = false }) {
+  if (legacy) return touch && share ? { act: 'share', file: 'orig' } : null;
+  if (touch && share) return { act: 'share', file: small ? 'small' : 'wav' };
+  if (small) return { act: 'save', file: 'small' };
+  return null;
+}
+// AAC-LC 설정 2바이트 (AudioSpecificConfig). 인코더가 설정을 안 줄 때 대신 쓴다. 표에 없는 샘플레이트는 null
+const AAC_RATES = [96000, 88200, 64000, 48000, 44100, 32000, 24000, 22050, 16000, 12000, 11025, 8000, 7350];
+function aacConfig(sampleRate, channels) {
+  const i = AAC_RATES.indexOf(sampleRate);
+  if (i < 0 || !(channels >= 1 && channels <= 7)) return null;
+  return Uint8Array.from([(2 << 3) | (i >> 1), ((i & 1) << 7) | (channels << 3)]);
+}
+// AAC 프레임 → m4a 파일 조각들 [머리(ftyp + moov + mdat 머리), 프레임…] (브라우저는 new Blob(조각들)로 묶는다).
+// moov가 mdat 앞이라 받자마자 재생된다. 프레임은 1초쯤씩 한 덩어리(chunk). 시간 단위 = 샘플레이트
+function m4aParts({ frames, asc, sampleRate, channels, frameSamples = 1024 }) {
+  const n = frames.length, total = n * frameSamples;
+  let bytes = 0, maxSize = 0;
+  for (const f of frames) { bytes += f.length; if (f.length > maxSize) maxSize = f.length; }
+  const avg = total ? Math.round(bytes * 8 * sampleRate / total) : 0, peak = Math.round(maxSize * 8 * sampleRate / frameSamples);
+  const per = Math.max(1, Math.round(sampleRate / frameSamples)), chunks = Math.ceil(n / per), last = n - (chunks - 1) * per;
+  const u16 = v => [(v >>> 8) & 255, v & 255];
+  const u32 = v => [(v >>> 24) & 255, (v >>> 16) & 255, (v >>> 8) & 255, v & 255];
+  const str = s => [...s].map(c => c.charCodeAt(0));
+  const box = (type, ...parts) => { const body = parts.flat(Infinity); return [...u32(8 + body.length), ...str(type), ...body]; };
+  const full = (type, flags, ...parts) => box(type, [0, (flags >>> 16) & 255, (flags >>> 8) & 255, flags & 255], ...parts);
+  const zeros = k => new Array(k).fill(0);
+  const desc = (tag, body) => [tag, body.length, ...body];       // 길이 한 바이트 (127까지, 여기서는 늘 짧다)
+  const matrix = [0x00010000, 0, 0, 0, 0x00010000, 0, 0, 0, 0x40000000].map(u32);
+  const esds = full('esds', 0, desc(3, [...u16(1), 0,
+    ...desc(4, [0x40, 0x15, (maxSize >>> 16) & 255, (maxSize >>> 8) & 255, maxSize & 255, ...u32(peak), ...u32(avg), ...desc(5, [...asc])]),
+    ...desc(6, [2])]));
+  const mp4a = box('mp4a', zeros(6), u16(1), zeros(8), u16(channels), u16(16), u16(0), u16(0), u32((sampleRate > 65535 ? 0 : sampleRate) * 65536), esds);
+  const stsc = !n ? [u32(0)] : (chunks === 1 || last === per) ? [u32(1), u32(1), u32(chunks === 1 ? n : per), u32(1)]
+    : [u32(2), u32(1), u32(per), u32(1), u32(chunks), u32(last), u32(1)];
+  const moov = offsets => box('moov',
+    full('mvhd', 0, u32(0), u32(0), u32(sampleRate), u32(total), u32(0x00010000), u16(0x0100), zeros(10), matrix, zeros(24), u32(2)),
+    box('trak',
+      full('tkhd', 3, u32(0), u32(0), u32(1), u32(0), u32(total), zeros(8), u16(0), u16(0), u16(0x0100), u16(0), matrix, u32(0), u32(0)),
+      box('mdia',
+        full('mdhd', 0, u32(0), u32(0), u32(sampleRate), u32(total), u16(0x55c4), u16(0)),
+        full('hdlr', 0, u32(0), str('soun'), zeros(12), str('SoundHandler'), [0]),
+        box('minf',
+          full('smhd', 0, u16(0), u16(0)),
+          box('dinf', full('dref', 0, u32(1), full('url ', 1))),
+          box('stbl',
+            full('stsd', 0, u32(1), mp4a),
+            full('stts', 0, n ? [u32(1), u32(n), u32(frameSamples)] : [u32(0)]),
+            full('stsc', 0, stsc),
+            full('stsz', 0, u32(0), u32(n), frames.map(f => u32(f.length))),
+            full('stco', 0, u32(chunks), offsets.map(u32)))))));
+  const ftyp = box('ftyp', str('M4A '), u32(0), str('M4A '), str('isom'), str('mp42'));
+  const start = ftyp.length + moov(zeros(chunks)).length + 8;   // 첫 프레임 위치 (stco 길이는 값과 상관없음)
+  const offsets = []; let at = start;
+  for (let i = 0; i < n; i++) { if (i % per === 0) offsets.push(at); at += frames[i].length; }
+  return [Uint8Array.from([...ftyp, ...moov(offsets), ...u32(8 + bytes), ...str('mdat')]), ...frames];
 }

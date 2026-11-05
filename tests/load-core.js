@@ -17,7 +17,8 @@ const NAMES = ['fmtMs', 'norm', 'chosung', 'pick', 'parseLyrics', 'toLRC', 'sear
   'HUB_LRC_MAX', 'HUB_PUSH_MAX', 'HUB_PULL_MAX', 'hubPairOk', 'hubCodeParse', 'hubCodeMake', 'mrHashKey', 'songSettingsKey', 'settingsOf', 'settingsSig', 'settingsHas', 'settingsFromData',
   'songSettingsData', 'hubPlan', 'hubMirrorAdd', 'hubRemote', 'hubQueueAdd', 'hubQueueDrop', 'hubRecord', 'lrclibGetParams', 'autoSyncPick', 'canAutoSync',
   'GUEST_MAX', 'GUEST_PER_SEC', 'GUEST_MAX_BYTES', 'GUEST_RESULTS', 'GUEST_QUEUE_SHOW', 'guestRoomName', 'guestId', 'guestUrl', 'guestUrlParse', 'guestMsgOk', 'guestRateOk', 'guestSearchResult', 'guestQueueMap', 'guestStateMsg', 'qrFitPx',
-  'MY_V', 'MY_HUB_NAME', 'MY_ROOM_RE', 'MY_MAX_BYTES', 'MY_IDS_MAX', 'MY_PER_SEC', 'MY_CMDS', 'myRoomName', 'myMsgOk', 'myInOk', 'mySig', 'mySongParts', 'myChunkIds', 'myCleanSongs', 'myCleanState', 'remoteModePick', 'myRemoteUrl'];
+  'MY_V', 'MY_HUB_NAME', 'MY_ROOM_RE', 'MY_MAX_BYTES', 'MY_IDS_MAX', 'MY_PER_SEC', 'MY_CMDS', 'myRoomName', 'myMsgOk', 'myInOk', 'mySig', 'mySongParts', 'myChunkIds', 'myCleanSongs', 'myCleanState', 'remoteModePick', 'myRemoteUrl',
+  'REC_TITLE_MAX', 'SHARE_GESTURE_MS', 'SMALL_BITRATE', 'recFileName', 'sizeLabel', 'shareChoice', 'aacConfig', 'm4aParts'];
 
 function loadCore() {
   const ctx = vm.createContext({ console, Blob, TextEncoder, TextDecoder, DataView, Uint8Array, URLSearchParams, URL, crypto: globalThis.crypto, atob, btoa });

@@ -1353,3 +1353,127 @@ test('내 폰 리모컨 TV QR 주소: 같은 곳의 remote.html · ?·# 없음 (
     assert.ok(u.endsWith('/remote.html') && !/[?#@]/.test(u), u);
   }
 });
+test('녹음 나누기: 파일 이름 — 곡이름_YYYYMMDD-HHMM.확장자, 한글 그대로, 금지 글자 _, NFC, 앞뒤 공백·점, 제목 50자, 빈 제목', () => {
+  const at = new Date(2026, 10, 5, 21, 30, 59).getTime();      // 이 기기 시간 2026-11-05 21:30
+  assert.equal(C.recFileName('작은 방의 노래', at, 'm4a'), '작은 방의 노래_20261105-2130.m4a');
+  assert.equal(C.recFileName('작은 방의 노래', at, 'wav'), '작은 방의 노래_20261105-2130.wav');
+  assert.equal(C.recFileName('a/b\\c:d*e?f"g<h>i|j', at, 'wav'), 'a_b_c_d_e_f_g_h_i_j_20261105-2130.wav');   // 지금 규칙 그대로
+  // 맥·아이폰에서 온 풀어 쓴 한글(NFD) → 한 글자로
+  const nfd = '한글 노래'.normalize('NFD');
+  assert.notEqual(nfd, '한글 노래');
+  assert.equal(C.recFileName(nfd, at, 'm4a'), '한글 노래_20261105-2130.m4a');
+  assert.equal(C.recFileName('  .밤편지.  ', at, 'm4a'), '밤편지_20261105-2130.m4a');
+  assert.equal(C.recFileName('밤' + String.fromCharCode(0x200b) + '편' + String.fromCharCode(7) + '지' + String.fromCharCode(0x202e), at, 'm4a'), '밤편지_20261105-2130.m4a');     // 눈에 안 보이는 글자
+  assert.equal(C.recFileName('가'.repeat(60), at, 'm4a'), '가'.repeat(50) + '_20261105-2130.m4a');
+  const smile = String.fromCodePoint(0x1f600);                                                        // 두 칸짜리 글자
+  assert.equal(C.recFileName(smile.repeat(55), at, 'm4a'), smile.repeat(50) + '_20261105-2130.m4a');  // 글자 반쪽으로 안 자름
+  assert.equal(C.recFileName('가'.repeat(49) + ' 나', at, 'm4a'), '가'.repeat(49) + '_20261105-2130.m4a'); // 자른 끝 공백도 뺌
+  for (const t of ['', '   ', '...', null, undefined]) assert.equal(C.recFileName(t, at, 'm4a'), '녹음_20261105-2130.m4a', String(t));
+  assert.equal(C.recFileName('x', new Date(2027, 0, 2, 3, 4).getTime(), 'ogg'), 'x_20270102-0304.ogg');      // 두 자리 채움
+  assert.equal(C.REC_TITLE_MAX, 50);
+  assert.equal(C.sizeLabel(3660000), '3.7MB');
+  assert.equal(C.sizeLabel(56200), '56KB');
+  assert.equal(C.sizeLabel(10), '1KB');
+});
+
+test('녹음 나누기: 단추 고르기 — 손가락·공유·작은 파일 조합 (기획안 동작 표), 예전 방식 녹음', () => {
+  const f = (touch, share, small, legacy) => C.shareChoice({ touch, share, small, legacy });
+  same(f(true, true, true), { act: 'share', file: 'small' });     // 폰: m4a 공유
+  same(f(true, true, false), { act: 'share', file: 'wav' });      // 폰, 작은 파일 못 만듦: WAV 공유
+  same(f(true, false, true), { act: 'save', file: 'small' });     // 폰, 공유 안 됨: 작은 파일로 저장
+  same(f(false, true, true), { act: 'save', file: 'small' });     // PC: 작은 파일로 저장 (공유 되어도)
+  same(f(false, false, true), { act: 'save', file: 'small' });
+  assert.equal(f(true, false, false), null);                      // 그 밖: 지금과 같음
+  assert.equal(f(false, true, false), null);
+  assert.equal(f(false, false, false), null);
+  same(f(true, true, false, true), { act: 'share', file: 'orig' });   // 예전 녹음: 파일 그대로
+  same(f(true, true, true, true), { act: 'share', file: 'orig' });
+  for (const [t, s] of [[false, true], [true, false], [false, false]]) assert.equal(f(t, s, true, true), null);
+  assert.equal(C.SHARE_GESTURE_MS, 5000);
+  assert.equal(C.SMALL_BITRATE, 128000);
+});
+
+test('녹음 나누기: AAC 설정 2바이트 (48k·44.1k 스테레오·모노), 표에 없는 값은 null', () => {
+  same([...C.aacConfig(48000, 2)], [0x11, 0x90]);
+  same([...C.aacConfig(44100, 2)], [0x12, 0x10]);
+  same([...C.aacConfig(48000, 1)], [0x11, 0x88]);
+  assert.equal(C.aacConfig(47999, 2), null);
+  assert.equal(C.aacConfig(48000, 0), null);
+});
+
+// MP4 상자 읽기 (시험용): [{type, start, size, body, kids}] — 안에 상자를 담는 것만 펼친다
+function boxes(b, from = 0, to = b.length) {
+  const out = [], dv = new DataView(b.buffer, b.byteOffset, b.byteLength);
+  for (let at = from; at < to;) {
+    const size = dv.getUint32(at), type = String.fromCharCode(...b.subarray(at + 4, at + 8));
+    assert.ok(size >= 8 && at + size <= to, `${type} 크기 ${size} (자리 ${at})`);
+    const box = { type, start: at, size, body: at + 8 };
+    if (['moov', 'trak', 'mdia', 'minf', 'stbl', 'dinf'].includes(type)) box.kids = boxes(b, at + 8, at + size);
+    out.push(box); at += size;
+  }
+  return out;
+}
+const findBox = (list, path) => { let cur = { kids: list }; for (const t of path.split('.')) cur = cur.kids.find(x => x.type === t); return cur; };
+const joinParts = parts => { const n = parts.reduce((a, p) => a + p.length, 0), u = new Uint8Array(n); let o = 0; for (const p of parts) { u.set(p, o); o += p.length; } return u; };
+
+test('녹음 나누기: m4a 틀 — 상자 크기 합, moov가 mdat 앞, stsz 개수·크기, stco가 mdat 안 프레임 자리, mdhd 시간, esds 설정', () => {
+  for (const [sr, nFrames] of [[48000, 130], [44100, 43], [48000, 47], [48000, 1]]) {
+    const frames = Array.from({ length: nFrames }, (_, i) => Uint8Array.from({ length: 200 + (i * 37) % 300 }, (_, k) => (i + k) & 255));
+    const asc = C.aacConfig(sr, 2);
+    const parts = C.m4aParts({ frames, asc, sampleRate: sr, channels: 2 });
+    assert.equal(parts.length, nFrames + 1);
+    const b = joinParts(parts), dv = new DataView(b.buffer);
+    const top = boxes(b);
+    same(top.map(x => x.type), ['ftyp', 'moov', 'mdat']);                     // moov가 앞 (받자마자 재생)
+    assert.equal(top.reduce((a, x) => a + x.size, 0), b.length);
+    assert.equal(String.fromCharCode(...b.subarray(4, 8)), 'ftyp');
+    assert.equal(String.fromCharCode(...b.subarray(8, 12)), 'M4A ');
+    const mdat = top[2], bytes = frames.reduce((a, f) => a + f.length, 0);
+    assert.equal(mdat.size, 8 + bytes);
+    // mdhd·mvhd: 시간 단위 = 샘플레이트, 길이 = 프레임 수 × 1024
+    const mdhd = findBox(top, 'moov.trak.mdia.mdhd'), mvhd = findBox(top, 'moov.mvhd');
+    assert.equal(dv.getUint32(mdhd.body + 12), sr);
+    assert.equal(dv.getUint32(mdhd.body + 16), nFrames * 1024);
+    assert.equal(dv.getUint32(mvhd.body + 12), sr);
+    assert.equal(dv.getUint32(mvhd.body + 16), nFrames * 1024);
+    assert.equal(mvhd.size, 108);
+    assert.equal(findBox(top, 'moov.trak.tkhd').size, 92);
+    // stsz: 개수 = 프레임 수, 크기 그대로
+    const stsz = findBox(top, 'moov.trak.mdia.minf.stbl.stsz');
+    assert.equal(dv.getUint32(stsz.body + 4), 0);
+    assert.equal(dv.getUint32(stsz.body + 8), nFrames);
+    for (let i = 0; i < nFrames; i++) assert.equal(dv.getUint32(stsz.body + 12 + i * 4), frames[i].length);
+    // stsc + stco: 덩어리마다 시작 자리가 mdat 안이고, 그 자리에 그 프레임이 있다
+    const stsc = findBox(top, 'moov.trak.mdia.minf.stbl.stsc'), stco = findBox(top, 'moov.trak.mdia.minf.stbl.stco');
+    const runs = []; for (let i = 0, k = dv.getUint32(stsc.body + 4); i < k; i++) runs.push({ first: dv.getUint32(stsc.body + 8 + i * 12), per: dv.getUint32(stsc.body + 12 + i * 12) });
+    const nChunks = dv.getUint32(stco.body + 4);
+    let fi = 0;
+    for (let c = 1; c <= nChunks; c++) {
+      const per = runs.filter(r => r.first <= c).pop().per, off = dv.getUint32(stco.body + 4 + c * 4);
+      assert.ok(off >= mdat.start + 8 && off < mdat.start + mdat.size, `덩어리 ${c} 자리 ${off}`);
+      let o = off;
+      for (let j = 0; j < per; j++, fi++) { same([...b.subarray(o, o + 4)], [...frames[fi].subarray(0, 4)]); o += frames[fi].length; }
+    }
+    assert.equal(fi, nFrames, '덩어리에 든 프레임 합 = 프레임 수');
+    assert.equal(dv.getUint32(stco.body + 8), mdat.start + 8, '첫 프레임 = mdat 바로 뒤');
+    // stts: 프레임마다 1024
+    const stts = findBox(top, 'moov.trak.mdia.minf.stbl.stts');
+    same([dv.getUint32(stts.body + 4), dv.getUint32(stts.body + 8), dv.getUint32(stts.body + 12)], [1, nFrames, 1024]);
+    // stsd → mp4a: 채널 2, 샘플레이트, esds 안에 설정 2바이트 (태그 5)
+    const stsd = findBox(top, 'moov.trak.mdia.minf.stbl.stsd'), mp4a = stsd.body + 8;
+    assert.equal(String.fromCharCode(...b.subarray(mp4a + 4, mp4a + 8)), 'mp4a');
+    assert.equal(dv.getUint16(mp4a + 8 + 16), 2);
+    assert.equal(dv.getUint32(mp4a + 8 + 24) >>> 16, sr);
+    const esdsAt = mp4a + 8 + 28;
+    assert.equal(String.fromCharCode(...b.subarray(esdsAt + 4, esdsAt + 8)), 'esds');
+    const esds = b.subarray(esdsAt, esdsAt + dv.getUint32(esdsAt));
+    const t5 = esds.indexOf(5, 12);
+    assert.ok(t5 > 0 && esds[t5 + 1] === 2 && esds[t5 + 2] === asc[0] && esds[t5 + 3] === asc[1], 'esds에 AAC 설정 2바이트');
+    assert.equal(esds[esds.indexOf(4, 12) + 2], 0x40, 'MPEG-4 오디오');
+  }
+});
+
+test('녹음 나누기: m4a 틀 — 프레임 0개여도 깨지지 않는다', () => {
+  const b = joinParts(C.m4aParts({ frames: [], asc: C.aacConfig(48000, 2), sampleRate: 48000, channels: 2 }));
+  same(boxes(b).map(x => x.type), ['ftyp', 'moov', 'mdat']);
+});
