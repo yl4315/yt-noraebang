@@ -260,7 +260,7 @@ function render() {
   } else box.append(el('div', 'a', '곡을 고르거나 예약해 주세요'));
   $('#keyK').firstChild.textContent = n && n.key ? `키 ${n.key > 0 ? '+' : ''}${n.key}` : '원래 키';
   $('#recK').classList.toggle('on', !!S.rec); $('#recK small').textContent = S.rec ? '켜짐' : '꺼짐';
-  $('#mrK').textContent = `볼륨 ${S.mrVol}`;
+  $('#mrK').textContent = S.mrVol == null ? '볼륨' : `볼륨 ${S.mrVol}`;   // PC 화면이 아직 상태를 안 올렸으면 값이 없다
   const c = $('#qCnt'); c.hidden = !S.queue.length; c.textContent = S.queue.length;
   const p = me(); $('#who').hidden = !p;
   if (p) { const av = $('#whoAv'); av.textContent = p.name.slice(0, 1); av.style.background = p.color; $('#whoName').textContent = p.name; }

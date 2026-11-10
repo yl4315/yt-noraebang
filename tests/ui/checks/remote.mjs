@@ -167,19 +167,20 @@ export default async function remote(ctx) {
     await p.eval('exitTV()');
     await p.click('#settingsBtn');
     await p.click('#remoteNewPin');
-    await p.until(`/새 코드 \\d{4}로 바꿨어요/.test(document.querySelector('#remotePinMsg').textContent)`, 5000);
+    await p.until(`/새 코드로 바꿨어요: \\d{4}\\./.test(document.querySelector('#remotePinMsg').textContent)`, 5000);
     const msg = await txt(p, '#remotePinMsg');
     const npin = await p.eval('Remote.info.pin');
     await sleep(800);
     const boxes = await p.eval(`['#remoteInfo','#remoteSet'].map(s=>({t:document.querySelector(s).textContent, qr:document.querySelectorAll(s+' img.qr').length}))`);
     const qrUrl = await p.eval('Remote.info.url');
     await p.click('#cloudClose');
-    // 이미 붙어 있던 휴대폰이 버튼을 누르면
+    // 이미 붙어 있던 휴대폰이 버튼을 누르면 "코드가 바뀌었어요". 진짜 휴대폰(다른 기기)은 1초마다 묻는 상태 확인이 먼저 막혀 "코드가 맞지 않아요…"가 보통 먼저 나온다.
+    // 시험 탭은 이 PC(127.0.0.1)라 상태 확인이 코드 없이 통과해서 버튼 쪽 문구만 본다 (CR-149)
     await tap('[data-cmd="jump"]');
     const asked = await ph.until(`!document.querySelector('#pinView').hidden && document.querySelector('#pinErr').textContent==='코드가 바뀌었어요. 다시 넣어 주세요'`, 5000);
     await ph.tap('#pinIn'); await ph.type(npin); await tap('#pinGo');
     const re = await ph.until(`!document.querySelector('#app').hidden && document.querySelector('#conn span').textContent==='연결됨'`, 5000);
-    ok('N16', npin !== pin && msg.includes(`새 코드 ${npin}로 바꿨어요`) && boxes.every(b => b.t.includes(`코드 ${npin}`) && b.qr <= 1) && qrUrl.endsWith(`?pin=${npin}`) && asked,
+    ok('N16', npin !== pin && msg.includes(`새 코드로 바꿨어요: ${npin}.`) && boxes.every(b => b.t.includes(`코드 ${npin}`) && b.qr <= 1) && qrUrl.endsWith(`?pin=${npin}`) && asked,
       `${pin} → ${npin} · 대기 화면·설정 창 코드 바뀜, QR ${boxes.map(b => b.qr).join('/')}개(겹침 없음) · 휴대폰 "코드가 바뀌었어요"`);
     ok('N3', asked && re, '코드가 바뀌면 다시 넣으라고 함 → 새 코드로 다시 연결');
   });

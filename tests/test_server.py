@@ -1,5 +1,6 @@
 # YT 노래방 로컬 서버 테스트: python -m unittest discover -s tests
 import functools
+import http.client
 import http.server
 import json
 import os
@@ -252,6 +253,47 @@ class PinApiTest(ServerBase):
             self.assertEqual(self.post('/api/remote/pin', obj)[0], 400, obj)
         self.assertEqual(self.post('/api/remote/pin', None, raw=b'{oops')[0], 400)
         self.assertEqual((server.PIN, server.FIXED), (pin, True))
+
+    def test_pc_only_api_checks_host(self):
+        # 이 PC 전용 창구는 주소(Host)가 localhost·127.0.0.1·[::1]일 때만 (DNS 리바인딩 막기, CR-149). 포트는 아무거나
+        port = self.srv.server_address[1]
+
+        def ask(method, path, host, body=None):
+            conn = http.client.HTTPConnection('127.0.0.1', port, timeout=5)
+            try:
+                conn.putrequest(method, path, skip_host=True)
+                if host is not None:
+                    conn.putheader('Host', host)
+                data = json.dumps(body).encode() if body is not None else b''
+                if body is not None:
+                    conn.putheader('Content-Type', 'application/json')
+                conn.putheader('Content-Length', str(len(data)))
+                conn.endheaders(data)
+                return conn.getresponse().status
+            finally:
+                conn.close()
+
+        pin = server.PIN
+        for host in ['localhost:5173', f'localhost:{port}', 'LOCALHOST:80', 'localhost', '127.0.0.1:5173', '127.0.0.1', '[::1]:5173', '[::1]', None]:
+            self.assertEqual(ask('GET', '/api/remote/info', host), 200, host)
+            self.assertEqual(ask('POST', '/api/remote/pin', host, {'fixed': True}), 200, host)
+        for host in ['evil.example:5173', 'evil.example', 'localhost.evil.example:5173', '127.0.0.1.evil.example', '192.168.0.7:5173', 'localhost:5173@evil.example', '']:
+            if host == '':
+                continue        # 빈 Host는 "없음"과 같이 다룬다 (브라우저는 늘 채워 보낸다)
+            self.assertEqual(ask('GET', '/api/remote/info', host), 403, host)
+            self.assertEqual(ask('POST', '/api/remote/pin', host, {'action': 'new'}), 403, host)
+            self.assertEqual(ask('POST', '/api/remote/pin', host, {'fixed': False}), 403, host)
+        self.assertEqual((server.PIN, server.FIXED), (pin, True))
+        # 휴대폰이 쓰는 창구와 앱 파일은 Host를 보지 않는다 (휴대폰은 PC의 와이파이 주소로 들어온다)
+        lan_host = '192.168.0.7:5173'
+        self.assertEqual(ask('GET', '/remote.html', lan_host), 200)
+        self.assertEqual(ask('GET', '/index.html', lan_host), 200)
+        self.assertEqual(ask('POST', '/api/remote/cmd', lan_host, {'pin': pin, 'cmd': 'start'}), 200)
+        self.assertEqual(ask('POST', '/api/remote/cmd', lan_host, {'pin': 'xxxx', 'cmd': 'start'}), 403)
+        server.fails.clear()
+        with mock.patch.object(server.Handler, 'is_local', return_value=False):   # 휴대폰에서 온 요청처럼
+            self.assertEqual(ask('GET', '/api/remote/state?pin=' + pin, lan_host), 200)
+            self.assertEqual(ask('GET', '/api/remote/info', 'localhost:5173'), 403)   # Host만 맞춰도 휴대폰은 여전히 못 봄
 
     def test_phone_cannot_change_or_read_code(self):
         pin = server.PIN

@@ -122,6 +122,15 @@ class Handler(http.server.SimpleHTTPRequestHandler):
     def is_local(self):
         return self.client_address[0] in ('127.0.0.1', '::1')
 
+    def local_host(self):
+        # 이 PC 전용 창구(/api/remote/info·pin)는 주소창이 localhost·127.0.0.1·[::1]일 때만 (포트는 아무거나).
+        # 다른 사이트 이름이 이 PC를 가리키게 바꿔서(DNS 리바인딩) 이 PC 브라우저로 코드를 읽거나 바꾸는 것을 막는다.
+        # 노래방 화면은 늘 http://localhost:포트로 연다 (--open·--tv). Host가 없으면(브라우저가 아닌 이 PC 프로그램) 허용한다.
+        host = self.headers.get('Host')
+        if not host:
+            return True
+        return re.fullmatch(r'(localhost|127[.]0[.]0[.]1|[[]::1[]])(:[0-9]+)?', host.strip().lower()) is not None
+
     def pin_ok(self, pin):
         ip = self.client_address[0]
         n, until = fails.get(ip, (0, 0))
@@ -158,7 +167,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         u = urlparse(self.path)
         q = parse_qs(u.query)
         if u.path == '/api/remote/info':
-            if not self.is_local():
+            if not self.is_local() or not self.local_host():
                 return self.send_json({'error': 'local only'}, 403)
             return self.send_json(remote_info())
         if u.path == '/api/remote/poll':
@@ -211,9 +220,9 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
     def change_pin(self, data):
         # 노래방 설정 창에서: {"action": "new"} → 지금 바로 새 코드, {"fixed": true/false} → 코드 고정 설정.
-        # 이 PC에서만 된다. 다른 사이트가 이 PC 브라우저를 시켜서 보내는 요청도 막는다 (Origin이 localhost가 아니면).
+        # 이 PC에서만 된다. 다른 사이트가 이 PC 브라우저를 시켜서 보내는 요청도 막는다 (Origin이나 Host가 localhost가 아니면).
         global PIN, FIXED
-        if not self.is_local() or not self.same_site():
+        if not self.is_local() or not self.local_host() or not self.same_site():
             return self.send_json({'error': 'local only'}, 403)
         try:
             msg = json.loads(data or b'{}')

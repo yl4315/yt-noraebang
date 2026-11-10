@@ -108,7 +108,7 @@ $('#remoteNewPin').onclick = async () => {
   const b = $('#remoteNewPin'); b.disabled = true;
   try {
     const i = await remoteSetPin({ action: 'new' });
-    showPinMsg(i.saved === false ? PIN_NOT_SAVED : `새 코드 ${i.pin}로 바꿨어요. 휴대폰은 QR 코드를 다시 찍거나 새 코드를 넣어 주세요`, i.saved === false);
+    showPinMsg(i.saved === false ? PIN_NOT_SAVED : `새 코드로 바꿨어요: ${i.pin}. 휴대폰은 QR 코드를 다시 찍거나 새 코드를 넣어 주세요`, i.saved === false);
   } catch { showPinMsg('새 코드를 만들지 못했어요. ' + PIN_NO_SERVER, true); }
   b.disabled = false;
 };
