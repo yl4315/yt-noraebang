@@ -27,16 +27,17 @@ export default async function bulk(ctx) {
     await p.click('#addSongBtn');
     await p.setFiles('#f-file', [...fx.bulk, ...fx.notMedia]);
     const opened = await p.until(`document.querySelector('#bulkDialog').open && !document.querySelector('#songDialog').open`, 4000);
+    // 첫 줄(뒤집힌 이름)은 가사 찾기가 끝나면 제목·가수가 바뀐다. 찾기가 먼저 끝나느냐에 따라 읽히는 값이 달라지지 않게, 다 끝난 뒤에 읽는다 (CR-149)
+    await settled(p);
     const h0 = await head(p), r0 = await rows(p);
     const nextNo = await p.eval('nextSongNumbers(state.songs,1)[0]');
     const order = r0.map(r => r.t).join(' / ');
     ok('D11', opened && h0.title === '여러 곡 한 번에 넣기' && r0.length === 6 && /2개는 MR 파일\(음악·동영상\)이 아니라서 뺐어요/.test(h0.info)
-      && r0[0].t === 'QA가수A' && r0[1].t === 'QA 시험 둘째' && r0[2].t === 'QA 시험 셋째' && r0[3].t === 'QA 시험 넷째' && r0[4].t === 'QA 시험 열째' && r0[5].t === 'QA 시험 노래'
+      && [r0[0].t, r0[0].a].includes('QA가수A') && r0[1].t === 'QA 시험 둘째' && r0[2].t === 'QA 시험 셋째' && r0[3].t === 'QA 시험 넷째' && r0[4].t === 'QA 시험 열째' && r0[5].t === 'QA 시험 노래'
       && r0[0].no === String(nextNo) && r0[4].no === String(nextNo + 4),
       `MR 8개 중 6줄 ("${h0.info}"), 파일 이름 순서 ${order}, 번호 ${r0[0].no}~${r0[4].no}`);
     ok('D15', !r0[5].chk && r0[5].st === '이미 같은 곡이 있어요' && r0[5].no === '—', `같은 곡 줄: 체크 꺼짐 "${r0[5].st}", 번호 없음`);
-    await settled(p);
-    const r1 = await rows(p), h1 = await head(p);
+    const r1 = r0, h1 = h0;
     ok('D12', r1[0].cls === 'ok' && /가사 자동/.test(r1[0].st) && r1[0].t === 'QA 시험 첫째' && r1[0].a === 'QA가수A' && /바뀌어 있어서 바꿔 넣었어요/.test(r1[0].msg),
       `뒤집힌 이름: "${r1[0].t} / ${r1[0].a}" "${r1[0].st}"`);
     ok('D14', r1[2].st === '⟳ 서버가 바빠요 · 다시 찾기' && r1[3].st === '⟳ 서버가 바빠요 · 다시 찾기' && r1[2].cls === 'retry' && r1[4].st === '대기' && /계속 바빠서 찾기를 멈췄어요/.test(h1.note) && /다시 찾을 곡 3/.test(h1.sum),
@@ -102,10 +103,14 @@ export default async function bulk(ctx) {
     // 끌어다 놓기 (PC): 곡 목록 위에 파일 2개
     await p.eval(`window.scrollTo(0,0)`); await sleep(100);
     await p.eval(`window.__dlog=[]; for (const t of ['dragenter','dragover','drop']) document.addEventListener(t, e=>__dlog.push(t+':'+(e.target.id||e.target.className)+':'+e.defaultPrevented+':'+[...(e.dataTransfer?.types||[])].join('|')), true)`);
-    const r = await p.rect('#songsPanel'), x = r.cx, y = Math.max(r.y, 0) + 60;
+    // 놓는 자리는 곡 줄이 아니라 곡 목록 판 맨 위 [+ 곡 추가] 단추: 곡 줄은 끄는 동안 다시 그려질 수 있어 drop이 안 올 때가 있었다 (CR-149). 판 안 어디에 놓아도 같은 길(#songsPanel의 drop)이다
+    // 화면이 저절로 움직여도(고른 곡 줄 보이기 등) 빗나가지 않게, 보낼 때마다 단추를 화면 안으로 데려와 자리를 다시 잰다
+    const spot = async () => { await p.scrollTo('#addSongBtn'); const r = await p.rect('#addSongBtn'); return [r.cx, r.cy]; };
+    let [x, y] = await spot();
     await p.drag('dragEnter', x, y, fx.drop);
-    for (let i = 0; i < 4; i++) { await p.drag('dragOver', x, y, fx.drop); await sleep(60); }
+    for (let i = 0; i < 4; i++) { [x, y] = await spot(); await p.drag('dragOver', x, y, fx.drop); await sleep(60); }
     const hl = await p.eval(`document.querySelector('#songsPanel').classList.contains('drop')`);
+    [x, y] = await spot();
     await p.drag('drop', x, y, fx.drop);
     const opened = await p.until(`document.querySelector('#bulkDialog').open`, 3000);
     if (!opened) throw new Error(`끌어다 놓아도 창이 안 열림 (열린 창: ${await p.eval(`[...document.querySelectorAll('dialog[open]')].map(d=>d.id).join()`)} · 놓은 곳 ${x},${y} · 그 자리 요소 ${await p.eval(`document.elementFromPoint(${x},${y})?.id||document.elementFromPoint(${x},${y})?.className`)} · 강조 ${hl} · 알림 ${await p.eval('JSON.stringify(__dlog)')})`);
@@ -113,6 +118,7 @@ export default async function bulk(ctx) {
     await p.click('#blkCancel');
     const closed1 = await p.until(`!document.querySelector('#bulkDialog').open`, 2000);
     // 다시 열고 ✕
+    [x, y] = await spot();
     await p.dropFiles(x, y, fx.drop);
     await p.until(`document.querySelector('#bulkDialog').open`, 3000);
     await p.click('#blkX');
