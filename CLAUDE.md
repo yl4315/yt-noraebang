@@ -51,7 +51,7 @@ npm run test:ui                  # 화면 자동 점검: 헤드리스 Edge가 �
 - 코드는 저장소 폴더의 `.remote.json`(`{"pin","fixed"}`, git에 안 올림, `hidden()`이 안 내줌)에 저장해서 다시 켜도 같다.
   - 불러오기는 `main()`에서만 하고, 테스트는 `server.PIN_FILE`을 임시 폴더로 바꾼다.
   - 새 코드·고정 설정은 `POST /api/remote/pin`(이 PC에서만).
-- 이 PC 전용 창구 `/api/remote/info`·`/api/remote/pin`은 보낸 곳이 이 PC이고 `Host`가 `localhost`·`127.0.0.1`·`[::1]`(포트는 아무거나)일 때만 답한다 (`local_host()`, DNS 리바인딩 막기). 휴대폰이 쓰는 창구(`cmd`·`state`)와 앱 파일은 `Host`를 보지 않는다.
+- 이 PC 전용 창구 `/api/remote/info`·`/api/remote/pin`·`/api/remote/poll`·`POST /api/remote/state`와 코드 없는 `GET /api/remote/state`는 보낸 곳이 이 PC이고 `Host`가 `localhost`·`127.0.0.1`·`[::1]`(포트는 아무거나)일 때만 답한다 (`local_host()`, DNS 리바인딩 막기). 휴대폰이 쓰는 길(`POST /api/remote/cmd`, 코드를 붙인 `GET /api/remote/state?pin=`)과 앱 파일은 `Host`를 보지 않는다.
 - 휴대폰 `remote.html`은 맞은 코드를 `localStorage['yt-remote-pin']`에 기억한다 (이 키 이름은 바꾸지 않는다). 홈 화면 아이콘용 `remote.webmanifest`가 따로 있다.
 
 ## 구조

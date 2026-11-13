@@ -274,16 +274,29 @@ class PinApiTest(ServerBase):
                 conn.close()
 
         pin = server.PIN
+        server.tv_state = b'{"queue":["ok"]}'
         for host in ['localhost:5173', f'localhost:{port}', 'LOCALHOST:80', 'localhost', '127.0.0.1:5173', '127.0.0.1', '[::1]:5173', '[::1]', None]:
             self.assertEqual(ask('GET', '/api/remote/info', host), 200, host)
             self.assertEqual(ask('POST', '/api/remote/pin', host, {'fixed': True}), 200, host)
-        for host in ['evil.example:5173', 'evil.example', 'localhost.evil.example:5173', '127.0.0.1.evil.example', '192.168.0.7:5173', 'localhost:5173@evil.example', '']:
+            # 노래방 화면(js/remote.js)이 쓰는 창구: 명령 가져오기 · 상태 올리기 · 코드 없이 상태 보기 (CR-212)
+            self.assertEqual(ask('GET', '/api/remote/poll?since=0', host), 200, host)
+            self.assertEqual(ask('POST', '/api/remote/state', host, {'queue': ['ok']}), 200, host)
+            self.assertEqual(ask('GET', '/api/remote/state', host), 200, host)
+        server.fails.clear()
+        for host in ['evil.example:5173', 'evil.example', 'localhost.evil.example:5173', '127.0.0.1.evil.example', '192.168.0.7:5173', 'localhost:5173@evil.example', 'localhostx', 'localhostx:5173', '127.0.0.10', '127.0.0.10:5173', '']:
             if host == '':
                 continue        # 빈 Host는 "없음"과 같이 다룬다 (브라우저는 늘 채워 보낸다)
             self.assertEqual(ask('GET', '/api/remote/info', host), 403, host)
             self.assertEqual(ask('POST', '/api/remote/pin', host, {'action': 'new'}), 403, host)
             self.assertEqual(ask('POST', '/api/remote/pin', host, {'fixed': False}), 403, host)
+            self.assertEqual(ask('GET', '/api/remote/poll?since=0', host), 403, host)
+            self.assertEqual(ask('POST', '/api/remote/state', host, {'queue': ['evil']}), 403, host)
+            self.assertEqual(ask('GET', '/api/remote/state', host), 403, host)              # 코드 없이는 못 봄
+            self.assertEqual(ask('GET', '/api/remote/state?pin=xxxx', host), 403, host)     # 틀린 코드도
+            server.fails.clear()                                                            # (틀린 코드 10번 쉬기에 안 걸리게)
+            self.assertEqual(ask('GET', '/api/remote/state?pin=' + pin, host), 200, host)   # 맞는 코드면 휴대폰처럼 볼 수 있다
         self.assertEqual((server.PIN, server.FIXED), (pin, True))
+        self.assertEqual(server.tv_state, b'{"queue": ["ok"]}')                            # 딴 주소가 올린 상태는 안 들어감
         # 휴대폰이 쓰는 창구와 앱 파일은 Host를 보지 않는다 (휴대폰은 PC의 와이파이 주소로 들어온다)
         lan_host = '192.168.0.7:5173'
         self.assertEqual(ask('GET', '/remote.html', lan_host), 200)

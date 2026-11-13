@@ -49,6 +49,8 @@ cmds = []            # (번호, 명령) — 휴대폰이 보낸 명령을 노래
 seq = 0
 tv_state = b'{}'     # 노래방 화면이 올려 둔 현재 상태 (곡 목록, 예약 등)
 fails = {}           # IP별 틀린 코드 횟수
+# 이 PC 전용 창구가 받는 주소창 이름: localhost·127.0.0.1·[::1] (포트는 아무거나). 불러올 때 한 번 만들어 둔다
+LOCAL_HOST = re.compile(r'(localhost|127[.]0[.]0[.]1|\[::1\])(:[0-9]+)?')
 
 
 def lan_ip():
@@ -123,13 +125,14 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         return self.client_address[0] in ('127.0.0.1', '::1')
 
     def local_host(self):
-        # 이 PC 전용 창구(/api/remote/info·pin)는 주소창이 localhost·127.0.0.1·[::1]일 때만 (포트는 아무거나).
+        # 이 PC 전용 창구(/api/remote/info·pin·poll, 상태 올리기, 코드 없이 상태 보기)는
+        # 주소창이 localhost·127.0.0.1·[::1]일 때만 (포트는 아무거나).
         # 다른 사이트 이름이 이 PC를 가리키게 바꿔서(DNS 리바인딩) 이 PC 브라우저로 코드를 읽거나 바꾸는 것을 막는다.
         # 노래방 화면은 늘 http://localhost:포트로 연다 (--open·--tv). Host가 없으면(브라우저가 아닌 이 PC 프로그램) 허용한다.
         host = self.headers.get('Host')
         if not host:
             return True
-        return re.fullmatch(r'(localhost|127[.]0[.]0[.]1|[[]::1[]])(:[0-9]+)?', host.strip().lower()) is not None
+        return LOCAL_HOST.fullmatch(host.strip().lower()) is not None
 
     def pin_ok(self, pin):
         ip = self.client_address[0]
@@ -171,7 +174,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 return self.send_json({'error': 'local only'}, 403)
             return self.send_json(remote_info())
         if u.path == '/api/remote/poll':
-            if not self.is_local():
+            if not self.is_local() or not self.local_host():
                 return self.send_json({'error': 'local only'}, 403)
             since = int((q.get('since') or ['0'])[0] or 0)
             with lock:
@@ -179,7 +182,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 last = seq
             return self.send_json({'cmds': out, 'last': last})
         if u.path == '/api/remote/state':
-            if not self.is_local() and not self.pin_ok((q.get('pin') or [''])[0]):
+            # 이 PC 화면(주소창 localhost)은 코드 없이, 휴대폰(와이파이 주소)은 맞는 코드가 있어야 본다
+            if not (self.is_local() and self.local_host()) and not self.pin_ok((q.get('pin') or [''])[0]):
                 return self.send_json({'error': 'pin'}, 403)
             with lock:
                 body = tv_state
@@ -196,7 +200,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             return self.send_json({'error': 'too big'}, 413)
         data = self.rfile.read(n)
         if u.path == '/api/remote/state':
-            if not self.is_local():
+            if not self.is_local() or not self.local_host():
                 return self.send_json({'error': 'local only'}, 403)
             with lock:
                 tv_state = data
