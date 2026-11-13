@@ -30,13 +30,32 @@ export default async function touch(ctx) {
     // 창: 곡 검색을 열어 위로 붙는지, 줄 높이
     await p.tap(bar('more'));
     await p.tap(bar('search'));
-    const ov = await p.eval(`({align:getComputedStyle(document.querySelector('#searchOv')).alignItems, row:Math.round(document.querySelector('#searchList .ov-row')?.getBoundingClientRect().height||0), x:Math.round(document.querySelector('#searchClose').getBoundingClientRect().height)})`);
+    // align: 새 Edge(158~)는 계산된 값 flex-start를 같은 뜻의 새 이름 flow-start로 돌려준다 (CR-212). 그래서 이름은 둘 다 받고,
+    // 실제로 창(.ov-card) 위쪽이 판의 위 여백 바로 아래(1px 안)에 붙었는지도 잰다 (가운데 정렬이면 떨어진다)
+    const ov = await p.eval(`(()=>{const pan=document.querySelector('#searchOv'), cs=getComputedStyle(pan), card=pan.querySelector('.ov-card');
+      return {align:cs.alignItems, top:Math.round((card.getBoundingClientRect().top-pan.getBoundingClientRect().top-parseFloat(cs.paddingTop))*10)/10,
+        row:Math.round(document.querySelector('#searchList .ov-row')?.getBoundingClientRect().height||0), x:Math.round(document.querySelector('#searchClose').getBoundingClientRect().height)}})()`);
     await p.tap('#searchClose');
     const wantFirst = ['start', 'pause', 'cancel', 'jump', 'num', 'search', 'queue', 'more'];
     const wantMore = ['chart', 'mine', 'user', 'rec', 'key-', 'key+', 'mr-', 'mr+', 'mic', 'fs', 'exit'];
-    ok('L17', first.map(b => b.a).join() === wantFirst.join() && first.every(b => b.h === 48) && new Set(first.map(b => b.y)).size === 1 && kbd && exp === 'true'
-      && more.map(b => b.a).join() === wantMore.join() && ov.align === 'flex-start' && ov.row >= 52 && ov.x >= 44,
-      `첫 줄 ${first.length}칸 ${first[0]?.h}px · ⋯ 더 보기 → ${more.length}개 · 키 표시 숨김 · 창 위로 붙음, 줄 ${ov.row}px, ✕ ${ov.x}px`);
+    // 조건마다 맞음/틀림을 따로 적는다 (틀린 것은 실제 값과 같이, CR-212)
+    const ys = first.map(b => b.y);
+    const L17c = [
+      ['첫 줄 차례', first.map(b => b.a).join() === wantFirst.join(), first.map(b => b.a).join()],
+      ['첫 줄 48px', first.length > 0 && first.every(b => b.h === 48), first.map(b => b.h).join()],
+      ['첫 줄 한 줄', ys.length > 0 && new Set(ys).size === 1, ys.join()],
+      ['키 표시 숨김', kbd, kbd],
+      ['⋯ 더 보기 열림 표시', exp === 'true', exp],
+      ['더 보기 차례', more.map(b => b.a).join() === wantMore.join(), more.map(b => b.a).join()],
+      ['창 위로 붙음 (align-items)', ov.align === 'flex-start' || ov.align === 'flow-start', ov.align],
+      ['창 위로 붙음 (위치)', Math.abs(ov.top) <= 1, ov.top],
+      ['창 줄 52px 이상', ov.row >= 52, ov.row],
+      ['✕ 44px 이상', ov.x >= 44, ov.x],
+    ];
+    const L17bad = L17c.filter(c => !c[1]);
+    ok('L17', L17bad.length === 0,
+      `첫 줄 ${first.length}칸 ${first[0]?.h}px · ⋯ 더 보기 → ${more.length}개 · 키 표시 숨김 · 창 위로 붙음, 줄 ${ov.row}px, ✕ ${ov.x}px`
+      + (L17bad.length ? ` — 틀림: ${L17bad.map(c => `${c[0]} (${JSON.stringify(c[2])})`).join(' · ')}` : ''));
     ok('L5', L5t.keys === 'none' && L5t.tdisp !== 'none' && /아래 번호로 예약 · 곡 검색 · 예약 목록/.test(L5t.touch.replace(/\s+/g, ' ')) && /나 · ♥/.test(L5t.user) && /오늘 최고 점수/.test(L5t.best),
       `터치 화면 안내 "${L5t.touch.replace(/\s+/g, ' ').slice(0, 30)}…" (키 안내 숨김)`);
   });
