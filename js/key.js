@@ -83,6 +83,7 @@ function keyBuffer(s, semis, onProgress) {
 }
 let keyJob = 0;
 async function setKey(semis, { save = true } = {}) {
+  if (ytSong()) { flash('유튜브 곡은 키를 바꿀 수 없어요 · 내 MR 곡에서만 돼요'); return; }   // 플레이어에 음높이 바꾸기가 없음 (CR-030)
   const s = state.song; if (!s?.buffer || state.sync) return;
   semis = clamp(Math.round(semis), -6, 6);
   if (save) { const p = me(); p.keys ||= {}; if (semis) p.keys[s.id] = semis; else delete p.keys[s.id]; saveProfiles(p); }
@@ -102,7 +103,9 @@ async function setKey(semis, { save = true } = {}) {
   }
 }
 function updateKeyUI(busy) {
-  $('#keyOut').textContent = busy ? `${keyLabel(state.key)} · ${busy}` : keyLabel(state.key);
+  const yt = ytSong();   // 유튜브 곡은 키 단추를 흐리게 (누르면 안내)
+  for (const b of document.querySelectorAll('[data-key-step], #keyReset, #tvRemote [data-act="key-"], #tvRemote [data-act="key+"]')) { b.classList.toggle('yt-off', yt); b.setAttribute('aria-disabled', yt); }
+  $('#keyOut').textContent = yt ? '유튜브 곡은 원래 키' : busy ? `${keyLabel(state.key)} · ${busy}` : keyLabel(state.key);
   $('#keyBadge').hidden = !state.key; $('#keyBadge').textContent = `키 ${keyLabel(state.key)}`;
 }
 for (const b of document.querySelectorAll('[data-key-step]')) b.onclick = () => setKey((state.key || 0) + +b.dataset.keyStep);

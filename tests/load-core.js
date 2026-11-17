@@ -9,7 +9,8 @@ const NAMES = ['fmtMs', 'norm', 'chosung', 'pick', 'parseLyrics', 'toLRC', 'sear
   'MEASURE', 'findClickDelays', 'summarizeDelays', 'pickByArrow',
   'isMediaFile', 'byFileName', 'nextSongNumbers', 'findSameSong', 'lacksLyrics', 'artistNames', 'artistMatches', 'titleRank', 'rankLyrics', 'chooseLyrics', 'AUTO_SEC',
   'STATS_CAP', 'statsFileName', 'cleanPlays', 'mergePlays', 'mergeScores', 'statsTotals', 'statsSig', 'buildStatsFile', 'parseStatsFile', 'pickStatsFiles', 'mergeBackupStats', 'planDownload', 'travelStatus',
-  'MR_DEFAULT_SERVER', 'MR_MAX_FILES', 'MR_MAX_BYTES', 'normalizeMrServer', 'mrMessageOk'];
+  'MR_DEFAULT_SERVER', 'MR_MAX_FILES', 'MR_MAX_BYTES', 'normalizeMrServer', 'mrMessageOk',
+  'YT_ID_RE', 'isYtSong', 'parseYouTubeId', 'ytWatchUrl', 'ytSearchQuery', 'ytResultsUrl', 'htmlText', 'parseYtSearch', 'ytTitleParts', 'shareParams', 'stripShareParams', 'findYtSong'];
 
 function loadCore() {
   const ctx = vm.createContext({ console, Blob, TextEncoder, TextDecoder, DataView, Uint8Array, URLSearchParams, URL, crypto: globalThis.crypto });

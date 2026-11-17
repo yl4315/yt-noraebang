@@ -54,7 +54,7 @@ async function startNext() {
     if (!s) continue;
     hideScore(); closeOverlays();
     await selectSong(s);
-    if (state.song === s && s.buffer) { state.offset = 0; await play(); return; }
+    if (state.song === s && songReady(s)) { state.offset = 0; await play(); return; }
     flash(`${s.no} ${s.title} · 불러오지 못해 건너뛰었어요`);
   }
 }
@@ -93,7 +93,8 @@ function songRow(s, idx, sel, acts, extra) {
   li.querySelector('.nm').append(s.title, Object.assign(document.createElement('small'), { textContent: s.artist || '' }));
   if (s.video) li.querySelector('.nm').append(videoTag());
   if (isFav(s)) li.querySelector('.nm').append(el('small', 'stat', '♥'));
-  if (!onDevice(s)) li.querySelector('.nm').append(el('small', '', '☁'));
+  if (isYtSong(s)) li.querySelector('.nm').append(el('span', 'ytag', '유튜브'));   // 유튜브 곡 (CR-030)
+  else if (!onDevice(s)) li.querySelector('.nm').append(el('small', '', '☁'));
   if (extra) li.querySelector('.nm').append(Object.assign(document.createElement('small'), { className: 'stat', textContent: extra }));
   for (const [txt, cls, fn] of acts) {
     const b = document.createElement('button'); b.type = 'button'; b.className = 'btn ' + cls; b.textContent = txt;
@@ -171,12 +172,17 @@ function bumpSetting(k, d) {
 /* 곡 검색: 제목·가수·번호·초성 */
 const searchSongs = query => searchIn(state.songs, query);
 let searchSel = 0, searchResults = [];
-function openSearch() {
+// tab: 'yt'면 [유튜브 노래방 검색] 탭으로 연다 (기본은 [내 MR 보관함], CR-030)
+function openSearch(tab) {
   if (state.sync) return;
   closeOverlays(); $('#searchOv').hidden = false;
+  if (typeof ytSetTab === 'function') ytSetTab(tab === 'yt' ? 'yt' : 'mr', true);
   const inp = $('#searchInput'); inp.value = ''; runSearch(); inp.focus();
 }
-function runSearch() { searchResults = searchSongs($('#searchInput').value); searchSel = 0; renderSearch(); }
+function runSearch() {
+  if (typeof ytTabIsYt === 'function' && ytTabIsYt()) return renderYtTab();   // 유튜브 탭 (yt.js)
+  searchResults = searchSongs($('#searchInput').value); searchSel = 0; renderSearch();
+}
 function renderSearch() {
   const ul = $('#searchList'); ul.textContent = '';
   if (!searchResults.length) { ul.innerHTML = '<li class="ov-empty">찾는 곡이 없어요. 관리 화면의 “곡 추가”로 MR을 넣어 주세요</li>'; return; }
@@ -190,6 +196,9 @@ function renderSearch() {
 }
 $('#searchInput').addEventListener('input', runSearch);
 $('#searchInput').addEventListener('keydown', e => {
+  // Tab: [내 MR 보관함] ↔ [유튜브 노래방 검색] (TV 키보드). 유튜브 탭의 ↑↓·Enter는 yt.js가 먼저 받는다
+  if (e.key === 'Tab' && !e.shiftKey && typeof ytSetTab === 'function') { e.preventDefault(); ytSetTab(ytTabIsYt() ? 'mr' : 'yt'); return; }
+  if (typeof ytTabIsYt === 'function' && ytTabIsYt() && e.key !== 'Escape') { ytSearchKey(e); return; }
   if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
     e.preventDefault(); searchSel = clamp(searchSel + (e.key === 'ArrowDown' ? 1 : -1), 0, Math.max(0, searchResults.length - 1)); renderSearch();
   } else if (e.key === 'Enter') { e.preventDefault(); const s = searchResults[searchSel]; if (s) reserve(s, e.shiftKey); }
@@ -438,7 +447,7 @@ $('#tvRemote').addEventListener('click', e => {
     start: startKey, pause: () => state.playing ? pause() : (state.offset > 0.5 && play()), cancel: cancelSong,
     jump: jumpInterlude, search: openSearch, queue: openQueue, chart: () => { setMore(false); openChart(); }, mine: () => { setMore(false); openMineOv(); }, user: cycleProfile,
     'key-': () => setKey((state.key || 0) - 1), 'key+': () => setKey((state.key || 0) + 1),
-    rec: () => setArmed(!state.armed), 'mr-': () => bumpSetting('mrVol', -5), 'mr+': () => bumpSetting('mrVol', 5),
+    rec: () => setArmed(!state.armed), 'mr-': () => bumpMr(-5), 'mr+': () => bumpMr(5), next: nextSong,
     mic: () => enableMic(), fs: toggleFullscreen, exit: exitTV,
     more: () => setMore(!$('#tvRemote').classList.contains('more-open')),
   })[b.dataset.act]?.();
@@ -480,6 +489,7 @@ document.addEventListener('keydown', e => {
   else if (is('m', 'M', 'ㅡ')) openMineOv();
   else if (is('u', 'U', 'ㅕ')) cycleProfile();
   else if (is('j', 'J', 'ㅓ')) jumpInterlude();
+  else if (is('n', 'N', 'ㅜ') && ytSong()) nextSong();
   else if (is('v', 'V', 'ㅍ')) toggleVideoLyrics();
   else if (is('r', 'R', 'ㄱ')) setArmed(!state.armed);
   else if (is('t', 'T', 'ㅅ')) state.tv ? exitTV() : enterTV();
@@ -490,13 +500,13 @@ document.addEventListener('keydown', e => {
   else if (k === '.' || k === '>') setKey((state.key || 0) + 1);
   else if (k === '[') nudgeLyrics(-0.1);
   else if (k === ']') nudgeLyrics(0.1);
-  else if (k === '-') bumpSetting('mrVol', -5);
-  else if (is('=', '+')) bumpSetting('mrVol', 5);
+  else if (k === '-') bumpMr(-5);
+  else if (is('=', '+')) bumpMr(5);
 });
 
 /* ---------------- 간주점프 ---------------- */
 function jumpInterlude() {
-  if (!state.song?.buffer || state.sync) return;
+  if (!songReady() || state.sync) return;
   if (!state.playing) { flash('노래가 나올 때 쓸 수 있어요'); return; }
   const L = state.lines, off = lyricOffset(), t = curTime(), lt = heardTime(t) + off;
   if (!L.some(l => l.text)) { flash('가사가 없어서 점프할 곳을 몰라요'); return; }
@@ -574,6 +584,14 @@ function renderIdleChart() {
   });
 }
 function startKey() { if (state.playing) flash('지금 부르는 중이에요'); else togglePlay(); }
+// 반주 볼륨: 유튜브 곡은 영상 소리를 건드리지 않는다 (CR-030) → 안내만
+function bumpMr(d) { if (ytSong()) { flash('유튜브 곡은 반주 볼륨을 바꿀 수 없어요 · 내 MR 곡에서만 돼요'); return; } bumpSetting('mrVol', d); }
+// ⏭ 다음 곡 (유튜브 띠 단추·N, CR-030): 지금 곡을 멈추고 다음 예약곡. 예약이 없으면 취소와 같다
+function nextSong() {
+  if (state.sync) return;
+  if (state.queue.length) { stopPlayback(); startNext(); return; }
+  if (state.playing || state.offset > 0.5) cancelSong(); else flash('예약된 곡이 없어요');
+}
 function cancelSong() {
   if (!(state.playing || state.offset > 0.5)) { if (nextAt != null) cancelNext(); return; }
   stopPlayback(); flash('취소');

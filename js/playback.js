@@ -1,6 +1,13 @@
 // YT 노래방 · 재생, 노래방식 가사 표시, 음정·점수
 'use strict';
 
+/* ---------------- 재생 소스 층 (R3, CR-030) ----------------
+   곡마다 소리가 나오는 곳이 둘: 내 MR(오디오 엔진, 아래 startSources) · 유튜브(공식 IFrame 플레이어, yt.js).
+   가사(E)·싱크 편집(G)·예약(I)·TV 화면은 play·pause·seekTo·stopPlayback·curTime·dur만 부르고 소스를 모른다.
+   yt.js가 없으면(옛 화면이 새 파일과 섞여도) 모든 곡이 내 MR 길로 간다. */
+function ytSong(s = state.song) { return typeof ytPlay === 'function' && typeof isYtSong === 'function' && isYtSong(s); }
+function songReady(s = state.song) { return !!s && (ytSong(s) || !!s.buffer); }
+
 /* ---------------- 재생 ---------------- */
 function startSources() {
   const s = state.song, when = E.ctx.currentTime + 0.03;
@@ -17,6 +24,7 @@ function killSources() {
 }
 async function play() {
   if (!state.song) return;
+  if (ytSong()) return ytPlay();
   if (!state.song.buffer && state.song._loading) { flash('반주 준비 중…'); await state.song._loading.catch(() => {}); }
   if (!state.song.buffer) { toast('이 곡의 반주를 불러오지 못했어요. 곡을 다시 골라 주세요'); return; }
   ensureCtx(); await E.ctx.resume(); await E.ready;
@@ -34,15 +42,18 @@ async function play() {
   if (state.tv) pokeUI();
 }
 function pause() {
+  if (ytSong()) return ytPause();
   if (!state.playing) return;
   const t = curTime(); killSources(); state.playing = false; state.offset = t;
   pauseRecording(); updateTransportUI();
 }
 function stopPlayback() {
+  if (typeof ytStop === 'function') ytStop();
   killSources(); state.playing = false; state.offset = 0;
   finishRecording(null); updateTransportUI(); if (state.song) updateTimeUI(0);
 }
 function seekTo(t) {
+  if (ytSong()) { state.offset = clamp(t, 0, dur()); ytSeek(state.offset); resetLineCache(); return; }
   const was = state.playing;
   if (was) killSources();
   state.offset = clamp(t, 0, dur());
@@ -50,6 +61,7 @@ function seekTo(t) {
   resetLineCache();
 }
 function onFinish() {
+  if (ytSong()) ytStop();
   killSources(); state.playing = false; state.offset = 0;
   const score = computeScore(), recorded = !!take;
   finishRecording(score);
@@ -67,10 +79,12 @@ function updateTransportUI() {
   $('#syPlay').textContent = state.playing ? '일시정지' : '재생';
   $('#stage').classList.toggle('playing', state.playing);
   updateScreens(state.playing ? curTime() : state.offset);
-  $('#recBtn').setAttribute('aria-pressed', state.armed);
+  const ytNoRec = ytSong();   // 유튜브 곡은 녹음하지 않음 → 단추를 흐리게 (누르면 안내)
+  for (const b of [$('#recBtn'), $('#tvRecBtn')]) { b.classList.toggle('yt-off', ytNoRec); b.setAttribute('aria-disabled', ytNoRec); }
+  $('#recBtn').setAttribute('aria-pressed', state.armed && !ytNoRec);
   $('#recBadge').hidden = !(take && !take.paused);
-  $('#tvRecBtn').textContent = state.armed ? '● 녹음 켜짐' : '● 녹음';
-  $('#recLbl').textContent = take ? (take.paused ? '녹음 일시정지' : '녹음 중') : state.armed ? '녹음 대기 (시작하면 녹음)' : '녹음 꺼짐';
+  $('#tvRecBtn').textContent = state.armed && !ytNoRec ? '● 녹음 켜짐' : '● 녹음';
+  $('#recLbl').textContent = ytNoRec ? '유튜브 곡은 녹음하지 않아요' : take ? (take.paused ? '녹음 일시정지' : '녹음 중') : state.armed ? '녹음 대기 (시작하면 녹음)' : '녹음 꺼짐';
   updateWakeLock();   // 노래가 나오는 동안 화면이 꺼지지 않게 (karaoke.js)
 }
 $('#playBtn').onclick = () => togglePlay();
@@ -101,7 +115,7 @@ function setLine(el, idx, p, dots) {
   el.classList.toggle('dim', p >= 1);
   el.querySelector('.dots').textContent = dots;
 }
-const heardTime = t => state.playing ? t - (E.ctx.outputLatency || 0) * state.rate : t;
+const heardTime = t => state.playing && E.ctx && !ytSong() ? t - (E.ctx.outputLatency || 0) * state.rate : t;
 function activeIndex(lt) {
   const L = state.lines; let a = -1;
   for (let i = 0; i < L.length; i++) { if (L[i].t <= lt) a = i; else break; }
@@ -111,7 +125,7 @@ function renderLyrics(t) {
   const L = state.lines, top = $('#lineTop'), bot = $('#lineBottom');
   if (!L.length) {
     top._key = bot._key = null;
-    top.querySelector('.base').textContent = top.querySelector('.fill').textContent = state.song ? '가사 없이 반주만 나와요' : '';
+    top.querySelector('.base').textContent = top.querySelector('.fill').textContent = state.song ? (ytSong() ? '가사 없이 영상만 나와요' : '가사 없이 반주만 나와요') : '';
     bot.querySelector('.base').textContent = bot.querySelector('.fill').textContent = ' ';
     top.style.setProperty('--p', '0%'); top.querySelector('.dots').textContent = bot.querySelector('.dots').textContent = '';
     state.active = -1;

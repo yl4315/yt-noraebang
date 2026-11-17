@@ -33,7 +33,8 @@ function searchIn(list, query) {
 
 /* ---------------- Drive 동기화: 합치기 규칙 ---------------- */
 // Drive의 library.json에 올리는 칸. 기기 전용 값(파일 자체, 재생용 소리)은 넣지 않는다.
-const SONG_FIELDS = ['id', 'no', 'title', 'artist', 'lyrics', 'lyricOffset', 'video', 'videoLyrics', 'createdAt', 'updatedAt', 'fileId', 'mime', 'size', 'deleted'];
+// source·ytId·ytDur: 유튜브 곡 (CR-030). 유튜브 곡은 소리 파일이 없어서 글만 올라간다.
+const SONG_FIELDS = ['id', 'no', 'title', 'artist', 'lyrics', 'lyricOffset', 'video', 'videoLyrics', 'createdAt', 'updatedAt', 'fileId', 'mime', 'size', 'deleted', 'source', 'ytId', 'ytDur'];
 const REC_FIELDS = ['id', 'v', 'title', 'artist', 'songId', 'createdAt', 'updatedAt', 'duration', 'score', 'sr', 'parts', 'mix', 'mime', 'fileId', 'deleted'];
 
 // Drive 목록(remote)을 이 기기 목록(live: 살아 있는 것, tombs: 지운 기록)에 합친다. 더 나중에 바뀐 쪽이 이긴다.
@@ -93,10 +94,11 @@ function renumberDuplicates(songs, now = Date.now()) {
 }
 
 // Drive에 쓸 library.json. 아직 파일을 못 올린 곡·녹음은 다른 기기에서 받을 수 없으니 빼 둔다.
+// 유튜브 곡은 올릴 파일이 없으니 글(영상 번호·제목·가사)만 바로 넣는다.
 function buildLibrary({ songs, tombs, profiles, recs, recTombs }, now = Date.now()) {
   return {
     version: 1, app: 'YT 노래방', updatedAt: now,
-    songs: [...songs.filter(s => !s.demo && s.fileId).map(s => pick(s, SONG_FIELDS)), ...tombs.map(t => ({ ...pick(t, SONG_FIELDS), deleted: true }))],
+    songs: [...songs.filter(s => !s.demo && (s.fileId || isYtSong(s))).map(s => pick(s, SONG_FIELDS)), ...tombs.map(t => ({ ...pick(t, SONG_FIELDS), deleted: true }))],
     profiles: profiles.map(({ auto, ...p }) => p),
     recs: [...recs.filter(r => r.fileId).map(r => pick(r, REC_FIELDS)), ...recTombs.map(t => ({ ...pick(t, REC_FIELDS), deleted: true }))],
   };
@@ -162,8 +164,9 @@ function findSameSong(songs, title, artist) {
   const t = norm(title), a = norm(artist);
   return (songs || []).find(s => !s.demo && !s.deleted && norm(s.title) === t && norm(s.artist) === a) || null;
 }
-// 곡 목록의 "가사 없음": 데모곡이 아니고 가사가 비어 있는 곡 (동영상 곡도 센다)
-const lacksLyrics = s => !!s && !s.demo && !String(s.lyrics || '').trim();
+// 곡 목록의 "가사 없음": 데모곡이 아니고 가사가 비어 있는 곡 (동영상 곡도 센다).
+// 유튜브 곡은 빼고 센다: 노래방 영상에는 보통 자막이 박혀 있어서 가사가 없어도 "영상만"으로 정상 (CR-030)
+const lacksLyrics = s => !!s && !s.demo && !isYtSong(s) && !String(s.lyrics || '').trim();
 
 // 가수 이름 → 비교·검색에 쓸 이름들. 괄호 앞 이름이 먼저, 괄호 안 이름이 다음. "Feat." 뒤는 뺀다.
 // "AKMU(악뮤)" → ['AKMU', '악뮤'], "잔나비(Feat.카리나 of aespa)" → ['잔나비'], "(G)I-DLE" → ['I-DLE'] (한 글자 괄호는 버림)
@@ -418,6 +421,93 @@ function travelStatus({ songs, connected = true, persisted = false, shellCached 
   const why = !connected ? 'connect' : cloudOnly ? 'songs' : !shellCached ? 'shell' : null;
   return { done, why, cloudOnly, local, pendingUpload, warnPersist: done && !persisted };
 }
+
+/* ---------------- 유튜브 곡 (CR-030) ----------------
+   유튜브 곡 = 소리 파일 없이 영상 번호(11자)만 가진 곡 줄 { source:'yt', ytId, ytDur? }.
+   공식 IFrame 플레이어로 보이는 채로만 튼다 (내려받기·소리 빼기·녹화·Web Audio 연결 없음). */
+const YT_ID_RE = /^[A-Za-z0-9_-]{11}$/;
+const isYtSong = s => !!s && s.source === 'yt' && YT_ID_RE.test(String(s.ytId || ''));
+// 글 속에서 유튜브 링크를 찾아 영상 번호만 뽑는다. 없으면 null.
+// youtu.be/ID · watch?v=ID · shorts/ID · embed/ID · live/ID · m.·music.youtube.com · youtube-nocookie.com
+// 재생목록 링크(list=)는 그 안의 영상(v=) 하나만. 영상이 없는 재생목록·채널·검색 링크는 null.
+function parseYouTubeId(text) {
+  const s = String(text ?? '');
+  const re = /(?<![\w.\-\/@])(?:https?:\/\/)?(?:[\w-]+\.)*(?:youtube\.com|youtube-nocookie\.com|youtu\.be)\/[^\s<>"'()]*/ig;
+  for (const m of s.matchAll(re)) {
+    let u;
+    try { u = new URL(/^https?:/i.test(m[0]) ? m[0] : 'https://' + m[0]); } catch { continue; }
+    const host = u.hostname.toLowerCase();
+    let id = null;
+    if (host === 'youtu.be') id = u.pathname.split('/')[1] || null;
+    else if (/(^|\.)youtube(-nocookie)?\.com$/.test(host)) {
+      id = u.searchParams.get('v');
+      if (!id) { const p = u.pathname.match(/^\/(?:shorts|embed|live|v|e)\/([^/?#]+)/); id = p ? p[1] : null; }
+    }
+    if (id && YT_ID_RE.test(id)) return id;
+  }
+  return null;
+}
+const ytWatchUrl = id => 'https://www.youtube.com/watch?v=' + encodeURIComponent(id);
+// 열쇠 없는 검색: 유튜브 검색 결과를 새 창으로 연다. 검색어에 "노래방"을 보탠다 (이미 노래방·MR·karaoke·inst가 있으면 그대로)
+function ytSearchQuery(q) {
+  const s = String(q ?? '').replace(/\s+/g, ' ').trim();
+  if (!s) return '';
+  return /노래방|karaoke|(?<![A-Za-z])inst/i.test(s) || /(?<![A-Za-z])(?:MR|mr)(?![A-Za-z.])/.test(s) ? s : s + ' 노래방';
+}
+const ytResultsUrl = q => 'https://www.youtube.com/results?search_query=' + encodeURIComponent(ytSearchQuery(q));
+// 유튜브가 돌려주는 제목의 &amp; &#39; 같은 것을 글자로
+const HTML_ENT = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' };
+function htmlText(s) {
+  return String(s ?? '').replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (m, e) => {
+    if (e[0] === '#') {
+      const n = e[1] === 'x' || e[1] === 'X' ? parseInt(e.slice(2), 16) : parseInt(e.slice(1), 10);
+      return n > 0 && n < 0x110000 ? String.fromCodePoint(n) : m;
+    }
+    return HTML_ENT[e.toLowerCase()] ?? m;
+  }).replace(/\s+/g, ' ').trim();
+}
+// YouTube Data API search.list 답 → [{ id, title, channel }] (영상 번호가 맞는 것만)
+function parseYtSearch(json) {
+  const items = Array.isArray(json?.items) ? json.items : [];
+  // 썸네일은 유튜브 그림 서버(i.ytimg.com)의 https 주소만 쓴다 (다른 곳 주소는 버림)
+  const thumb = th => { const u = String(th?.medium?.url || th?.default?.url || ''); return /^https:\/\/i\.ytimg\.com\//.test(u) ? u : ''; };
+  return items.map(it => ({ id: String(it?.id?.videoId || ''), title: htmlText(it?.snippet?.title), channel: htmlText(it?.snippet?.channelTitle), thumb: thumb(it?.snippet?.thumbnails) }))
+    .filter(x => YT_ID_RE.test(x.id) && x.title);
+}
+// 영상 제목(+채널) → 곡 제목·가수. "[TJ노래방] 밤편지 - 아이유 / TJ Karaoke" → 밤편지 / 아이유
+// 노래방 채널(TJ·KY·금영·노래방·karaoke) 이름은 가수로 쓰지 않는다. "아이유 - Topic" → 아이유
+const KARAOKE_CHANNEL = /노래방|karaoke|(?<![A-Za-z])(TJ|KY|MR)(?![A-Za-z])|금영|entertainment|미디어/i;
+function ytTitleParts(rawTitle, author) {
+  let s = htmlText(rawTitle);
+  s = s.replace(/\s*[\/|｜]\s*(?:TJ|KY|금영)[^\/|｜]*$/i, '');                     // 뒤의 " / TJ Karaoke"
+  s = s.replace(/[(\[]\s*(?:karaoke|instrumental|노래방)(?:\s*(?:version|ver\.?|버전))?\s*[)\]]/ig, '');
+  s = s.replace(/(?:\s+(?:노래방|karaoke|가사|lyrics?))+\s*$/i, '');               // 끝의 "노래방", "Karaoke"
+  if (!s.trim()) return { title: '', artist: '' };
+  const { title, artist } = titleFromFilename(s + '.mp4');
+  let a = artist;
+  const ch = htmlText(author).replace(/\s*-\s*Topic$/i, '').replace(/\s*(?:official|vevo|공식)\s*$/i, '').trim();
+  if (!a && ch && !KARAOKE_CHANNEL.test(ch)) a = ch;
+  return { title: title || '', artist: a || '' };
+}
+// 폰 유튜브 앱 [공유] → 주소 ?title=&text=&url= (manifest share_target). 공유가 아니면 null.
+// 유튜브 앱은 보통 "제목 + 링크"를 text에 넣는다 → url·text·title 순으로 링크를 찾는다.
+function shareParams(search) {
+  const p = new URLSearchParams(search || '');
+  if (!['title', 'text', 'url'].some(k => p.has(k))) return null;
+  const title = (p.get('title') || '').trim(), text = (p.get('text') || '').trim(), url = (p.get('url') || '').trim();
+  const id = parseYouTubeId(url) || parseYouTubeId(text) || parseYouTubeId(title);
+  const name = (title || text.replace(/(?:https?:\/\/)?\S*(?:youtube\.com|youtu\.be)\/\S*/ig, '')).replace(/\s+/g, ' ').trim().slice(0, 200);
+  return { id, title: name };
+}
+// 공유 칸만 지운 주소 뒷부분 (?tv=1 같은 다른 칸은 그대로)
+function stripShareParams(search) {
+  const p = new URLSearchParams(search || '');
+  for (const k of ['title', 'text', 'url']) p.delete(k);
+  const s = p.toString();
+  return s ? '?' + s : '';
+}
+// 같은 영상이 이미 곡 목록에 있는가 (지운 곡 빼고)
+const findYtSong = (songs, id) => (songs || []).find(s => !s.deleted && isYtSong(s) && s.ytId === id) || null;
 
 /* MR 만들기 (CR-089): 집 AI 서버의 "MR 만들기 창"을 새 탭으로 열고, 다 만든 MR을 창끼리(postMessage) 받는다.
    노래방은 서버에 직접 요청하지 않는다 (https 노래방 → http 서버는 막힘). 주소는 짧은 기계 이름만 (tailnet 뒷부분·IP 없음) */

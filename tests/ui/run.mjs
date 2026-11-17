@@ -71,7 +71,7 @@ const ctx = {
     catch (e) { log(`  ! ${title}: ${e.message}`); for (const id of ids) ctx.ok(id, false, `${title} 중 오류: ${e.message}`); }
   },
   wants(...areas) { return !ONLY || areas.some(a => ONLY.includes(a)); },
-  netLog: [], lrcLog: [], lrcRules: [],
+  netLog: [], lrcLog: [], lrcRules: [], ytLog: [], ytRules: [],
 };
 
 /* ---------------- 준비: 시작 전 저장소 상태 ---------------- */
@@ -117,7 +117,14 @@ async function stopServer(pr) {
 /* ---------------- 밖으로 나가는 요청: 허용 / 가짜 답 / 막기 ---------------- */
 const ALLOW = /^(fonts\.googleapis\.com|fonts\.gstatic\.com|cdnjs\.cloudflare\.com)$/;
 // 가로챌 바깥 주소: 허용(글꼴·QR), 가짜 답(가사 서버), 막음(Google 로그인·Drive). 그 밖은 Edge가 이름 찾기부터 실패한다 (edge.mjs)
-const ROUTED = ['fonts.googleapis.com', 'fonts.gstatic.com', 'cdnjs.cloudflare.com', 'lrclib.net', 'accounts.google.com', 'www.googleapis.com', 'oauth2.googleapis.com', 'apis.google.com'];
+const ROUTED = ['fonts.googleapis.com', 'fonts.gstatic.com', 'cdnjs.cloudflare.com', 'lrclib.net', 'accounts.google.com', 'www.googleapis.com', 'oauth2.googleapis.com', 'apis.google.com',
+  'www.youtube.com', 'www.youtube-nocookie.com', 'i.ytimg.com'];
+// 유튜브 (CR-030): IFrame API는 가짜(fake-yt.js), 열쇠 검색(googleapis /youtube/v3/search)은 ctx.ytRules 가짜 답, 썸네일은 회색 그림. 진짜 유튜브에 닿지 않는다.
+// 검색 열쇠는 가짜(YT_FAKE_KEY)만 쓰고, 기록에는 열쇠 글자를 남기지 않는다 ("가짜 열쇠"·"없음"만)
+const FAKE_YT_API = fs.readFileSync(path.join(HERE, 'fake-yt.js'), 'utf8');
+const YT_FAKE_KEY = 'ui-test-fake-key';
+ctx.ytFakeKey = YT_FAKE_KEY;
+const YT_THUMB = '<svg xmlns="http://www.w3.org/2000/svg" width="320" height="180"><rect width="320" height="180" fill="#2b2f45"/><text x="160" y="98" font-family="sans-serif" font-size="22" fill="#9aa2d4" text-anchor="middle">썸네일</text></svg>';
 const LOCAL = /^(127\.0\.0\.1|localhost)$/;
 function makeRouter(page) {
   return async p => {
@@ -133,6 +140,21 @@ function makeRouter(page) {
       ctx.netLog.push({ kind: '가짜 답', url: u.origin + u.pathname + '?q=' + q });
       if (rule.neterr) return { fail: 'InternetDisconnected' };
       return { fulfill: { status: rule.status || 200, body: rule.body ?? [], delay: rule.delay } };
+    }
+    if (u.hostname === 'www.youtube.com' && u.pathname === '/iframe_api') {
+      ctx.netLog.push({ kind: '가짜 답', url: u.origin + u.pathname });
+      return { fulfill: { status: 200, body: FAKE_YT_API, headers: { 'content-type': 'text/javascript; charset=utf-8' } } };
+    }
+    if (u.hostname === 'www.googleapis.com' && u.pathname === '/youtube/v3/search') {
+      const q = u.searchParams.get('q') || '', key = u.searchParams.get('key') || '';
+      const rule = ctx.ytRules.find(r => new RegExp(r.q).test(q)) || { status: 200, body: { items: [] } };
+      ctx.ytLog.push({ q, key: key === YT_FAKE_KEY ? '가짜 열쇠' : key ? '다른 열쇠' : '없음', status: rule.status || 200, embeddable: u.searchParams.get('videoEmbeddable'), type: u.searchParams.get('type') });
+      ctx.netLog.push({ kind: '가짜 답', url: u.origin + u.pathname + '?q=' + q });
+      return { fulfill: { status: rule.status || 200, body: rule.body ?? { items: [] } } };
+    }
+    if (u.hostname === 'i.ytimg.com') {
+      ctx.netLog.push({ kind: '가짜 답', url: u.origin + u.pathname });
+      return { fulfill: { status: 200, body: YT_THUMB, headers: { 'content-type': 'image/svg+xml' } } };
     }
     if (ALLOW.test(u.hostname)) {
       // 글꼴·QR 라이브러리: 점검이 한 번만 받아 두고 탭마다 그대로 준다 (인터넷이 느려도 화면이 멈추지 않게, 10초 넘으면 없이 간다)
@@ -345,7 +367,7 @@ try {
   if ((!ONLY && !CHECKS) || SHOTS_ONLY) shots = await shotMod.default(ctx);
   // 2) 기능 점검
   if (!SHOTS_ONLY) {
-    const order = ['basics', 'songs', 'bulk', 'video', 'reserve', 'profiles', 'keys', 'syncedit', 'tv', 'touch', 'record', 'mic', 'settings', 'backup', 'remote', 'mr', 'offline', 'devsync'];
+    const order = ['basics', 'songs', 'bulk', 'video', 'reserve', 'profiles', 'keys', 'syncedit', 'tv', 'touch', 'record', 'mic', 'settings', 'backup', 'remote', 'mr', 'youtube', 'offline', 'devsync'];
     // 마이크는 '거부' 상태로 시작한다 (마이크가 꺼진 채의 안내를 먼저 본다. 가짜 마이크는 mic 점검에서 켠다)
     await ctx.p.eval(`localStorage.setItem('__ui-mic','deny')`);
     ctx.ids = {};

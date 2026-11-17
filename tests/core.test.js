@@ -693,3 +693,91 @@ test('MR 만들기: 받은 메시지 — 내가 연 창 + 서버 주소 + {app,v
   same(C.titleFromFilename('[TJ노래방] 산책 - 백예린 _ TJ Karaoke (MR).mp3'), { title: '산책', artist: '백예린' });
   same(C.titleFromFilename('1부 행진곡_멸종위기사랑 (MR).mp3'), { title: '1부 행진곡', artist: '멸종위기사랑' });
 });
+
+/* ---------------- 유튜브 곡 (CR-030) ---------------- */
+test('유튜브 링크 → 영상 번호: 링크 5종이 같은 영상, 재생목록은 영상 하나만, 엉뚱한 글은 null', () => {
+  const id = 'dQw4w9WgXcQ';
+  for (const link of [
+    `https://youtu.be/${id}`, `youtu.be/${id}?si=abc123`, `https://www.youtube.com/watch?v=${id}`, `https://m.youtube.com/watch?app=m&v=${id}&t=30s`,
+    `https://www.youtube.com/shorts/${id}`, `https://music.youtube.com/watch?v=${id}&feature=share`, `https://www.youtube.com/embed/${id}?start=5`,
+    `https://www.youtube-nocookie.com/embed/${id}`, `https://www.youtube.com/watch?v=${id}&list=PLabcdefghijklmnop&index=3`, `https://www.youtube.com/live/${id}`,
+    `노래방 영상이에요 https://youtu.be/${id} 같이 불러요`, `[TJ노래방] 밤편지 - 아이유\nhttps://youtube.com/watch?v=${id}`,
+  ]) assert.equal(C.parseYouTubeId(link), id, link);
+  for (const bad of ['', null, undefined, '밤편지 아이유', id, 'https://example.com/watch?v=' + id, 'https://notyoutube.com/watch?v=' + id,
+    'https://www.youtube.com/playlist?list=PLabcdefghijklmnop', 'https://www.youtube.com/@channel', 'https://www.youtube.com/results?search_query=x',
+    'https://youtu.be/short', 'https://www.youtube.com/watch?v=' + id + 'x', 'mailto:me@youtube.com/watch?v=' + id])
+    assert.equal(C.parseYouTubeId(bad), null, String(bad));
+  assert.equal(C.ytWatchUrl(id), 'https://www.youtube.com/watch?v=' + id);
+});
+
+test('유튜브 곡 판정·같은 영상 찾기·가사 없음에서 빠짐', () => {
+  const yt = { id: 'y1', no: 10, title: '밤편지', source: 'yt', ytId: 'dQw4w9WgXcQ', lyrics: '' };
+  assert.equal(C.isYtSong(yt), true);
+  assert.equal(C.isYtSong({ ...yt, ytId: 'bad' }), false);
+  assert.equal(C.isYtSong({ id: 'm1', title: 'MR', blob: {} }), false);
+  assert.equal(C.isYtSong(null), false);
+  assert.equal(C.findYtSong([{ id: 'm1' }, yt], 'dQw4w9WgXcQ'), yt);
+  assert.equal(C.findYtSong([{ ...yt, deleted: true }], 'dQw4w9WgXcQ'), null);
+  assert.equal(C.findYtSong([yt], 'aaaaaaaaaaa'), null);
+  assert.equal(C.lacksLyrics(yt), false);                       // 영상만으로 정상
+  assert.equal(C.lacksLyrics({ id: 'm1', title: 'MR', lyrics: '' }), true);   // 내 MR 곡은 전과 같음
+});
+
+test('유튜브 곡은 Drive library.json에 글만 들어가고 다른 기기에서 그대로 합쳐진다', () => {
+  const yt = { id: 'y1', no: 10, title: '밤편지', artist: '아이유', source: 'yt', ytId: 'dQw4w9WgXcQ', ytDur: 253.5, lyrics: '[00:01.00]가사', createdAt: 1, updatedAt: 2 };
+  const local = { id: 'm1', no: 11, title: '안 올린 MR', blob: {}, createdAt: 1, updatedAt: 1 };
+  const lib = C.buildLibrary({ songs: [yt, local], tombs: [], profiles: [], recs: [], recTombs: [] }, 5);
+  same(lib.songs, [{ id: 'y1', no: 10, title: '밤편지', artist: '아이유', lyrics: '[00:01.00]가사', createdAt: 1, updatedAt: 2, source: 'yt', ytId: 'dQw4w9WgXcQ', ytDur: 253.5 }]);
+  assert.ok(C.SONG_FIELDS.includes('source') && C.SONG_FIELDS.includes('ytId') && C.SONG_FIELDS.includes('ytDur'));
+  const { live: list } = C.mergeRemoteInto([], [], lib.songs, C.SONG_FIELDS, { mediaKey: 'blob' });
+  assert.equal(list.length, 1); assert.equal(C.isYtSong(list[0]), true); assert.equal(list[0].ytId, 'dQw4w9WgXcQ');
+});
+
+test('열쇠 없는 유튜브 검색 주소: 검색어에 "노래방"을 보탠다', () => {
+  assert.equal(C.ytSearchQuery('밤편지 아이유'), '밤편지 아이유 노래방');
+  assert.equal(C.ytSearchQuery('  밤편지   노래방 '), '밤편지 노래방');
+  assert.equal(C.ytSearchQuery('Through the Night karaoke'), 'Through the Night karaoke');
+  assert.equal(C.ytSearchQuery('밤편지 MR'), '밤편지 MR');
+  assert.equal(C.ytSearchQuery('Mr. Chu'), 'Mr. Chu 노래방');
+  assert.equal(C.ytSearchQuery(''), '');
+  assert.equal(C.ytResultsUrl('밤편지 & 아이유'), 'https://www.youtube.com/results?search_query=' + encodeURIComponent('밤편지 & 아이유 노래방'));
+});
+
+test('열쇠 검색 답 읽기: 영상만, 제목의 &amp; 같은 것을 글자로', () => {
+  const json = { items: [
+    { id: { kind: 'youtube#video', videoId: 'dQw4w9WgXcQ' }, snippet: { title: '[TJ노래방] 밤편지 - 아이유 / TJ Karaoke', channelTitle: 'TJ KARAOKE', thumbnails: { medium: { url: 'https://i.ytimg.com/vi/dQw4w9WgXcQ/mqdefault.jpg' } } } },
+    { id: { videoId: 'abcdefghijk' }, snippet: { title: 'Rock &amp; Roll &#39;Night&#39; &quot;MR&quot; &#x41;', channelTitle: 'Q&amp;A', thumbnails: { default: { url: 'http://evil.example/x.jpg' } } } },
+    { id: { kind: 'youtube#channel', channelId: 'UCxxx' }, snippet: { title: '채널' } },
+    { id: { videoId: 'short' }, snippet: { title: '이상한 번호' } },
+    { id: { videoId: 'zzzzzzzzzzz' }, snippet: { title: '' } },
+  ] };
+  same(C.parseYtSearch(json), [
+    { id: 'dQw4w9WgXcQ', title: '[TJ노래방] 밤편지 - 아이유 / TJ Karaoke', channel: 'TJ KARAOKE', thumb: 'https://i.ytimg.com/vi/dQw4w9WgXcQ/mqdefault.jpg' },
+    { id: 'abcdefghijk', title: 'Rock & Roll \'Night\' "MR" A', channel: 'Q&A', thumb: '' },
+  ]);
+  same(C.parseYtSearch(null), []);
+  same(C.parseYtSearch({ items: 'x' }), []);
+  assert.equal(C.htmlText('a &unknown; b &#0; c'), 'a &unknown; b &#0; c');
+});
+
+test('영상 제목 → 곡 제목·가수: 노래방 꼬리표를 떼고, 노래방 채널 이름은 가수로 안 씀', () => {
+  same(C.ytTitleParts('[TJ노래방] 밤편지 - 아이유 / TJ Karaoke', 'TJ KARAOKE'), { title: '밤편지', artist: '아이유' });
+  same(C.ytTitleParts('[KY ENTERTAINMENT] 좋은 날 - 아이유 (KY.46470) / KY Karaoke', 'KY KARAOKE'), { title: '좋은 날', artist: '아이유' });
+  same(C.ytTitleParts('Through the Night (Karaoke Version)', 'IU - Topic'), { title: 'Through the Night', artist: 'IU' });
+  same(C.ytTitleParts('밤편지 노래방', '노래방 채널'), { title: '밤편지', artist: '' });
+  same(C.ytTitleParts('Rock &amp; Roll - 가수 MR', ''), { title: 'Rock & Roll', artist: '가수' });
+  same(C.ytTitleParts('', 'x'), { title: '', artist: '' });
+});
+
+test('폰 [공유]로 받은 주소: 글 속 링크를 찾고, 공유 칸만 지운다', () => {
+  const id = 'dQw4w9WgXcQ';
+  same(C.shareParams('?title=' + encodeURIComponent('[TJ노래방] 밤편지') + '&text=' + encodeURIComponent('https://youtu.be/' + id + '?si=x')), { id, title: '[TJ노래방] 밤편지' });
+  same(C.shareParams('?text=' + encodeURIComponent('[TJ노래방] 밤편지 - 아이유 https://youtu.be/' + id)), { id, title: '[TJ노래방] 밤편지 - 아이유' });
+  same(C.shareParams('?url=' + encodeURIComponent('https://www.youtube.com/watch?v=' + id) + '&title='), { id, title: '' });
+  same(C.shareParams('?text=' + encodeURIComponent('그냥 글')), { id: null, title: '그냥 글' });
+  assert.equal(C.shareParams('?tv=1'), null);
+  assert.equal(C.shareParams(''), null);
+  assert.equal(C.stripShareParams('?title=a&text=b&url=c'), '');
+  assert.equal(C.stripShareParams('?tv=1&text=b'), '?tv=1');
+  assert.equal(C.stripShareParams(''), '');
+});

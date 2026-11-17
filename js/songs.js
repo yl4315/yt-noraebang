@@ -4,8 +4,9 @@
 /* ---------------- 상태 ---------------- */
 const state = { songs: [], recs: [], song: null, lines: [], autoTimed: false, playing: false, offset: 0, when: 0, rate: 1,
   armed: false, seeking: false, tv: false, queue: [], tombs: [], recTombs: [], sync: null, micOn: false, score: null, frame: 0, active: -1 };
-const dur = () => state.song?.buffer?.duration || 0;
-const curTime = () => state.playing ? clamp(state.offset + (E.ctx.currentTime - state.when) * state.rate, 0, dur()) : state.offset;
+// 유튜브 곡은 길이·위치를 플레이어가 준다 (R3, yt.js)
+const dur = () => ytSong() ? ytDur() : state.song?.buffer?.duration || 0;
+const curTime = () => ytSong() ? ytTime() : state.playing ? clamp(state.offset + (E.ctx.currentTime - state.when) * state.rate, 0, dur()) : state.offset;
 const lyricOffset = () => state.sync ? 0 : (state.song?.lyricOffset || 0);
 
 /* ---------------- 곡 목록 ---------------- */
@@ -29,6 +30,7 @@ function renderSongs() {
     li.querySelector('.t').textContent = s.title;
     li.querySelector('.a').append(el('span', 'an', s.artist || '가수 미상'));   // 가수 이름만 말줄임, 뒤 표시는 그대로 보임
     if (s.video) li.querySelector('.t').append(videoTag());
+    if (isYtSong(s)) li.querySelector('.t').append(el('span', 'ytag', '유튜브'));   // 유튜브 곡 (CR-030, "영상"과 따로)
     const st = songStatus(s);
     if (st) { const tg = el('span', 'stag ' + st.cls, st.text); tg.dataset.dl = s.id; li.querySelector('.a').append(tg); }
     if (lacksLyrics(s)) li.querySelector('.a').append(el('span', 'stag nolyr', '가사 없음'));
@@ -82,6 +84,9 @@ async function selectSong(s) {
   state.key = 0; state.keyBufs = null; keyJob++; updateKeyUI();
   $('#syncBtn').hidden = !!s.demo;
   updateLyrOffUI();
+  // 유튜브 곡: 소리 파일을 불러오지 않고 플레이어에 영상만 올려 둔다 (R3, yt.js). 다른 곡이면 영상 칸을 숨긴다
+  if (typeof ytSelect === 'function') ytSelect(ytSong(s) ? s : null);
+  if (ytSong(s)) { computeLines(); updateTimeUI(0); return; }
   if (!s.buffer) {
     $('#loading').hidden = false;
     try { await loadSongBuffer(s); if (s.video) setupVideo(s); }
@@ -151,6 +156,10 @@ function openSongDialog(s = null) {
   $('#f-lyrics').value = s?.lyrics || ''; $('#f-file').value = '';
   $('#f-file').multiple = !s;   // 여러 개 고르기는 새로 넣을 때만 (2개 이상이면 bulk.js 창)
   $('#videoOpts').hidden = !(s && (isVideoBlob(s.blob) || /^video\//.test(s.mime || '')));
+  // 유튜브 곡: 소리 파일 칸 대신 영상 안내 (CR-030)
+  const yt = isYtSong(s);
+  $('#fileRow').hidden = yt; $('#ytInfo').hidden = !yt;
+  if (yt) { $('#ytInfoTxt').textContent = '영상으로 부르는 곡이에요' + (s.ytDur ? ` · ${fmt(s.ytDur)}` : ''); $('#ytInfoLink').href = ytWatchUrl(s.ytId); }
   renderDeviceRow(s);
   $('#f-video').checked = s ? !!s.video : true; $('#f-videoLyrics').checked = !!s?.videoLyrics;
   $('#dlgErr').hidden = true; $('#lrcResults').hidden = true;
@@ -223,7 +232,7 @@ function mediaDuration(blob) {
 }
 function mrDurationForDialog() {
   const f = $('#f-file').files[0];
-  return f ? mediaDuration(f) : Promise.resolve(editing?.buffer?.duration || null);
+  return f ? mediaDuration(f) : Promise.resolve(editing?.buffer?.duration || (isYtSong(editing) && editing.ytDur) || null);
 }
 // 가사 찾기 (곡 추가 창과 여러 곡 넣기 창이 같이 씀). 요청은 많아야 3번:
 // ① 제목 + 가수(괄호 앞 이름) ② 가수를 못 맞추면 괄호 안 이름으로 한 번 더 (AKMU(악뮤) → 악뮤) ③ 결과가 없으면 제목만

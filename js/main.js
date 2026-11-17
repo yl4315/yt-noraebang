@@ -4,22 +4,22 @@
 /* ---------------- 메인 루프 ---------------- */
 function loop() {
   state.frame++;
-  if (E.ctx) {
-    const mic = analyseMic();
-    if (state.song?.buffer) {
-      const t = curTime();
-      if (state.playing || state.frame % 10 === 0) updateTimeUI(t);
-      if (state.playing) {
-        scoreFrame(mic);
-        if (t >= dur() - 0.02) onFinish();
-      }
-      if (state.sync && state.sync.now !== state.active) renderSyncList();
+  const mic = E.ctx ? analyseMic() : null;
+  // 곡 화면: 내 MR은 오디오 엔진이 있을 때, 유튜브 곡은 플레이어가 위치를 준다 (R3). 유튜브 곡의 끝은 플레이어의 "끝남" 알림으로
+  if (songReady() && (E.ctx || ytSong())) {
+    const t = curTime();
+    if (state.playing || state.frame % 10 === 0) updateTimeUI(t);
+    if (state.playing) {
+      scoreFrame(mic);
+      if (!ytSong() && t >= dur() - 0.02) onFinish();
     }
-    if (P.playing) {
-      if (pTime() >= P.rec.duration - 0.01) pStop(true);
-      else if (state.frame % 6 === 0) renderPlayerUI();
-    }
+    if (state.sync && state.sync.now !== state.active) renderSyncList();
   }
+  if (E.ctx && P.playing) {
+    if (pTime() >= P.rec.duration - 0.01) pStop(true);
+    else if (state.frame % 6 === 0) renderPlayerUI();
+  }
+  if (typeof ytFrame === 'function') ytFrame();
   tickNext();
   videoFollow();
   if (state.tv && state.frame % 60 === 0 && !$('#tvIdle').hidden) renderClock();
@@ -45,6 +45,8 @@ function loop() {
   if (matchMedia('(max-width:560px)').matches) $('#deckMore').open = false;
   remoteInit();
   await selectSong(demo);
+  // 폰 유튜브 앱 [공유] → 노래방 (manifest share_target, CR-030): 주소의 ?title=&text=&url=을 지우고 시트 한 장
+  if (typeof ytHandleShare === 'function') ytHandleShare();
   // "YT 노래방 TV로 켜기"(주소 ?tv=1)로 열었으면 곡 목록·데모곡 준비가 끝난 뒤 바로 TV 화면으로
   if (tvParam(location.search)) startInTV();
   requestAnimationFrame(loop);

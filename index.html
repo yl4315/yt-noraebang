@@ -49,6 +49,7 @@
       <section class="panel" id="songsPanel">
         <button class="btn primary" id="addSongBtn" type="button">+ 곡 추가 (MR 업로드)</button>
         <button class="btn mr-btn" id="mrBtn" type="button" title="집 AI 서버가 노래 파일에서 목소리를 빼 MR을 만들어요">내 노래 파일에서 MR 만들기</button>
+        <button class="btn yt-add-btn" id="ytAddBtn" type="button" title="유튜브 노래방 영상을 링크로 곡 목록에 넣어요 (곡 검색의 [유튜브 노래방 검색] 탭)">유튜브 곡 넣기</button>
         <p class="mr-msg" id="mrMsg" role="status" hidden><span id="mrMsgTxt"></span><button class="btn small" id="mrRetry" type="button" hidden>다시 해보기</button></p>
         <button class="btn small miss-btn" id="missBtn" type="button" hidden title="가사가 없는 곡의 가사를 한꺼번에 찾아요">가사 없음 · 찾기</button>
         <ul class="list" id="songList"></ul>
@@ -90,6 +91,8 @@
           <div class="line top" id="lineTop"><span class="dots"></span><span class="base"></span><span class="fill" aria-hidden="true"></span></div>
           <div class="line bottom" id="lineBottom"><span class="dots"></span><span class="base"></span><span class="fill" aria-hidden="true"></span></div>
         </div>
+        <button class="yt-tap" id="ytTap" type="button" hidden>▶ 눌러서 시작</button>
+        <div class="yt-err" id="ytErr" role="alert" hidden><b id="ytErrHead"></b><span id="ytErrWhy"></span><a class="btn small" id="ytErrLink" target="_blank" rel="noopener">유튜브에서 열기</a></div>
         <div class="tv-idle" id="tvIdle" hidden>
           <div>
             <div class="idle-h">예약 목록 <span id="idleCount"></span></div>
@@ -145,10 +148,15 @@
         </div>
         <div class="ov-panel" id="searchOv" hidden>
           <div class="ov-card">
-            <div class="ov-head"><h3>곡 검색</h3><span class="hint">제목·가수·번호, 초성(ㅂㅍㅈ)으로도 찾아요</span><button class="icon-btn" id="searchClose" type="button" aria-label="닫기">✕</button></div>
+            <div class="ov-head"><h3>곡 검색</h3><span class="hint" id="searchHint">제목·가수·번호, 초성(ㅂㅍㅈ)으로도 찾아요</span><button class="icon-btn" id="searchClose" type="button" aria-label="닫기">✕</button></div>
+            <div class="seg" role="tablist" aria-label="찾을 곳">
+              <button class="seg-b on" id="searchTabMr" role="tab" aria-selected="true" type="button">내 MR 보관함</button>
+              <button class="seg-b" id="searchTabYt" role="tab" aria-selected="false" type="button">유튜브 노래방 검색</button>
+            </div>
             <input type="search" id="searchInput" placeholder="예: 밤편지 · 아이유 · ㅂㅍㅈ · 10002" autocomplete="off" aria-label="곡 검색">
             <ul class="ov-list" id="searchList"></ul>
-            <div class="ov-foot"><kbd>↑</kbd><kbd>↓</kbd> 고르기 · <kbd>Enter</kbd> 예약 · <kbd>Shift</kbd>+<kbd>Enter</kbd> 우선예약 · <kbd>Esc</kbd> 닫기</div>
+            <div class="ov-foot" id="searchFoot"><kbd>↑</kbd><kbd>↓</kbd> 고르기 · <kbd>Enter</kbd> 예약 · <kbd>Shift</kbd>+<kbd>Enter</kbd> 우선예약 · <kbd>Esc</kbd> 닫기</div>
+            <div class="ov-foot" id="searchFootYt" hidden><kbd>Tab</kbd> 내 MR ↔ 유튜브 · <kbd>↑</kbd><kbd>↓</kbd> 고르기 · <kbd>Enter</kbd> 예약 · <kbd>Shift</kbd>+<kbd>Enter</kbd> 우선예약 · <kbd>Esc</kbd> 닫기</div>
           </div>
         </div>
         <div class="ov-panel" id="mineOv" hidden>
@@ -213,6 +221,7 @@
             <button class="round recbtn" id="recBtn" type="button" aria-pressed="false" aria-label="녹음"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"/></svg></button>
           </div>
           <div class="transport-lbl" id="recLbl">녹음 꺼짐</div>
+          <p class="yt-note" id="ytNote" hidden>유튜브 곡 — 키 바꾸기·녹음은 내 MR 곡에서만 돼요</p>
           <div class="keys" style="margin-top:6px"><kbd>Space</kbd> 시작/일시정지 · <kbd>R</kbd> 녹음 · <kbd>[</kbd><kbd>]</kbd> 가사 타이밍 (<kbd>Shift</kbd> 1초)<br>번호 입력 + <kbd>Enter</kbd> 예약 · <kbd>S</kbd> 검색 · <kbd>L</kbd> 예약 목록</div>
           <div class="deck-q">
             <button class="btn small" id="openSearchBtn" type="button">곡 검색</button>
@@ -269,6 +278,7 @@
   <div class="rotate-hint" id="rotateHint">⟳ 폰을 가로로 돌려 주세요</div>
   <!-- 마우스 화면에서는 버튼이 한 줄로 그대로. 터치 화면(hover:none)에서는 첫 줄 8칸 + "⋯ 더 보기"를 누르면 위로 tv-more 줄이 펼쳐진다 -->
   <div class="tv-remote" id="tvRemote">
+    <span class="yt-band" id="ytBand"><span class="ytag">유튜브</span><b id="ytBandTitle"></b><span class="yt-band-next" id="ytBandNext"></span></span>
     <button class="btn primary" type="button" data-act="start">▶ 시작 <kbd>Enter</kbd></button>
     <button class="btn" type="button" data-act="pause">❚❚ 일시정지 <kbd>Space</kbd></button>
     <button class="btn cancel" type="button" data-act="cancel">■ 취소 <kbd>Esc</kbd></button>
@@ -276,6 +286,7 @@
     <button class="btn" type="button" data-act="num">번호 <kbd>0~9</kbd></button>
     <button class="btn" type="button" data-act="search">곡 검색 <kbd>S</kbd></button>
     <button class="btn" type="button" data-act="queue">예약 목록 <kbd>L</kbd></button>
+    <button class="btn yt-only" type="button" data-act="next">⏭ 다음 곡 <kbd>N</kbd></button>
     <div class="tv-more" id="tvMore">
     <button class="btn" type="button" data-act="chart">인기차트 <kbd>C</kbd></button>
     <button class="btn" type="button" data-act="mine">내 목록 <kbd>M</kbd></button>
@@ -292,11 +303,27 @@
     <button class="btn more-btn" type="button" data-act="more" aria-expanded="false" aria-controls="tvMore">⋯ 더 보기</button>
   </div>
 </div>
+<!-- 유튜브 플레이어 칸 (CR-030): 무대 밖에 두고 yt.js가 무대 빈 곳 위에 놓는다. TV 화면으로 무대를 옮겨도 영상이 다시 불러와지지 않게 -->
+<div class="yt-box off" id="ytBox"><div id="ytFrame"></div></div>
+
+<dialog id="ytShareDialog">
+  <form method="dialog">
+    <h2>유튜브 곡 받기</h2>
+    <p class="yt-share-title" id="ytShareTitle"></p>
+    <p class="hint" id="ytShareHint"></p>
+    <div class="dlg-btns">
+      <button class="btn ghost" type="button" id="ytShareClose">닫기</button>
+      <button class="btn" type="button" id="ytShareList">곡 목록에만</button>
+      <button class="btn primary" type="button" id="ytShareReserve">예약</button>
+    </div>
+  </form>
+</dialog>
 
 <dialog id="songDialog">
   <form method="dialog" id="songForm">
     <h2 id="dlgTitle">곡 추가</h2>
-    <label class="field"><span id="fileLbl">MR 파일 (음악 또는 동영상)</span><input type="file" id="f-file" accept="audio/*,video/*"></label>
+    <label class="field" id="fileRow"><span id="fileLbl">MR 파일 (음악 또는 동영상)</span><input type="file" id="f-file" accept="audio/*,video/*"></label>
+    <p class="yt-info" id="ytInfo" hidden><span class="ytag">유튜브</span><span id="ytInfoTxt"></span><a id="ytInfoLink" target="_blank" rel="noopener">유튜브에서 열기</a></p>
     <div class="video-opts" id="videoOpts" hidden>
       <label><input type="checkbox" id="f-video" checked> 노래방 화면에 이 동영상을 그대로 보여주기</label>
       <label><input type="checkbox" id="f-videoLyrics"> 동영상 위에 가사도 보여주기 <span class="hint">(영상에 가사가 이미 있으면 끄세요)</span></label>
@@ -509,6 +536,7 @@
 <script src="js/remote.js"></script>
 <script src="js/backup.js"></script>
 <script src="js/devsync.js"></script>
+<script src="js/yt.js"></script>
 <script src="js/main.js"></script>
 </body>
 </html>

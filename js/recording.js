@@ -54,6 +54,7 @@ async function saveTake(t) {
   toast(`녹음 저장됨 · ${rec.title} (${fmt(rec.duration)}) · 박자가 어긋나면 '싱크·믹스 조절'에서 고치세요`, 4500);
 }
 async function setArmed(on) {
+  if (ytSong()) { flash('유튜브 곡은 녹음하지 않아요 · 내 MR 곡에서만 돼요'); updateTransportUI(); return; }   // 영상 소리가 섞인 파일을 남기지 않음 (CR-030). 켜 둔 녹음은 다음 내 MR 곡에서 그대로
   state.armed = on;
   if (on && !state.micOn) await enableMic();
   if (state.playing && !state.sync) { if (on) startRecording(); else finishRecording(null); }

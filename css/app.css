@@ -568,3 +568,83 @@ details summary{cursor:pointer;font-weight:700;font-size:13px}
   .lights,.badge.rec,.song.fresh{animation:none}
   .tv .lyrics{transition:none}
 }
+
+/* ---------------- 유튜브 곡 (CR-030, 시안 kar-dual-2026-11-16 · TV 무대 색 C1 · 회사 토큰 이름만) ----------------
+   영상(#ytBox)은 무대 밖에 있고 js/yt.js가 무대 빈 곳 위에 놓는다. 노래방 요소는 영상 위에 겹치지 않는다 (광고·로고·컨트롤을 가리지 않음) */
+.yt-box{position:absolute;left:0;top:0;width:320px;height:180px;z-index:3;background:#000;border-radius:var(--radius-xs);overflow:hidden}
+.yt-box.off{visibility:hidden;pointer-events:none}
+.yt-box #ytFrame,.yt-box iframe{display:block;width:100%;height:100%;border:0}
+body:has(#tv:not([hidden])) .yt-box{z-index:20;border-radius:0}
+.stage.yt-on .title-card,.stage.yt-on .lights,.stage.yt.yt-small .lyrics{visibility:hidden}
+.stage.yt-on .flash{top:var(--yt-below,13%)}
+.stage.yt-on .num-box{left:auto;right:3%;transform:translateY(-50%);min-width:0;max-width:46%}
+/* 검색·예약 목록 같은 창이 열리면 영상은 옆(좁으면 위)으로 비켜 준다 */
+.stage.yt-split:not(.yt-narrow) .ov-panel{left:50%}
+.stage.yt-split.yt-narrow .ov-panel{top:var(--yt-cut,50%)}
+.stage.yt-split .ov-card{width:100%}
+.ytag{display:inline-block;font:700 11px/1.5 var(--ui);color:var(--ink);background:var(--panel-2);border:1px solid var(--line);border-radius:var(--r-tag);padding:0 6px;margin-left:6px;vertical-align:1px;letter-spacing:0;white-space:nowrap}
+.ov-row .ytag{font-size:.7em}
+.yt-off{opacity:var(--opacity-disabled,.4)}
+.yt-note{margin:6px 0 0;font-size:13px;color:var(--muted);text-align:center}
+/* 재생을 막았을 때 "눌러서 시작" · 재생 못 함 안내 (무대 안, 영상 칸 아래) */
+.yt-tap{position:absolute;left:50%;bottom:6%;transform:translateX(-50%);z-index:7;height:48px;padding:0 22px;border-radius:var(--radius-md);border:1px solid var(--amber);
+  background:var(--panel-2);color:var(--ink);font:700 16px var(--ui)}
+.yt-err{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:7;width:min(92%,560px);display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center;
+  background:var(--panel);border:1px solid var(--line);border-radius:var(--radius-md);padding:16px 18px;font-size:clamp(13px,1.4cqw,30px)}
+.yt-err b{font:400 1.25em/1.3 var(--display)}
+.yt-err span{color:var(--muted)}
+/* 곡 검색 창: [내 MR 보관함 | 유튜브 노래방 검색] (높이 48) */
+.seg{display:flex;background:var(--room);border-radius:var(--radius-sm,8px);padding:3px;min-height:48px;flex:none}
+.seg-b{flex:1;border:0;border-radius:6px;background:none;color:var(--muted);font:600 1em var(--ui);white-space:nowrap;min-height:42px;padding:0 .6em}
+.seg-b.on{background:var(--panel-2);color:var(--ink);font-weight:800;box-shadow:inset 0 -2px 0 var(--amber)}
+.yt-card{display:flex;flex-direction:column;gap:.3em;margin:.6em;padding:.8em 1em;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius-md);color:var(--ink)}
+.yt-card-h{font-weight:800;font-size:1.05em}
+.yt-card-l{color:var(--ink)}
+.yt-card-s{color:var(--muted);font-size:.85em}
+.yt-card.yt-info-line{background:none;border-style:dashed;color:var(--muted)}
+.yt-card.yt-info-line .yt-card-l{color:var(--muted);font-size:.9em}
+.yt-guide-btns{display:flex;gap:.5em;flex-wrap:wrap;margin-top:.3em}
+.yt-guide-btns .btn{min-height:40px}
+.yt-qr-slot{margin:0 .6em .6em;min-height:0}
+.yt-row{grid-template-columns:auto auto minmax(0,1fr) auto}
+.yt-row .nm{white-space:normal}
+.yt-row .yt-t{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;font-weight:700}
+.yt-row .nm small{display:block;margin-left:0}
+.yt-thumb{display:block;width:128px;height:72px;object-fit:cover;border-radius:var(--radius-xs,4px);background:var(--panel-2)}
+#songDialog .yt-info{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0;font-size:14px}
+#songDialog .yt-info .ytag{margin-left:0}
+#ytShareDialog .yt-share-title{font-weight:700;font-size:17px;margin:8px 0 4px;word-break:keep-all}
+/* TV 화면 유튜브 띠 (시안 T1): 영상은 위 칸에만, 아래 68px 띠에 단추. 띠는 숨지 않고 영상과 겹치지 않는다 */
+.tv:not(.yt-mode) #ytBand,.tv:not(.yt-mode) .tv-remote .yt-only{display:none!important}
+.tv.yt-mode{align-items:flex-start}
+.tv.yt-mode .stage{width:100vw;height:calc(100vh - 68px);aspect-ratio:auto}
+.tv.yt-mode .stage .song-head,.tv.yt-mode .stage .tv-prog,.tv.yt-mode .stage.yt-nolyr .lyrics{display:none}
+.tv.yt-mode .stage .lyrics,.tv.yt-mode:not(.hide-ui) .stage .lyrics{bottom:3%}
+.tv.yt-mode .stage .tv-idle{bottom:5%}
+.tv.yt-mode .tv-remote,.tv.yt-mode.hide-ui .tv-remote{position:fixed;left:0;right:0;bottom:0;transform:none;width:auto;max-width:none;height:68px;opacity:1;pointer-events:auto;
+  display:flex;flex-wrap:nowrap;align-items:center;justify-content:flex-end;gap:8px;padding:0 14px;border:0;border-top:1px solid var(--line);border-radius:0;background:var(--room)}
+.tv.yt-mode .tv-more{display:contents}
+.tv.yt-mode .tv-remote .btn{display:none}
+.tv.yt-mode .tv-remote .btn:is([data-act="search"],[data-act="queue"],[data-act="next"],[data-act="exit"]),
+.tv.yt-mode.yt-playing .tv-remote .btn[data-act="pause"],.tv.yt-mode:not(.yt-playing) .tv-remote .btn[data-act="start"]{display:inline-flex;height:48px;line-height:normal;padding:0 14px;font-size:15px;font-weight:600;flex:none}
+.tv.yt-mode .tv-remote [data-act="start"],.tv.yt-mode .tv-remote [data-act="pause"]{order:3}
+.tv.yt-mode .tv-remote [data-act="search"]{order:1}
+.tv.yt-mode .tv-remote [data-act="queue"]{order:2}
+.tv.yt-mode .tv-remote [data-act="next"]{order:4}
+.tv.yt-mode .tv-remote [data-act="exit"]{order:5}
+.yt-band{order:0;flex:1;min-width:0;display:flex;align-items:center;gap:8px;white-space:nowrap;overflow:hidden;font-size:15px;color:var(--ink)}
+.yt-band .ytag{margin-left:0;height:26px;line-height:24px;font-size:13px;font-weight:800;flex:none}
+.yt-band b{min-width:0;overflow:hidden;text-overflow:ellipsis;font-weight:700}
+.yt-band-next{color:var(--muted);min-width:0;overflow:hidden;text-overflow:ellipsis}
+.yt-band-note{display:none;align-items:center;height:44px;padding:0 14px;border:1px solid var(--amber);border-radius:var(--radius-sm,8px);background:var(--panel-2);font-weight:700;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.yt-band.note b,.yt-band.note .yt-band-next{display:none}
+.yt-band.note .yt-band-note{display:flex}
+body:has(#tv.yt-mode:not([hidden])) .toast{left:14px;right:auto;transform:none;bottom:12px;max-width:min(44vw,620px)}
+@media (hover:none){
+  .tv.yt-mode .tv-remote,.tv.yt-mode.hide-ui .tv-remote{display:flex;width:auto;max-width:none;padding:0 8px}
+  .tv.yt-mode .tv-remote .more-btn{display:none}
+  .tv.yt-mode .stage .ov-panel{padding-bottom:2cqw}
+}
+@media (max-width:560px){
+  .stage.yt{aspect-ratio:1/1;max-height:none}
+}

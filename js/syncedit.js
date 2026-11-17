@@ -89,6 +89,7 @@ $('#syUndo').onclick = syncUndo;
 $('#syPlay').onclick = () => state.playing ? pause() : play();
 $('#syBack').onclick = () => seekTo(Math.max(0, curTime() - 3));
 function setSyncRate(r) {
+  if (ytSong() && r > 2) { r = 2; flash('유튜브 곡은 2배속까지예요'); }   // 유튜브 플레이어는 0.25~2배 (CR-030)
   state.rate = r; $('#sySpeed').value = String(r);
   if (state.playing) seekTo(curTime());
   flash(`${r}배속`);
