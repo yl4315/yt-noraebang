@@ -25,6 +25,8 @@ export const SPY = `(() => {
     if (t) watch(t, ui.toasts); if (f) watch(f, ui.flashes);     // 휴대폰 리모컨 화면에는 toast만 있다
   };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', hook); else hook();
+  // 보안 규칙(CSP, CR-227)이 막은 것: 콘솔 오류로 남겨 공통 점검이 잡게 (막힌 곳 이름만)
+  document.addEventListener('securitypolicyviolation', e => { try { console.error('UI점검 CSP 막음: ' + e.effectiveDirective + ' ' + String(e.blockedURI || '').split('?')[0].slice(0, 80)); } catch {} });
   try { const ov = navigator.vibrate ? navigator.vibrate.bind(navigator) : null; navigator.vibrate = p => { ui.vib.push(p); return ov ? ov(p) : true; }; } catch {}
   try { const orf = Element.prototype.requestFullscreen; Element.prototype.requestFullscreen = function (...a) { ui.fsReq++; const pr = orf.apply(this, a); pr.catch(e => ui.fsErr.push(String(e && e.message || e))); return pr; }; } catch {}
   try { if (screen.orientation) { const ol = screen.orientation.lock ? screen.orientation.lock.bind(screen.orientation) : null; screen.orientation.lock = o => { ui.orient.push(o); return ol ? ol(o) : Promise.reject(new Error('no lock')); }; } } catch {}

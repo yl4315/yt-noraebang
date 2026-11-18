@@ -694,3 +694,25 @@ body:has(#tv.yt-mode:not([hidden])) .toast{left:14px;right:auto;transform:none;b
   .main #searchList .yt-thumb{width:96px;height:54px}
   .main #searchOv .ov-head .icon-btn{min-width:48px;min-height:48px;align-items:center;justify-content:center}
 }
+/* 자동 싱크 한 줄 (CR-227, 디자인 5-sync-line): S1 진행 막대 아래(무대 밖이라 TV에는 안 나옴) · S2 곡 수정 창 가사 칸 아래.
+   글 12px 회색, 색은 14px 아이콘에만 (찾음 초록 · 불러옴 파랑 · 못 찾음 회색), [직접 맞추기]는 오른쪽 끝 */
+.sync-line{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:4px 0 0;font-size:12px;line-height:20px;color:var(--color-text-muted-strong,var(--muted))}
+.sync-line[hidden]{display:none}
+.sync-line svg{flex:none;width:14px;height:14px;color:var(--color-text-muted)}
+.sync-line[data-state=found] svg{color:var(--color-positive,#9CDCAE)}
+.sync-line[data-state=loaded] svg{color:var(--color-info)}
+.sync-line[data-state=busy] svg{animation:sl-spin 1s linear infinite}
+.sync-line .sl-text{min-width:0}
+.sync-line .sl-act{margin-left:auto;padding:0 4px;background:none;border:0;font-size:12px;line-height:20px;font-weight:700;color:var(--color-text,var(--ink))}
+@keyframes sl-spin{to{transform:rotate(360deg)}}
+.sync-chk{color:var(--color-text,var(--ink))}
+.sync-chk::before{content:'';flex:none;width:6px;height:6px;border-radius:50%;background:var(--color-info)}
+@media (hover:none){.sync-line .sl-act{min-height:48px;margin:-14px 0 -14px auto}#syncLine2{margin-top:8px}}
+@media (prefers-reduced-motion:reduce){.sync-line[data-state=busy] svg{animation:none}}
+/* 허브 연결 (설정): 코드·메일·비밀번호 칸은 Drive 클라이언트 ID 칸과 같은 모양 */
+#hubSec .set-row input{flex:1;min-width:180px;background:var(--panel);border:1px solid transparent;border-radius:var(--r-in);padding:8px 10px;font-size:13px;color:var(--ink)}
+#hubSec #hubCode{font-family:var(--mono);font-size:12px}
+#hubLogin{flex-direction:row;padding:0}
+#hubLogin #hubEmail{flex-basis:100%}
+#hubLogin #hubPw{min-width:120px}
+@media (hover:none){#hubSec .btn,#hubSec .set-row input{min-height:48px}}

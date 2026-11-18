@@ -64,7 +64,8 @@ function pitchShift(buf, semis, onProgress) {
     pitchWorker.postMessage({ id, semis, sr: buf.sampleRate, chs }, chs.map(c => c.buffer));
   });
 }
-const keyOf = s => (me().keys || {})[s.id] || 0;
+// 키 두 층 (CR-227): 이 사람이 정한 키가 먼저, 없으면 허브를 켰을 때만 곡 기본 키(baseKey, 다른 기기와 맞춤)
+const keyOf = s => (me().keys || {})[s.id] || (typeof hubOn === 'function' && hubOn() ? clamp(Math.round(+s.baseKey || 0), -6, 6) : 0);
 const keyLabel = k => k === 0 ? '원래 키' : k > 0 ? `+${k}` : `${k}`;
 // 곡마다 최근 두 개 키만 메모리에 둔다
 function keyBuffer(s, semis, onProgress) {
@@ -87,6 +88,7 @@ async function setKey(semis, { save = true } = {}) {
   const s = state.song; if (!s?.buffer || state.sync) return;
   semis = clamp(Math.round(semis), -6, 6);
   if (save) { const p = me(); p.keys ||= {}; if (semis) p.keys[s.id] = semis; else delete p.keys[s.id]; saveProfiles(p); }
+  if (save && !s.demo && typeof hubOn === 'function' && hubOn() && (s.baseKey | 0) !== semis) { s.baseKey = semis; hubTouch(s); persistSong(s, false, true); }
   state.key = semis;
   const job = ++keyJob;
   if (!semis) { state.keyBufs = null; updateKeyUI(); if (state.playing) seekTo(curTime()); flash('원래 키'); return; }

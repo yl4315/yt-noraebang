@@ -11,10 +11,12 @@ const NAMES = ['fmtMs', 'norm', 'chosung', 'pick', 'parseLyrics', 'toLRC', 'sear
   'STATS_CAP', 'statsFileName', 'cleanPlays', 'mergePlays', 'mergeScores', 'statsTotals', 'statsSig', 'buildStatsFile', 'parseStatsFile', 'pickStatsFiles', 'mergeBackupStats', 'planDownload', 'travelStatus',
   'MR_DEFAULT_SERVER', 'MR_MAX_FILES', 'MR_MAX_BYTES', 'normalizeMrServer', 'mrMessageOk',
   'YT_ID_RE', 'isYtSong', 'parseYouTubeId', 'ytWatchUrl', 'ytSearchQuery', 'ytResultsUrl', 'htmlText', 'parseYtSearch', 'ytTitleParts', 'shareParams', 'stripShareParams', 'findYtSong',
-  'ADV_KEY', 'DECK_KEY', 'advOn', 'deckOpenAtStart', 'storeSummary'];
+  'ADV_KEY', 'DECK_KEY', 'advOn', 'deckOpenAtStart', 'storeSummary',
+  'HUB_LRC_MAX', 'HUB_PUSH_MAX', 'HUB_PULL_MAX', 'hubPairOk', 'hubCodeParse', 'hubCodeMake', 'mrHashKey', 'songSettingsKey', 'settingsOf', 'settingsSig', 'settingsHas', 'settingsFromData',
+  'songSettingsData', 'hubPlan', 'hubMirrorAdd', 'hubRemote', 'hubQueueAdd', 'hubQueueDrop', 'hubRecord', 'lrclibGetParams', 'autoSyncPick', 'canAutoSync'];
 
 function loadCore() {
-  const ctx = vm.createContext({ console, Blob, TextEncoder, TextDecoder, DataView, Uint8Array, URLSearchParams, URL, crypto: globalThis.crypto });
+  const ctx = vm.createContext({ console, Blob, TextEncoder, TextDecoder, DataView, Uint8Array, URLSearchParams, URL, crypto: globalThis.crypto, atob, btoa });
   for (const f of ['util.js', 'core.js']) {
     const file = path.join(__dirname, '..', 'js', f);
     vm.runInContext(fs.readFileSync(file, 'utf8'), ctx, { filename: file });

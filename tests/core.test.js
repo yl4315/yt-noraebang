@@ -821,3 +821,149 @@ test('숨김 정리 (CR-229): 숨김 코드는 설정 값(nb-settings 등)을 �
     'remoteSet', 'remoteCtl', 'remoteNewEach', 'remoteNewPin'])
     assert.ok(html.includes(`id="${id}"`), id);
 });
+
+/* ---------------- 허브: 곡 설정 맞추기 (CR-227) ---------------- */
+// 시험 값은 모두 가짜: 주소는 qafakehub000…, 키는 여기서 만든 가짜 JWT·가짜 공개 키
+const FAKE_URL = 'https://' + 'qafakehub'.padEnd(20, '0') + '.supabase.co';
+const b64u = o => Buffer.from(JSON.stringify(o)).toString('base64url');
+const fakeJwt = role => [b64u({ alg: 'HS256', typ: 'JWT' }), b64u({ iss: 'qa', role }), 'qa-signature'].join('.');
+const FAKE_PUB = 'sb_publishable_' + 'qa'.repeat(12);
+
+test('허브 연결 코드: hub.json 내용과 nbhub1 코드를 읽고, 주소·키 모양이 틀리면 못 씀 (값은 돌려주지 않음)', () => {
+  const anon = fakeJwt('anon');
+  same(C.hubCodeParse(JSON.stringify({ url: FAKE_URL, anonKey: anon })), { ok: true, u: FAKE_URL, k: anon });
+  same(C.hubCodeParse(JSON.stringify({ url: FAKE_URL + '/', anonKey: FAKE_PUB }) + '\n'), { ok: true, u: FAKE_URL, k: FAKE_PUB });
+  const code = C.hubCodeMake(FAKE_URL, anon);
+  assert.match(code, /^nbhub1\.[A-Za-z0-9_-]+$/);
+  same(C.hubCodeParse(code), { ok: true, u: FAKE_URL, k: anon });
+  same(C.hubCodeParse('#hub=' + code), { ok: true, u: FAKE_URL, k: anon });
+  // 못 쓰는 값: 비밀 키, service_role JWT, 다른 주소, http, 모양이 틀린 키·글
+  for (const bad of [
+    JSON.stringify({ url: FAKE_URL, anonKey: 'sb_secret_' + 'qa'.repeat(12) }),
+    JSON.stringify({ url: FAKE_URL, anonKey: fakeJwt('service_role') }),
+    JSON.stringify({ url: FAKE_URL, anonKey: fakeJwt('authenticated') }),
+    JSON.stringify({ url: 'https://qa.example.com', anonKey: anon }),
+    JSON.stringify({ url: FAKE_URL.replace('https', 'http'), anonKey: anon }),
+    JSON.stringify({ url: FAKE_URL.replace('qafakehub', 'qafakehub0'), anonKey: anon }),
+    JSON.stringify({ url: FAKE_URL, anonKey: 'not a key' }),
+    JSON.stringify({ url: FAKE_URL, anonKey: 'plainkey123' }),
+    JSON.stringify({ url: FAKE_URL }),
+    'nbhub1.' + Buffer.from('{"u":').toString('base64url'),
+    'nbhub2.' + C.hubCodeMake(FAKE_URL, anon).slice(7),
+    '{not json', '', null, '[1,2]', 'x'.repeat(5000),
+  ]) same(C.hubCodeParse(bad), { ok: false });
+  assert.equal(C.hubPairOk(FAKE_URL, 'sb_secret_abcdefghij'), false);
+});
+
+test('곡 열쇠: MR 곡은 파일 해시 앞 40자리, 유튜브 곡은 영상 번호, 데모·지운 곡·해시 없음은 null', () => {
+  const hex = 'ab'.repeat(32);
+  assert.equal(C.mrHashKey(hex), 'mr-' + hex.slice(0, 40));
+  assert.equal(C.mrHashKey('xyz'), null);
+  assert.equal(C.songSettingsKey({ mrHash: 'mr-' + hex.slice(0, 40) }), 'mr-' + hex.slice(0, 40));
+  assert.equal(C.songSettingsKey({ source: 'yt', ytId: 'dQw4w9WgXcQ' }), 'yt-dQw4w9WgXcQ');
+  assert.equal(C.songSettingsKey({ source: 'yt', ytId: 'short' }), null);
+  assert.equal(C.songSettingsKey({ title: '해시 아직' }), null);
+  assert.equal(C.songSettingsKey({ demo: true, mrHash: 'mr-' + hex.slice(0, 40) }), null);
+  assert.equal(C.songSettingsKey({ deleted: true, mrHash: 'mr-' + hex.slice(0, 40) }), null);
+  assert.ok(C.songSettingsKey({ mrHash: 'mr-' + hex.slice(0, 40) }).length <= 64);
+});
+
+test('곡 설정 data: 가사·오프셋·기본 키만, 범위를 넘으면 자름, 제목·가수 100자, 48KB 넘는 가사는 big', () => {
+  const s = { title: 'QA'.repeat(80), artist: '가수', lyrics: '[00:01.00]첫 줄', lyricOffset: 31.27, baseKey: 9, blob: {}, buffer: {}, id: 'x', fileId: 'f' };
+  const { data, big } = C.songSettingsData(s);
+  same(data, { v: 1, src: 'mr', title: 'QA'.repeat(50), artist: '가수', lrc: '[00:01.00]첫 줄', offset: 30, key: 6 });
+  assert.equal(big, false);
+  assert.equal(C.songSettingsData({ ...s, source: 'yt', syncChk: 1 }).data.src, 'yt');
+  assert.equal(C.songSettingsData({ ...s, syncChk: 1 }).data.chk, 1);
+  assert.equal(C.songSettingsData({ ...s, lyrics: '가'.repeat(17000) }).big, true);   // 한글 3바이트 × 17000 > 48KB
+  same(C.settingsFromData({ v: 1, lrc: 'a', offset: -99, key: 2.6 }), { lrc: 'a', offset: -30, key: 3, chk: 0 });
+  same(C.settingsFromData({ v: 1, lrc: 5, offset: 'x', key: null }), { lrc: '', offset: 0, key: 0, chk: 0 });
+  assert.equal(C.settingsFromData({ v: 2 }), null);
+  assert.equal(C.settingsFromData({}), null);
+  assert.equal(C.settingsHas(C.settingsOf({ lyrics: '  ' })), false);
+  assert.equal(C.settingsHas(C.settingsOf({ lyricOffset: 0.5 })), true);
+  const rec = C.hubRecord({ mrHash: 'mr-' + 'a'.repeat(40), createdAt: 500, lyrics: 'x' }, 900);
+  same(rec, { id: 'mr-' + 'a'.repeat(40), createdAt: 500, updatedAt: 900, deletedAt: null, data: { v: 1, src: 'mr', title: '', artist: '', lrc: 'x', offset: 0, key: 0 } });
+  assert.equal(C.hubRecord({ mrHash: 'mr-' + 'a'.repeat(40), createdAt: 2000 }, 900).createdAt, 900);   // 만든 시각이 고친 시각보다 늦으면 고친 시각
+});
+
+test('허브 합치기: 나중에 고친 쪽이 이김, 새 기기는 허브 것을 받음, 같으면 안 보냄, 거절된 내용은 다시 안 보냄', () => {
+  const k = 'mr-' + 'c'.repeat(40);
+  const sig = x => C.settingsSig({ lrc: x, offset: 0, key: 0, chk: 0 });
+  const L = o => ({ k, sig: sig('내 가사'), has: true, ...o });
+  const R = o => ({ sig: sig('허브 가사'), at: 1000, del: 0, ...o });
+  // 같음
+  same(C.hubPlan(L({}), R({ sig: sig('내 가사') })), { act: 'same' });
+  // 새 기기 (맞춘 적 없음·고친 적 없음): 내용이 있어도 허브 것
+  same(C.hubPlan(L({ updatedAt: 5000, createdAt: 5000 }), R({})), { act: 'pull' });
+  same(C.hubPlan(L({ has: false, sig: sig('') }), R({})), { act: 'pull' });
+  // 새 기기인데 허브에 없음: 내용이 있으면 처음 값을 보냄, 없으면 할 것 없음
+  same(C.hubPlan(L({ createdAt: 300, updatedAt: 400 }), null), { act: 'push', at: 400 });
+  same(C.hubPlan(L({ has: false, sig: sig('') }), null), { act: 'none' });
+  // 맞춘 뒤 이 기기에서 고침: 허브 것보다 늦으면 보냄, 이르면 허브 것
+  const synced = { syncK: k, syncSig: sig('옛 가사') };
+  same(C.hubPlan(L({ ...synced, settingsAt: 2000 }), R({})), { act: 'push', at: 2000 });
+  same(C.hubPlan(L({ ...synced, settingsAt: 900 }), R({})), { act: 'pull' });
+  same(C.hubPlan(L({ ...synced, settingsAt: 1000 }), R({})), { act: 'pull' });   // 같은 시각이면 허브 것 (허브도 늦은 것만 받음)
+  // 맞춘 뒤 Drive로 가사가 바뀜(설정 고친 시각은 옛것, 곡 고친 시각이 늦음) → 곡 고친 시각으로 보냄
+  same(C.hubPlan(L({ ...synced, settingsAt: 500, updatedAt: 3000 }), R({})), { act: 'push', at: 3000 });
+  same(C.hubPlan(L({ ...synced, settingsAt: 500, updatedAt: 800 }), R({})), { act: 'pull' });
+  // 맞춘 뒤 이 기기는 그대로, 허브가 바뀜 → 허브 것
+  same(C.hubPlan(L({ syncK: k, syncSig: sig('내 가사') }), R({})), { act: 'pull' });
+  // 다른 열쇠로 맞췄던 곡(MR 파일을 바꿈) + 고친 시각 → 새 열쇠로 보냄
+  same(C.hubPlan(L({ syncK: 'mr-' + 'd'.repeat(40), syncSig: sig('내 가사'), settingsAt: 3000 }), null), { act: 'push', at: 3000 });
+  // 거절된 내용은 다시 안 보냄, 바뀌면 다시
+  same(C.hubPlan(L({ ...synced, settingsAt: 2000, rej: sig('내 가사') }), null), { act: 'none' });
+  same(C.hubPlan(L({ ...synced, settingsAt: 2000, rej: sig('더 옛 가사') }), null), { act: 'push', at: 2000 });
+  // 지운 표시: 없는 것으로 보고, 다시 보낼 때는 지운 시각보다 늦게
+  same(C.hubPlan(L({ createdAt: 300, updatedAt: 400 }), R({ del: 1, at: 1000 })), { act: 'push', at: 1001 });
+  same(C.hubPlan(L({ syncK: k, syncSig: sig('내 가사') }), R({ del: 1, at: 1000 })), { act: 'none' });
+});
+
+test('허브 사본: 받은 줄을 넣고 받기 위치는 가장 큰 seq, 같은 열쇠는 늦은 것만, 모양이 틀린 줄은 버림', () => {
+  const a = 'mr-' + 'a'.repeat(40), b = 'yt-dQw4w9WgXcQ';
+  let m = C.hubMirrorAdd(null, [
+    { id: a, data: { v: 1, lrc: 'A1' }, created_at: 1, updated_at: 100, deleted_at: null, seq: 7 },
+    { id: b, data: { v: 1, lrc: 'B1' }, created_at: 1, updated_at: 50, deleted_at: null, seq: 9 },
+    { id: 'bad id!', data: {}, updated_at: 1, seq: 99 }, null, { id: 5 },
+  ]);
+  assert.equal(m.cursor, 9); assert.equal(m.changed, 2);
+  m = C.hubMirrorAdd(m, [{ id: a, data: { v: 1, lrc: 'A0' }, updated_at: 90, seq: 10 }, { id: b, data: {}, updated_at: 60, deleted_at: 60, seq: 11 }]);
+  assert.equal(m.cursor, 11); assert.equal(m.songs[a].d.lrc, 'A1'); assert.equal(m.songs[b].del, 1);
+  same(C.hubRemote(m.songs[a]), { sig: C.settingsSig({ lrc: 'A1', offset: 0, key: 0, chk: 0 }), at: 100, del: 0, x: { lrc: 'A1', offset: 0, key: 0, chk: 0 } });
+  assert.equal(C.hubRemote(m.songs[b]).del, 1);
+  assert.equal(C.hubRemote(null), null);
+  assert.equal(C.hubMirrorAdd(m, 'not rows').cursor, 11);
+});
+
+test('보낼 줄 목록: 열쇠마다 하나(마지막 것), 보낸 열쇠는 빠짐, 모양이 틀린 열쇠는 안 들어감', () => {
+  const a = 'mr-' + 'a'.repeat(40), b = 'mr-' + 'b'.repeat(40);
+  let q = C.hubQueueAdd(null, a, 1);
+  q = C.hubQueueAdd(q, b, 2); q = C.hubQueueAdd(q, a, 3); q = C.hubQueueAdd(q, 'bad key!', 4);
+  same(q, [{ k: b, at: 2 }, { k: a, at: 3 }]);
+  q = C.hubQueueAdd(q, b, 5, true);
+  same(q, [{ k: a, at: 3 }, { k: b, at: 5, del: 1 }]);
+  same(C.hubQueueDrop(q, [a]), [{ k: b, at: 5, del: 1 }]);
+  same(C.hubQueueDrop('x', [a]), []);
+});
+
+test('자동 싱크: LRCLIB에는 제목·가수(첫 이름)·길이만, /api/get이 맞으면 그것, 아니면 검색 결과에서 고르기, 연주곡은 안내', () => {
+  same(C.lrclibGetParams('밤편지', 'IU(아이유)', 253.4), { track_name: '밤편지', artist_name: 'IU', duration: '253' });
+  same(C.lrclibGetParams(' 밤편지 ', '아이유', null), { track_name: '밤편지', artist_name: '아이유' });
+  assert.equal(C.lrclibGetParams('밤편지', '', 200), null);
+  assert.equal(C.lrclibGetParams('', '아이유', 200), null);
+  const lrc = '[00:01.00]첫 줄\n[00:05.00]둘째 줄';
+  same(C.autoSyncPick({ syncedLyrics: lrc, duration: 200 }, null, { title: '밤편지', artist: '아이유', mrDur: 201 }), { lrc, from: 'get' });
+  same(C.autoSyncPick({ syncedLyrics: lrc, duration: 200 }, null, { title: '밤편지', artist: '아이유', mrDur: 230 }), { why: 'none' });
+  same(C.autoSyncPick({ plainLyrics: '가사만', syncedLyrics: null }, null, {}), { why: 'none' });
+  same(C.autoSyncPick({ instrumental: true }, null, {}), { why: 'novoice' });
+  const found = [{ id: 1, trackName: '밤편지', artistName: '아이유', duration: 253, syncedLyrics: lrc }];
+  same(C.autoSyncPick(null, found, { title: '밤편지', artist: '아이유', mrDur: 252 }), { lrc, from: 'search' });
+  same(C.autoSyncPick(null, found, { title: '밤편지', artist: '아이유', mrDur: 300 }), { why: 'none' });
+  same(C.autoSyncPick(null, [], { title: '밤편지', artist: '아이유', mrDur: 252 }), { why: 'none' });
+  assert.equal(C.canAutoSync({ title: '곡', lyrics: '' }), true);
+  assert.equal(C.canAutoSync({ title: '곡', lyrics: '가사만 있음' }), true);
+  assert.equal(C.canAutoSync({ title: '곡', lyrics: lrc }), false);
+  assert.equal(C.canAutoSync({ demo: true, title: '데모' }), false);
+  assert.equal(C.canAutoSync({ title: ' ' }), false);
+});

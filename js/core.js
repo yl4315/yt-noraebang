@@ -548,3 +548,147 @@ function mrMessageOk(msg, from, want, isFile = f => !!f && typeof f.name === 'st
   const ok = files.length > 0 && files.length <= MR_MAX_FILES && files.every(f => isFile(f) && f.size > 0 && f.size <= MR_MAX_BYTES && isMediaFile(f));
   return ok ? { type: 'files', files } : { type: 'files', bad: true };
 }
+
+/* ---------------- 허브: 곡 설정 맞추기 (CR-227) ----------------
+   곡 설정(가사 LRC·전체 오프셋·곡 기본 키)을 회사 허브(묶음 noraebang · 모음 song_settings)에 곡 하나씩 통째로 둔다.
+   곡 열쇠: MR 곡 'mr-' + 파일 SHA-256 앞 40자리 · 유튜브 곡 'yt-' + 영상 번호. 제목·가수는 힌트로만 같이 간다.
+   두 기기가 같은 곡을 고치면 설정 고친 시각(settingsAt)이 늦은 쪽이 이긴다 (허브 hub_push도 같은 규칙). */
+const HUB_URL_RE = /^https:\/\/[a-z0-9]{20}\.supabase\.co$/;
+const HUB_KEY_RE = /^[A-Za-z0-9_.:-]{1,64}$/;
+const HUB_LRC_MAX = 48 * 1024;      // 가사 글 48KB까지 (넘으면 보내지 않고 "못 보낸 곡")
+const HUB_PUSH_MAX = 200, HUB_PULL_MAX = 500;
+const b64urlText = s => {
+  const b = String(s).replace(/-/g, '+').replace(/_/g, '/');
+  const bin = atob(b + '==='.slice((b.length + 3) % 4));
+  return new TextDecoder().decode(Uint8Array.from(bin, c => c.charCodeAt(0)));
+};
+const b64urlOf = text => btoa(String.fromCharCode(...new TextEncoder().encode(text))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+// 주소·키 짝이 쓸 만한가: 주소는 https://<20자>.supabase.co 하나, 키는 공개 키만 (sb_publishable_… 또는 role이 anon인 JWT).
+// 비밀 키(sb_secret_…, service_role JWT)는 받지 않는다
+function hubPairOk(u, k) {
+  if (typeof u !== 'string' || !HUB_URL_RE.test(u)) return false;
+  if (typeof k !== 'string' || !k || k.length > 2000 || !/^[A-Za-z0-9._-]+$/.test(k) || /^sb_secret_/i.test(k)) return false;
+  const parts = k.split('.');
+  if (parts.length === 3) { try { const p = JSON.parse(b64urlText(parts[1])); return !!p && p.role === 'anon'; } catch { return false; } }
+  return parts.length === 1 && /^sb_publishable_[A-Za-z0-9_-]{8,}$/.test(k);
+}
+// 연결 코드 읽기: hub.json 내용 {"url","anonKey"} 또는 nbhub1.<base64url(JSON {u,k})> (앞에 #hub= 가 붙어도 됨).
+// 맞으면 { ok:true, u, k }, 아니면 { ok:false } (틀린 값은 돌려주지 않는다: 화면·기록에 찍히지 않게)
+function hubCodeParse(text) {
+  let t = String(text ?? '').trim();
+  if (t.startsWith('#hub=')) t = t.slice(5);
+  if (!t || t.length > 4000) return { ok: false };
+  let o = null;
+  try {
+    if (/^nbhub1\./.test(t)) o = JSON.parse(b64urlText(t.slice(7)));
+    else if (t[0] === '{') o = JSON.parse(t);
+  } catch { return { ok: false }; }
+  if (!o || typeof o !== 'object' || Array.isArray(o)) return { ok: false };
+  const u = String(o.u ?? o.url ?? '').trim().replace(/\/+$/, ''), k = String(o.k ?? o.anonKey ?? '').trim();
+  return hubPairOk(u, k) ? { ok: true, u, k } : { ok: false };
+}
+const hubCodeMake = (u, k) => 'nbhub1.' + b64urlOf(JSON.stringify({ u, k }));
+
+// 곡 열쇠. MR 곡은 파일 해시(mrHash = 'mr-' + 40자리)를 한 번 계산해 곡 기록에 둔 것을 쓴다. 없으면 null (아직 못 맞춤)
+const mrHashKey = hex => /^[0-9a-f]{40,}$/.test(String(hex)) ? 'mr-' + String(hex).slice(0, 40) : null;
+function songSettingsKey(s) {
+  if (!s || s.demo || s.deleted) return null;
+  if (s.source === 'yt') return /^[A-Za-z0-9_-]{11}$/.test(String(s.ytId || '')) ? 'yt-' + s.ytId : null;
+  return typeof s.mrHash === 'string' && /^mr-[0-9a-f]{40}$/.test(s.mrHash) ? s.mrHash : null;
+}
+const round1 = v => Math.round(v * 10) / 10;
+// 곡의 설정 네 가지 (chk: 자동 싱크 결과라 "확인해 주세요"가 붙어 있음)
+function settingsOf(s) {
+  return { lrc: typeof s.lyrics === 'string' ? s.lyrics : '', offset: round1(clamp(+s.lyricOffset || 0, -30, 30)),
+    key: clamp(Math.round(+s.baseKey || 0), -6, 6), chk: s.syncChk ? 1 : 0 };
+}
+const settingsSig = x => JSON.stringify([x.lrc || '', +x.offset || 0, x.key | 0, x.chk ? 1 : 0]);
+const settingsHas = x => !!(x.lrc && x.lrc.trim()) || !!x.offset || !!x.key;
+// 허브에서 온 data를 설정으로 (모양이 이상한 값은 기본값으로, v가 1이 아니면 null)
+function settingsFromData(d) {
+  if (!d || typeof d !== 'object' || d.v !== 1) return null;
+  const n = (v, lo, hi, f) => Number.isFinite(+v) ? clamp(f(+v), lo, hi) : 0;
+  return { lrc: typeof d.lrc === 'string' ? d.lrc : '', offset: n(d.offset, -30, 30, round1), key: n(d.key, -6, 6, Math.round), chk: d.chk ? 1 : 0 };
+}
+// 보낼 data: { v:1, src:'mr'|'yt', title, artist(각 100자), lrc, offset, key, chk? }. big = 가사가 48KB를 넘음 (보내지 않음)
+function songSettingsData(s) {
+  const x = settingsOf(s);
+  const data = { v: 1, src: s.source === 'yt' ? 'yt' : 'mr', title: String(s.title || '').slice(0, 100), artist: String(s.artist || '').slice(0, 100), lrc: x.lrc, offset: x.offset, key: x.key };
+  if (x.chk) data.chk = 1;
+  return { data, sig: settingsSig(x), big: new TextEncoder().encode(x.lrc).length > HUB_LRC_MAX };
+}
+/* 곡 하나를 어떻게 할까 (나중 것이 이김).
+   l = { k(열쇠), sig(지금 설정), has(설정 내용이 있음), syncK·syncSig(마지막으로 허브와 맞춘 열쇠·설정), settingsAt(이 기기에서 설정 고친 시각),
+         updatedAt, createdAt, rej(거절된 설정 — 같은 내용은 다시 안 보냄) }
+   r = 허브 사본 { sig, at(updated_at), del(지운 표시) } 또는 null
+   → { act:'same' } 같음 · { act:'pull' } 허브 것을 넣음 · { act:'push', at } 보냄(updatedAt = at) · { act:'none' } 할 것 없음
+   - 이 열쇠로 맞춘 적이 없고 이 기기에서 고친 적도 없으면(새 기기·처음 연결) 허브 것이 이긴다
+   - 맞춘 뒤 Drive로 가사가 바뀐 곡(허브를 안 켠 기기에서 고침)은 곡 고친 시각으로 견준다 (허브의 옛 값이 덮지 않게)
+   - 지운 표시는 "없음"으로 본다 (이 기기 곡은 그대로). 다시 보낼 때는 지운 시각보다 늦게 */
+function hubPlan(l, r) {
+  const live = !!r && !r.del;
+  if (live && r.sig === l.sig) return { act: 'same' };
+  const known = !!l.syncK && l.syncK === l.k;
+  const changed = known ? l.sig !== l.syncSig : (!!l.has || !!l.settingsAt);
+  if (!changed) return { act: live ? 'pull' : 'none' };
+  // 고친 시각: 맞춘 뒤 바뀐 곡은 설정 고친 시각과 곡 고친 시각(Drive로 온 가사도 여기에 남음) 중 늦은 것, 처음 맞추는 곡은 설정 고친 시각만
+  const lt = known ? Math.max(l.settingsAt || 0, l.updatedAt || 0) : (l.settingsAt || 0);
+  if (live && r.at >= lt) return { act: 'pull' };
+  if (l.rej && l.rej === l.sig) return { act: 'none' };
+  let at = lt || l.updatedAt || l.createdAt || 1;
+  if (r && at <= r.at) at = r.at + 1;
+  return { act: 'push', at };
+}
+// 받은 줄(hub_pull)을 기기 사본에 넣는다. 사본 = { cursor(가장 큰 seq), songs: { 열쇠: { d, at, del } } }. 같은 열쇠는 늦은 것만
+function hubMirrorAdd(mirror, rows) {
+  const songs = { ...((mirror && mirror.songs) || {}) };
+  let cursor = (mirror && +mirror.cursor) || 0, changed = 0;
+  for (const r of Array.isArray(rows) ? rows : []) {
+    if (!r || typeof r.id !== 'string' || !HUB_KEY_RE.test(r.id)) continue;
+    if (+r.seq > cursor) cursor = +r.seq;
+    const at = +r.updated_at || 0, cur = songs[r.id];
+    if (cur && cur.at > at) continue;
+    songs[r.id] = { d: r.data && typeof r.data === 'object' ? r.data : {}, at, del: r.deleted_at != null ? 1 : 0 };
+    changed++;
+  }
+  return { cursor, songs, changed };
+}
+// 사본 한 줄 → hubPlan의 r (x = 설정)
+function hubRemote(m) {
+  if (!m) return null;
+  const x = settingsFromData(m.d);
+  return { sig: x ? settingsSig(x) : '', at: m.at || 0, del: m.del || !x ? 1 : 0, x };
+}
+// 보낼 줄 목록 nb-hub-out: [{ k, at, del? }] (열쇠마다 하나, 오프라인이면 쌓였다가 다음에)
+function hubQueueAdd(q, k, at, del = false) {
+  if (!HUB_KEY_RE.test(String(k))) return Array.isArray(q) ? q : [];
+  const list = (Array.isArray(q) ? q : []).filter(x => x && x.k !== k);
+  list.push(del ? { k, at, del: 1 } : { k, at });
+  return list.slice(-2000);
+}
+const hubQueueDrop = (q, keys) => { const s = new Set(keys); return (Array.isArray(q) ? q : []).filter(x => x && !s.has(x.k)); };
+// hub_push에 보낼 곡 한 줄 (updatedAt = 설정 고친 시각)
+function hubRecord(s, at) {
+  const { data } = songSettingsData(s);
+  return { id: songSettingsKey(s), createdAt: Math.max(1, Math.min(s.createdAt || at, at)), updatedAt: at, deletedAt: null, data };
+}
+
+/* ---------------- 자동 싱크 (LRCLIB, CR-227 W6) ----------------
+   LRCLIB에는 곡 제목·가수·길이만 보낸다. /api/get(정확히 한 곡)을 먼저, 없으면 /api/search(findLyrics + chooseLyrics) */
+function lrclibGetParams(title, artist, dur) {
+  const t = String(title || '').trim(), a = (artist ? artistNames(artist)[0] : '') || String(artist || '').trim();
+  if (!t || !a) return null;
+  const p = { track_name: t.slice(0, 200), artist_name: a.slice(0, 200) };
+  if (dur >= 1 && dur <= 3600) p.duration = String(Math.round(dur));
+  return p;
+}
+// get = /api/get 답(없으면 null), found = /api/search 결과(아직 안 찾았으면 null).
+// → { lrc } 시각 가사를 찾음 · { why:'novoice' } 연주곡(목소리 없음) · { why:'none' } 못 찾음 (found가 null이면 search를 더 해 볼 것)
+function autoSyncPick(get, found, { title, artist, mrDur } = {}) {
+  if (get && get.instrumental) return { why: 'novoice' };
+  if (get && get.syncedLyrics && parseLyrics(get.syncedLyrics).synced && (!mrDur || !get.duration || Math.abs(get.duration - mrDur) <= AUTO_SEC)) return { lrc: get.syncedLyrics, from: 'get' };
+  if (Array.isArray(found)) { const c = chooseLyrics(found, { title, artist, mrDur }); if (c.auto && parseLyrics(c.auto.syncedLyrics).synced) return { lrc: c.auto.syncedLyrics, from: 'search' }; }
+  return { why: 'none' };
+}
+// 무대 "자동 싱크" 단추를 보일 곡: 데모곡 아님 · 제목 있음 · 시각 붙은 가사가 아직 없음
+const canAutoSync = s => !!s && !s.demo && !!String(s.title || '').trim() && !parseLyrics(s.lyrics || '').synced;

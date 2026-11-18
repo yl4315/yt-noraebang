@@ -279,6 +279,8 @@ async function bulkSave() {
         if (!state.songs.includes(s)) continue;   // 창을 연 사이에 다른 기기에서 지운 곡
         s.lyrics = r.pick.syncedLyrics || r.pick.plainLyrics; s.lyricOffset = 0;
         s.title = r.title.trim() || s.title; s.artist = r.artist.trim();
+        if (typeof clearSyncCheck === 'function') clearSyncCheck(s);
+        if (typeof hubTouch === 'function') hubTouch(s);   // 허브로 보낼 줄에 (CR-227)
         if (!await persistSong(s, true, true)) fail++;
         done.push(s); lyr++; if (r.st === 'auto') auto++;
       }

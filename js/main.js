@@ -45,6 +45,7 @@ function loop() {
   // 음향 설정 처음 상태 (CR-229): 고급이면 예전 규칙(PC 펼침·560px 이하 접힘), 아니면 접힘이 기본이고 사람이 편 상태를 기억
   $('#deckMore').open = deckOpenAtStart(advOn(lsGet(ADV_KEY)), lsGet(DECK_KEY), matchMedia('(max-width:560px)').matches);
   remoteInit();
+  if (typeof hubInit === 'function') hubInit();   // 허브 연결 (hub.js, CR-227): 꺼져 있으면 아무것도 안 함
   await selectSong(demo);
   // 폰 유튜브 앱 [공유] → 노래방 (manifest share_target, CR-030): 주소의 ?title=&text=&url=을 지우고 시트 한 장
   if (typeof ytHandleShare === 'function') ytHandleShare();
