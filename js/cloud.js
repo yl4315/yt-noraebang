@@ -72,6 +72,7 @@ async function renderStorage() {
   $('#storeTxt').textContent = `${fmtBytes(usage)} 사용 중` + (quota ? ` · 남은 공간 약 ${fmtBytes(quota - usage)}` : '');
   $('#storeBar').style.width = quota ? Math.max(1, Math.min(100, usage / quota * 100)) + '%' : '0';
   $('#storeCounts').textContent = `기기에 저장된 곡 ${local}곡` + (cloudOnly ? ` · Drive에만 있는 곡 ${cloudOnly}곡` : '');
+  $('#storeSum').textContent = storeSummary(local, cloudOnly, quota ? fmtBytes(quota - usage) : '');   // 접힌 한 줄 요약 (CR-229)
   $('#persistTxt').textContent = persisted ? '영구 저장 켜짐: 저장 공간이 부족해도 브라우저가 곡을 함부로 지우지 않아요'
     : '영구 저장 꺼짐: 저장 공간이 부족하면 브라우저가 곡을 지울 수도 있어요';
   $('#persistBtn').hidden = persisted;
@@ -266,6 +267,8 @@ function renderCloudPanel() {
   $('#gDisconnect').hidden = !Cloud.connected;
   // 클라이언트 ID가 앱에 들어 있으면 입력 칸은 접어 둔다
   if (!$('#cloudDialog').open) $('#clientAdv').open = !Cloud.clientId;
+  // 클라이언트 ID 칸(O3)은 고급에서만 (CR-229). 앱에 ID가 없으면 연결하려면 꼭 필요하니 늘 보인다
+  $('#clientAdv').classList.toggle('adv-only', !!Cloud.clientId);
   const st = $('#cloudStatus');
   st.textContent = !Cloud.connected && Cloud.msg ? Cloud.msg   // 연결 전에도 클라이언트 ID 저장 결과 등은 창에 보인다
     : !Cloud.clientId ? '아직 설정 전이에요. 아래 "클라이언트 ID 설정"에서 ID를 넣어 주세요.'
@@ -274,7 +277,10 @@ function renderCloudPanel() {
     : Cloud.lastSync ? `연결됨 · 마지막 동기화 ${ago(Cloud.lastSync)}` : '연결됨';
   st.classList.toggle('err', Cloud.state === 'error' || Cloud.state === 'login');
 }
-function openCloudDialog() { $('#gClientId').value = Cloud.clientId; renderCloudPanel(); renderStorage(); if (typeof renderTravel === 'function') renderTravel(); $('#cloudDialog').showModal(); }
+function openCloudDialog() {
+  // 열 때마다 저장 공간 자세히·MR 서버 주소는 접어 둔다 (CR-229: 한 줄 요약부터, 주소는 화면에 늘 띄우지 않음)
+  foldSet($('#storeSec'), false); $('#mrAddr').open = false;
+  $('#gClientId').value = Cloud.clientId; renderCloudPanel(); renderStorage(); if (typeof renderTravel === 'function') renderTravel(); $('#cloudDialog').showModal(); }
 $('#settingsBtn').onclick = openCloudDialog;
 $('#cloudClose').onclick = () => $('#cloudDialog').close();
 $('#cloudBtn').onclick = () => { if (!Cloud.connected || !Cloud.clientId) openCloudDialog(); else syncNow({ interactive: true }); };

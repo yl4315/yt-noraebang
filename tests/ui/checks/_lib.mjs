@@ -33,10 +33,15 @@ export const SPY = `(() => {
     navigator.mediaDevices.getUserMedia = c => localStorage.getItem('__ui-mic') === 'deny' ? Promise.reject(new DOMException('UI점검: 일부러 거부', 'NotAllowedError')) : gum(c); } catch {}
 })();`;
 
+// CR-229: 기능 점검은 "더 보기 (고급)"을 켠 화면(= 숨기기 전 화면)에서 전처럼 돈다. 탭마다 처음 한 번만 nb-advanced='1'을 넣는다
+// (그 뒤 고급을 끄는 점검이 있어도 새로 고침에서 다시 켜지 않게 sessionStorage 표시). 숨김 점검(hide.mjs)은 { ...ctx, adv: false }로 연다
+export const ADV_ON = `try{if(!sessionStorage.getItem('__ui-adv')){sessionStorage.setItem('__ui-adv','1');localStorage.setItem('nb-advanced','1')}}catch{}`;
+
 /** 새 탭: 기록 장치를 넣고 화면 크기를 정한 뒤 주소를 연다 */
 export async function openPage(ctx, size, url, ready = READY_DEMO, browser = ctx.browser, ms = 150000) {
   const p = await browser.newPage();
   await p.s('Page.addScriptToEvaluateOnNewDocument', { source: SPY });
+  if (ctx.adv !== false) await p.s('Page.addScriptToEvaluateOnNewDocument', { source: ADV_ON });
   await p.emulate(size);
   if (url) await p.goto(url, ready, ms);      // 새 저장소(주소)에서 처음 열면 데모 반주를 합성해서 PC가 바쁘면 오래 걸린다
   return p;

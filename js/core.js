@@ -509,6 +509,17 @@ function stripShareParams(search) {
 // 같은 영상이 이미 곡 목록에 있는가 (지운 곡 빼고)
 const findYtSong = (songs, id) => (songs || []).find(s => !s.deleted && isYtSong(s) && s.ytId === id) || null;
 
+/* 숨김 정리 (CR-229): 설정 창 "더 보기 (고급)"(이 기기 nb-advanced)와 음향 설정 접기(nb-deck).
+   숨기는 것은 화면 칸뿐이라 다른 저장 값은 읽지도 쓰지도 않는다. 저장 값은 '1' = 켬/펼침, 그 밖(없음 포함) = 끔/접힘 */
+const ADV_KEY = 'nb-advanced', DECK_KEY = 'nb-deck';
+const advOn = v => v === '1';
+// 음향 설정(F9)을 처음에 펼칠까: 고급이면 예전 규칙(PC는 펼침, 560px 이하는 접힘), 아니면 접힘이 기본이고 사람이 편 상태를 기억
+const deckOpenAtStart = (adv, saved, narrow) => adv ? !narrow : saved === '1';
+// 설정 창 "이 기기에 저장된 곡" 한 줄 요약 (누르면 자세히: 사용 중·남은 공간 막대·영구 저장)
+function storeSummary(local, cloudOnly, freeTxt) {
+  return `곡 ${local | 0}개` + (cloudOnly > 0 ? ` · Drive에만 ${cloudOnly | 0}개` : '') + (freeTxt ? ` · 남은 공간 약 ${freeTxt}` : '');
+}
+
 /* MR 만들기 (CR-089): 집 AI 서버의 "MR 만들기 창"을 새 탭으로 열고, 다 만든 MR을 창끼리(postMessage) 받는다.
    노래방은 서버에 직접 요청하지 않는다 (https 노래방 → http 서버는 막힘). 주소는 짧은 기계 이름만 (tailnet 뒷부분·IP 없음) */
 const MR_DEFAULT_SERVER = 'http://dgxspark-yena:8765';

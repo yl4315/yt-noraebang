@@ -1,6 +1,24 @@
 // YT 노래방 · 노래방 기능: 예약, 번호 입력, 검색, TV 화면, 단축키, 간주점프, 인기차트, 동영상
 'use strict';
 
+/* ---------------- 숨김 정리 (CR-229) ----------------
+   설정 창 "더 보기 (고급)"(이 기기 ADV_KEY)을 켜면 html.adv → 예전 화면 그대로. 끄면(기본) 복잡한 칸을 숨긴다.
+   숨기는 것은 화면 칸뿐: 코드·단축키·저장 값·동작은 그대로 (css/app.css "숨김 정리"). 접힌 칸(.fold)은 "더 보기 ›"(.fold-btn)로 그 자리에서 편다 */
+function applyAdv(on) {
+  document.documentElement.classList.toggle('adv', on);
+  $('#advBtn')?.setAttribute('aria-expanded', on);
+}
+function foldSet(f, open) {
+  if (!f) return;
+  f.classList.toggle('unfold', open);
+  for (const b of f.querySelectorAll('.fold-btn')) b.setAttribute('aria-expanded', open);
+}
+applyAdv(advOn(lsGet(ADV_KEY)));
+for (const b of document.querySelectorAll('.fold-btn')) b.addEventListener('click', () => foldSet(b.closest('.fold'), true));
+$('#advBtn').onclick = () => { const on = !document.documentElement.classList.contains('adv'); lsSet(ADV_KEY, on ? '1' : '0'); applyAdv(on); };
+// 음향 설정을 사람이 펴고 접은 상태만 기억한다 (처음 상태는 main.js의 deckOpenAtStart). 프로그램이 바꾼 것은 안 셈
+$('#deckMore > summary').addEventListener('click', () => lsSet(DECK_KEY, $('#deckMore').open ? '0' : '1'));
+
 /* ---------------- 컨트롤 ---------------- */
 for (const inp of document.querySelectorAll('.knob input[data-key]')) {
   inp.addEventListener('input', () => {
@@ -96,8 +114,9 @@ function songRow(s, idx, sel, acts, extra) {
   if (isYtSong(s)) li.querySelector('.nm').append(el('span', 'ytag', '유튜브'));   // 유튜브 곡 (CR-030)
   else if (!onDevice(s)) li.querySelector('.nm').append(el('small', '', '☁'));
   if (extra) li.querySelector('.nm').append(Object.assign(document.createElement('small'), { className: 'stat', textContent: extra }));
-  for (const [txt, cls, fn] of acts) {
+  for (const [txt, cls, fn, aria] of acts) {   // aria: 짧은 글 단추의 읽어 주는 이름 (예: "우선" → "우선예약")
     const b = document.createElement('button'); b.type = 'button'; b.className = 'btn ' + cls; b.textContent = txt;
+    if (aria) b.setAttribute('aria-label', aria);
     b.onclick = e => { e.stopPropagation(); fn(); }; li.querySelector('.acts').append(b);
   }
   return li;
@@ -187,7 +206,7 @@ function renderSearch() {
   const ul = $('#searchList'); ul.textContent = '';
   if (!searchResults.length) { ul.innerHTML = '<li class="ov-empty">찾는 곡이 없어요. 관리 화면의 “곡 추가”로 MR을 넣어 주세요</li>'; return; }
   searchResults.forEach((s, i) => {
-    const li = songRow(s, '', i === searchSel, [['예약', 'primary', () => reserve(s, false)], ['우선예약', '', () => reserve(s, true)], [isFav(s) ? '♥' : '♡', 'ghost', () => toggleFav(s)]]);
+    const li = songRow(s, '', i === searchSel, [[isFav(s) ? '♥' : '♡', 'ghost', () => toggleFav(s)], ['우선', '', () => reserve(s, true), '우선예약'], ['예약', '', () => reserve(s, false)]]);
     li.onclick = () => { searchSel = i; renderSearch(); $('#searchInput').focus(); };
     li.ondblclick = () => reserve(s, false);
     ul.append(li);
@@ -555,7 +574,7 @@ function renderChart() {
   const ul = $('#chartList'); ul.textContent = '';
   chartItems = chartSongs();
   chartItems.forEach((s, i) => {
-    const li = songRow(s, i + 1, i === chartSel, [['예약', 'primary', () => reserve(s, false)], ['우선예약', '', () => reserve(s, true)]], chartStat(s));
+    const li = songRow(s, i + 1, i === chartSel, [['우선', '', () => reserve(s, true), '우선예약'], ['예약', '', () => reserve(s, false)]], chartStat(s));
     if (i < 3 && playsOf(s)) li.classList.add('top');
     li.onclick = () => { chartSel = i; renderChart(); };
     ul.append(li);
