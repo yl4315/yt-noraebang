@@ -11,17 +11,24 @@ const BULK_FAIL = ['busy', 'offline', 'err'];  // 위쪽 "다시 찾기"로 다�
 
 function bulkRow(o) {
   return { file: null, song: null, no: null, title: '', artist: '', checked: true, dup: false, touched: false, mrDur: undefined,
-    st: 'wait', items: [], pick: null, why: '', retry: '', code: 0, swapped: false, open: false, el: null, ...o };
+    st: 'wait', items: [], pick: null, why: '', retry: '', code: 0, swapped: false, open: false, el: null, ai: null, ...o };
 }
+// 집 AI가 MR을 만들며 맞춘 가사 시각 (CR-227 W7) → 가사 후보 하나. 보통·높음은 저절로 고르고(찾기 안 함), 낮음은 후보로만 (고르면 넣음)
+const aiItem = (x, title, artist) => ({ ai: true, level: x.level, score: x.score, syncedLyrics: x.lrc, plainLyrics: '', trackName: title || '(제목 없음)', artistName: artist, albumName: '', duration: null });
 // 파일들 → 새 곡 줄 (MR이 아닌 파일은 빼고, 파일 이름 순서). 제목·가수가 같은 곡이 이미 있으면 체크를 끈다
 // note(선택): 창 위 안내 줄에 먼저 보일 글 (MR 만들기 CR-089: "MR 만들기로 만든 곡 N개예요…"). 없으면 예전과 똑같다
-function openBulk(files, note) {
+// lrc(선택): MR 만들기 창이 보낸 files와 같은 차례의 [{lrc, score, level} | null] (core.js mrMessageOk가 검사함)
+function openBulk(files, note, lrc) {
   const all = [...(files || [])], media = all.filter(isMediaFile).sort(byFileName), skipped = all.length - media.length;
   if (!media.length) { toast('MR 파일(음악·동영상)이 아니라서 넣지 않았어요. mp3·m4a·wav·mp4 같은 파일을 골라 주세요', 4500); return; }
+  const aiOf = new Map();
+  if (Array.isArray(lrc)) all.forEach((f, i) => { if (lrc[i]) aiOf.set(f, lrc[i]); });
   Bulk.mode = 'add';
   Bulk.rows = media.map(f => {
     const { title, artist } = titleFromFilename(f.name), dup = !!findSameSong(state.songs, title, artist);
-    return bulkRow({ file: f, title, artist, dup, checked: !dup });
+    const x = aiOf.get(f), ai = x ? aiItem(x, title, artist) : null;
+    if (ai && ai.level !== 'low') return bulkRow({ file: f, title, artist, dup, checked: !dup, ai, items: [ai], pick: ai, st: 'aligned' });
+    return bulkRow({ file: f, title, artist, dup, checked: !dup, ai });
   });
   showBulk([note, skipped ? `${skipped}개는 MR 파일(음악·동영상)이 아니라서 뺐어요` : ''].filter(Boolean).join(' · '));
 }
@@ -72,7 +79,8 @@ function buildRow(r) {
   q('.bk-skip').onclick = () => { r.pick = null; r.st = 'skip'; r.open = false; paintRow(r); paintHead(); };
   return li;
 }
-const pickTags = r => (r.pick.syncedLyrics ? '싱크' : '가사만') + (r.mrDur && Math.abs(r.pick.duration - r.mrDur) <= AUTO_SEC ? ' · 길이 비슷' : '');
+const pickTags = r => r.pick.ai ? '집 AI 시각' + (r.pick.level === 'low' ? ' · 많이 틀릴 수 있어요' : '')
+  : (r.pick.syncedLyrics ? '싱크' : '가사만') + (r.mrDur && Math.abs(r.pick.duration - r.mrDur) <= AUTO_SEC ? ' · 길이 비슷' : '');
 // 줄 오른쪽(폰은 아래 줄) 상태: [모양, 글]
 function rowState(r) {
   if (!r.checked) return Bulk.mode === 'add' && r.dup ? ['dup', '이미 같은 곡이 있어요'] : ['dup', Bulk.mode === 'add' ? '넣지 않음' : '저장 안 함'];
@@ -80,6 +88,7 @@ function rowState(r) {
     case 'wait': return ['', '대기'];
     case 'search': return ['busy', r.retry ? `서버가 바빠서 다시 시도 ${r.retry}` : '… 찾는 중'];
     case 'auto': return ['ok', '✔ 가사 자동 · ' + pickTags(r)];
+    case 'aligned': return ['ok', '✔ 집 AI 시각 · 확인해 주세요'];
     case 'picked': return ['ok', '✔ 고름 · ' + pickTags(r)];
     case 'ask': return ['ask', `? 골라 주세요 (${r.items.length}개)`];
     case 'none': return ['fail', '✕ 못 찾음 · 다시 찾기'];
@@ -99,6 +108,7 @@ const BULK_WHY = {
   artist: r => `'${r.artist.trim()}' 곡은 못 찾았어요. 맞는 게 없으면 영어 가수명으로 다시 찾아보세요 (예: 아이유 → IU)`,
   nodur: r => `MR 길이를 몰라서${r.song && !r.song.blob ? ' (Drive에만 있는 곡)' : ''} 저절로 넣지 않았어요. 원곡 길이가 MR과 비슷한 걸 고르세요`,
   duration: r => `MR 길이(${fmt(r.mrDur)})와 원곡 길이가 3초 넘게 달라요. 맞는 버전을 고르세요`,
+  ailow: () => '집 AI가 맞춘 가사 시각이 많이 틀릴 수 있어서 저절로 넣지 않았어요. 넣으려면 아래 "집 AI 시각"을 고르세요 (저장한 뒤 싱크 편집으로 고쳐요)',
 };
 function rowMsg(r) {
   const add = Bulk.mode === 'add', out = [];
@@ -108,6 +118,7 @@ function rowMsg(r) {
     wait: r.checked ? '차례가 되면 가사를 찾아요' : '',
     search: '가사를 찾는 중이에요…',
     auto: '싱크·제목·가수·길이가 다 맞아서 저절로 넣었어요. 다른 걸 고르려면 아래에서 누르세요',
+    aligned: '집 AI가 MR을 만들며 이 노래 소리에 가사 시각을 맞췄어요. 저장하면 "자동 싱크 · 확인해 주세요"가 붙어요. LRCLIB에서 찾으려면 [다시 찾기]',
     picked: '고른 가사를 넣어요. 바꾸려면 아래에서 다른 걸 누르세요',
     ask: (BULK_WHY[r.why] || (() => '맞는 걸 고르세요'))(r),
     none: r.title.trim() ? '찾지 못했어요. 제목 철자를 확인하거나 영어 제목·영어 가수명으로 고쳐서 다시 찾아보세요 (예: 좋은 날 → Good Day, 아이유 → IU)' : '제목을 넣고 다시 찾아 주세요',
@@ -157,6 +168,7 @@ function paintHead() {
   if (Bulk.running && todo) sum += ` · 가사 찾는 중 ${on.length - todo + 1}/${on.length}`;
   else {
     const bits = [];
+    if (n('aligned')) bits.push(`집 AI 시각 ${n('aligned')}`);
     if (n('auto')) bits.push(`가사 자동 ${n('auto')}`);
     if (n('picked')) bits.push(`고름 ${n('picked')}`);
     if (n('ask')) bits.push(`골라 주세요 ${n('ask')}`);
@@ -242,11 +254,13 @@ async function searchRow(r, my) {
     if (!live()) return;
     r.mrDur = d;
     const c = chooseLyrics(found, { title, artist, mrDur: d });
-    Object.assign(r, { items: c.items, why: c.why, retry: '', pick: c.auto, st: c.auto ? 'auto' : c.items.length ? 'ask' : 'none' });
+    // 집 AI 시각(W7)은 늘 첫 후보로 남긴다 (낮음은 저절로 고르지 않음)
+    const items = r.ai ? [r.ai, ...c.items] : c.items;
+    Object.assign(r, { items, why: !c.auto && r.ai && r.ai.level === 'low' && !c.items.length ? 'ailow' : c.why, retry: '', pick: c.auto, st: c.auto ? 'auto' : items.length ? 'ask' : 'none' });
     if (c.swapped) { r.title = c.title; r.artist = c.artist; r.swapped = true; checkDup(r); }
   } catch (e) {
     if (!live()) return;
-    Object.assign(r, { retry: '', code: e.status || 0, st: !navigator.onLine ? 'offline' : e.status ? 'err' : 'busy' });
+    Object.assign(r, { retry: '', code: e.status || 0, st: !navigator.onLine ? 'offline' : e.status ? 'err' : 'busy', items: r.ai ? [r.ai] : [] });
   }
   paintRow(r); paintHead();
 }
@@ -268,9 +282,10 @@ async function bulkSave() {
         // 곡 모양은 곡 추가 창과 같다 (동영상은 "영상 보여주기" 켬, "영상 위 가사" 끔)
         const s = { id: uid(), no: nos[i], createdAt: Date.now(), lyricOffset: 0, title: r.title.trim() || titleFromFilename(f.name).title, artist: r.artist.trim(),
           lyrics: text, blob: f, buffer: null, keyCache: null, mediaDirty: true, mime: f.type, size: f.size, video: isVideoBlob(f), videoLyrics: false };
+        if (r.pick && r.pick.ai) s.syncChk = 1;      // 집 AI 시각(W7): "자동 싱크 · 확인해 주세요" (W9). 허브는 새 곡과 같은 길 (허브에 같은 MR 설정이 있으면 그것)
         if (!await persistSong(s, true, true)) fail++;
         state.songs.push(s); done.push(s);
-        if (text) { lyr++; if (r.st === 'auto') auto++; }
+        if (text) { lyr++; if (r.st === 'auto' || r.st === 'aligned') auto++; }
       }
       if (done.length) requestPersist();
     } else {

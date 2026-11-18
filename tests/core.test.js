@@ -822,6 +822,97 @@ test('숨김 정리 (CR-229): 숨김 코드는 설정 값(nb-settings 등)을 �
     assert.ok(html.includes(`id="${id}"`), id);
 });
 
+test('MR 만들기 + 가사 정렬 (CR-227 W7·W8): 새 메시지 모양 — files.lrc · lyrics_req · aligned (크기·글·값 검사, 틀리면 무시)', () => {
+  const want = 'http://mr-test-box:8765', from = { origin: want, mine: true };
+  const M = o => C.mrMessageOk({ app: 'yena-mr', v: 1, ...o }, from, want);
+  const mp3 = (name = '지은 노래 - 시험가수 (MR).mp3') => ({ name, size: 9e6, type: 'audio/mpeg' });
+  const LRC = '[00:01.00]첫 줄 가사\n[00:04.50]둘째 줄 가사';
+  const al = (o = {}) => ({ name: '지은 노래 - 시험가수 (MR).mp3', lrc: LRC, score: 0.82, level: 'high', ...o });
+  // files.lrc: 같은 차례·같은 이름이면 붙고, 틀린 칸은 null (파일은 그대로 받음)
+  const files = [mp3(), mp3('둘째 노래 - 시험가수 (MR).mp3')];
+  same(M({ type: 'files', files, lrc: [al(), null] }).lrc, [{ lrc: LRC, score: 0.82, level: 'high' }, null]);
+  same(M({ type: 'files', files, lrc: [al(), al({ name: '둘째 노래 - 시험가수 (MR).mp3', level: 'low', score: 0.2 })] }).lrc[1], { lrc: LRC, score: 0.2, level: 'low' });
+  for (const [why, x] of [['이름이 다른 파일', al({ name: '다른 곡 (MR).mp3' })], ['시각 없는 글', al({ lrc: '첫 줄 가사\n둘째 줄' })], ['빈 글', al({ lrc: '' })],
+    ['글이 64KB 넘음', al({ lrc: '[00:01.00]' + '가'.repeat(C.MR_LRC_MAX) })], ['글 아님', al({ lrc: 3 })], ['점수 1 넘음', al({ score: 1.5 })], ['점수 글자', al({ score: '0.8' })],
+    ['점수 NaN', al({ score: NaN })], ['모르는 level', al({ level: 'great' })], ['배열', [al()]], ['글자', 'x']]) {
+    const r = M({ type: 'files', files, lrc: [x, al({ name: '둘째 노래 - 시험가수 (MR).mp3' })] });
+    assert.equal(r.bad, undefined, why); assert.equal(r.files.length, 2, why); assert.equal(r.lrc[0], null, why); assert.equal(r.lrc[1].level, 'high', why);
+  }
+  // 수가 다르거나 다 틀리면 lrc 통째로 없음 (예전처럼 파일만)
+  assert.equal(M({ type: 'files', files, lrc: [al()] }).lrc, undefined);
+  assert.equal(M({ type: 'files', files, lrc: [null, null] }).lrc, undefined);
+  assert.equal(M({ type: 'files', files, lrc: 'x' }).lrc, undefined);
+  assert.equal(M({ type: 'files', files }).lrc, undefined);
+  // 파일이 틀리면 lrc가 맞아도 nack bad (예전과 같음)
+  same(M({ type: 'files', files: ['a.mp3'], lrc: [al()] }), { type: 'files', bad: true });
+
+  // lyrics_req: 1~30개, key 글자 모양, 이름 255자, 길이 0~3600초 또는 없음
+  same(M({ type: 'lyrics_req', items: [{ key: 'k1', name: '지은 노래 - 시험가수.mp3', duration: 183.4 }, { key: 'k2', name: '둘째.wav' }] }),
+    { type: 'lyrics_req', items: [{ key: 'k1', name: '지은 노래 - 시험가수.mp3', duration: 183.4 }, { key: 'k2', name: '둘째.wav', duration: null }] });
+  for (const [why, items] of [['없음', []], ['배열 아님', { key: 'k1' }], ['31개', Array.from({ length: 31 }, (_, i) => ({ key: 'k' + i, name: 'a.mp3' }))],
+    ['key 모양', [{ key: 'k 1', name: 'a.mp3' }]], ['key 41자', [{ key: 'k'.repeat(41), name: 'a.mp3' }]], ['key 숫자', [{ key: 1, name: 'a.mp3' }]],
+    ['이름 없음', [{ key: 'k1', name: '' }]], ['이름 256자', [{ key: 'k1', name: 'a'.repeat(256) }]], ['길이 음수', [{ key: 'k1', name: 'a.mp3', duration: -1 }]],
+    ['길이 1시간 넘음', [{ key: 'k1', name: 'a.mp3', duration: 3601 }]], ['길이 글자', [{ key: 'k1', name: 'a.mp3', duration: '180' }]], ['칸이 글자', ['k1']]])
+    assert.equal(M({ type: 'lyrics_req', items }), null, why);
+  assert.equal(M({ type: 'lyrics_req', items: Array.from({ length: 30 }, (_, i) => ({ key: 'k' + i, name: 'a.mp3' })) }).items.length, 30);
+
+  // aligned: 결과 또는 오류 코드. 곡 번호(uid) 모양 · 결과 검사는 files.lrc와 같음
+  const sid = '7f0c2a3e-1b2c-4d5e-8f90-123456789abc';
+  same(M({ type: 'aligned', songId: sid, lrc: LRC, score: 0.4, level: 'mid', extra: 'x' }), { type: 'aligned', songId: sid, lrc: LRC, score: 0.4, level: 'mid' });
+  same(M({ type: 'aligned', songId: sid, error: 'no_vocals' }), { type: 'aligned', songId: sid, error: 'no_vocals' });
+  for (const [why, o] of [['곡 번호 없음', { lrc: LRC, score: 0.4, level: 'mid' }], ['곡 번호 모양', { songId: '../x', error: 'no_match' }], ['곡 번호 65자', { songId: 'a'.repeat(65), error: 'no_match' }],
+    ['오류 코드 모양', { songId: sid, error: 'No Match!' }], ['오류 코드 33자', { songId: sid, error: 'a'.repeat(33) }], ['오류 코드 숫자', { songId: sid, error: 4 }],
+    ['시각 없는 글', { songId: sid, lrc: '가사만', score: 0.4, level: 'mid' }], ['level 없음', { songId: sid, lrc: LRC, score: 0.4 }], ['점수 없음', { songId: sid, lrc: LRC, level: 'mid' }]])
+    assert.equal(M({ type: 'aligned', ...o }), null, why);
+  // 예전 모양은 예전과 같다 (hello · 모르는 type)
+  same(M({ type: 'hello', base: want }), { type: 'hello' });
+  same(M({ type: 'something_new', x: 1 }), { type: 'something_new' });
+  // hello.caps (새 창만): 글자 모양만 남김, 10개 넘으면 없는 것으로
+  same(M({ type: 'hello', base: want, caps: ['lyrics_req', 'align_req', 'Bad Cap', 3] }), { type: 'hello', caps: ['lyrics_req', 'align_req'] });
+  same(M({ type: 'hello', caps: Array(11).fill('x') }), { type: 'hello' });
+  same(M({ type: 'hello', caps: 'align_req' }), { type: 'hello' });
+  // 다른 주소·내가 열지 않은 창이면 새 모양도 무시
+  assert.equal(C.mrMessageOk({ app: 'yena-mr', v: 1, type: 'aligned', songId: sid, error: 'no_match' }, { origin: 'http://evil.test', mine: true }, want), null);
+  assert.equal(C.mrMessageOk({ app: 'yena-mr', v: 1, type: 'lyrics_req', items: [{ key: 'k1', name: 'a.mp3' }] }, { origin: want, mine: false }, want), null);
+});
+
+test('가사 정렬 (CR-227 W7·W8): 창에 보낼 가사 · LRCLIB 답 · 단추 · 넣기 전 물음 · 오류 안내', () => {
+  const PLAIN = '[후렴]\n첫 줄 가사\n\n둘째 줄 가사', LRC = '[00:01.00]첫 줄 가사\n[00:04.50]둘째 줄 가사';
+  // 노래방 곡으로 답 (lyrics_req): 시각 없는 가사는 글 그대로, 시각이 있으면 synced (글 안 보냄), 가사 없으면 null
+  same(C.mrLyricsFor({ lyrics: PLAIN }), { synced: false, text: PLAIN });
+  same(C.mrLyricsFor({ lyrics: LRC }), { synced: true, text: '' });
+  for (const s of [null, {}, { lyrics: '' }, { lyrics: '  \n ' }, { lyrics: '[간주]' }, { lyrics: 3 }]) assert.equal(C.mrLyricsFor(s), null, JSON.stringify(s));
+  assert.equal(C.mrLyricsFor({ lyrics: '가'.repeat(C.MR_LYR_MAX + 1) }), null);       // 48KB 넘으면 보내지 않음
+  // LRCLIB /api/get 답
+  same(C.mrLyricsFromLrclib({ plainLyrics: PLAIN, syncedLyrics: null }), { synced: false, text: PLAIN });
+  same(C.mrLyricsFromLrclib({ plainLyrics: PLAIN, syncedLyrics: LRC }), { synced: true, text: '' });
+  for (const got of [null, { instrumental: true, plainLyrics: PLAIN }, { plainLyrics: '' }, { plainLyrics: 3 }, 'x'])
+    same(C.mrLyricsFromLrclib(got), { synced: false, text: '' });
+  // W8 집 AI에 보낼 글: 시각 없는 가사는 그대로, 시각이 있으면 시각을 뗀 줄
+  assert.equal(C.alignLyricsText({ lyrics: PLAIN }), PLAIN);
+  assert.equal(C.alignLyricsText({ lyrics: '[ar:시험]\n' + LRC + '\n[00:09.00]' }), '첫 줄 가사\n둘째 줄 가사');
+  assert.equal(C.alignLyricsText({ lyrics: '' }), '');
+  assert.equal(C.alignLyricsText({ lyrics: '가'.repeat(C.MR_LYR_MAX + 1) }), '');
+  // 단추: 데모·가사 없음은 안 보임. 무대 단추는 시각 없는 곡이나 "확인해 주세요" 곡만, 곡 수정 창은 시각이 있어도 보임
+  assert.equal(C.canAlignSong({ lyrics: PLAIN }, true), true);
+  assert.equal(C.canAlignSong({ lyrics: LRC }, true), false);
+  assert.equal(C.canAlignSong({ lyrics: LRC, syncChk: 1 }, true), true);
+  assert.equal(C.canAlignSong({ lyrics: LRC }), true);
+  for (const s of [null, { demo: true, lyrics: PLAIN }, { lyrics: '' }]) { assert.equal(C.canAlignSong(s), false); assert.equal(C.canAlignSong(s, true), false); }
+  // 넣기 전에 물음: low · 이미 시각 있음 (둘 다 아니면 묻지 않고 넣음)
+  same(C.alignAsk({ lyrics: PLAIN }, 'high'), { low: false, overwrite: false });
+  same(C.alignAsk({ lyrics: PLAIN }, 'low'), { low: true, overwrite: false });
+  same(C.alignAsk({ lyrics: LRC, syncChk: 1 }, 'mid'), { low: false, overwrite: true });
+  same(C.alignAsk({ lyrics: LRC }, 'low'), { low: true, overwrite: true });
+  // 오류 안내: app/errors.py와 같은 뜻 + W10 목소리 없는 파일
+  assert.equal(C.alignErrText('no_match'), '가사와 노래 소리가 맞지 않아 시각을 못 붙였어요');
+  assert.equal(C.alignErrText('no_vocals'), '목소리가 없는 파일이에요(MR). 원곡 파일을 골라 주세요');
+  assert.match(C.alignErrText('bad_lyrics'), /^가사를 읽지 못했어요/);
+  assert.equal(C.alignErrText('unreachable'), '집 AI에 닿지 않아요 · 집에 가면 다시 해요');
+  assert.equal(C.alignErrText('worker_failed'), '가사 시각을 못 맞췄어요 · 잠시 뒤 다시 해 주세요');
+  assert.equal(C.alignErrText('__proto__'), '가사 시각을 못 맞췄어요 · 잠시 뒤 다시 해 주세요');
+});
+
 /* ---------------- 허브: 곡 설정 맞추기 (CR-227) ---------------- */
 // 시험 값은 모두 가짜: 주소는 qafakehub000…, 키는 여기서 만든 가짜 JWT·가짜 공개 키
 const FAKE_URL = 'https://' + 'qafakehub'.padEnd(20, '0') + '.supabase.co';

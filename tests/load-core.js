@@ -12,6 +12,7 @@ const NAMES = ['fmtMs', 'norm', 'chosung', 'pick', 'parseLyrics', 'toLRC', 'sear
   'MR_DEFAULT_SERVER', 'MR_MAX_FILES', 'MR_MAX_BYTES', 'normalizeMrServer', 'mrMessageOk',
   'YT_ID_RE', 'isYtSong', 'parseYouTubeId', 'ytWatchUrl', 'ytSearchQuery', 'ytResultsUrl', 'htmlText', 'parseYtSearch', 'ytTitleParts', 'shareParams', 'stripShareParams', 'findYtSong',
   'ADV_KEY', 'DECK_KEY', 'advOn', 'deckOpenAtStart', 'storeSummary',
+  'MR_LRC_MAX', 'MR_LYR_MAX', 'mrLrcOk', 'mrLyricsFor', 'mrLyricsFromLrclib', 'alignLyricsText', 'canAlignSong', 'alignAsk', 'alignErrText', 'ALIGN_ERR_TEXT',
   'HUB_LRC_MAX', 'HUB_PUSH_MAX', 'HUB_PULL_MAX', 'hubPairOk', 'hubCodeParse', 'hubCodeMake', 'mrHashKey', 'songSettingsKey', 'settingsOf', 'settingsSig', 'settingsHas', 'settingsFromData',
   'songSettingsData', 'hubPlan', 'hubMirrorAdd', 'hubRemote', 'hubQueueAdd', 'hubQueueDrop', 'hubRecord', 'lrclibGetParams', 'autoSyncPick', 'canAutoSync',
   'GUEST_MAX', 'GUEST_PER_SEC', 'GUEST_MAX_BYTES', 'GUEST_RESULTS', 'GUEST_QUEUE_SHOW', 'guestRoomName', 'guestId', 'guestUrl', 'guestUrlParse', 'guestMsgOk', 'guestRateOk', 'guestSearchResult', 'guestQueueMap', 'guestStateMsg'];
