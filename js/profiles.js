@@ -195,7 +195,7 @@ function renderMineOv() {
       li = el('li', 'ov-row ov-head-row' + (i === mineSel ? ' sel' : ''));
       li.append(el('span', 'idx'), el('span', 'no'), el('span', 'nm', `${it.head.title} · ${it.songs.length}곡`), el('span', 'acts'));
       if (it.songs.length) { const b = el('button', 'btn primary', '전체 예약'); b.type = 'button'; b.onclick = e => { e.stopPropagation(); reserveMany(it.head.ids, it.head.title); }; li.lastChild.append(b); }
-    } else li = songRow(it.s, '', i === mineSel, [['예약', 'primary', () => reserve(it.s, false)], ['우선예약', '', () => reserve(it.s, true)]]);
+    } else li = songRow(it.s, '', i === mineSel, [['우선', '', () => reserve(it.s, true), '우선예약'], ['예약', '', () => reserve(it.s, false)]]);
     li.onclick = () => { mineSel = i; renderMineOv(); };
     ul.append(li);
   });

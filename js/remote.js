@@ -62,6 +62,7 @@ function remoteRun(c) {
 let qrLib = null;
 function renderRemoteInfo() {
   const i = Remote.info; if (!i) return;
+  $('#remoteSec').hidden = false;   // 설정 창 "옛 휴대폰 리모컨"은 PC 서버로 켰을 때만 (GitHub Pages에서는 아예 안 보임, CR-229)
   for (const box of [$('#remoteInfo'), $('#remoteSet')]) {
     box.hidden = false; box.textContent = '';
     if (i.url) box.append(el('b', '', '휴대폰 리모컨'), el('span', '', `같은 와이파이에서 ${i.url.replace(/\?.*$/, '')} · 코드 ${i.pin}`));

@@ -143,6 +143,7 @@ function nudgeLyrics(d) {
 function updateLyrOffUI() {
   const o = state.song?.lyricOffset || 0;
   $('#lyrOff').textContent = o === 0 ? '맞춤' : o > 0 ? `${o.toFixed(1)}초 빠르게` : `${(-o).toFixed(1)}초 늦게`;
+  $('#lyrFoldSub').textContent = o === 0 ? '' : $('#lyrOff').textContent;   // 접힌 "가사 맞추기 ›" 줄에도 지금 값 (CR-229)
 }
 for (const b of document.querySelectorAll('[data-lyr]')) b.onclick = () => nudgeLyrics(+b.dataset.lyr);
 
@@ -277,7 +278,7 @@ $('#lrcFind').onclick = async () => {
       ul.hidden = true;
       st.textContent = it.syncedLyrics
         ? `넣었어요. 원곡 길이(${fmt(it.duration)})와 MR 길이가 많이 다르면 '가사 타이밍'으로 조절하세요`
-        : '시간 정보가 없는 가사예요. 저장한 뒤 가사 싱크 편집으로 맞춰 주세요';
+        : '시간 정보가 없는 가사예요. 저장한 뒤 [가사 맞추기]로 시각을 맞춰 주세요';
     }));
     ul.hidden = false;
     const artistHit = !artist || items.some(x => artistMatches(artist, x.artistName));

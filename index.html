@@ -105,7 +105,8 @@
           </div>
           <div class="idle-right">
             <div class="clock" id="clock">--:--<small id="clockDate"></small></div>
-            <div class="idle-tip"><span class="for-keys"><b>번호</b> 입력 → <kbd>Enter</kbd> 예약 · <kbd>P</kbd> 우선예약<br><kbd>S</kbd> 곡 검색 · <kbd>L</kbd> 예약 목록 · <kbd>C</kbd> 인기차트 · <kbd>M</kbd> 내 목록<br><kbd>Enter</kbd> 시작 · <kbd>Esc</kbd> 취소 · <kbd>J</kbd> 간주점프 · <kbd>R</kbd> 녹음</span><span class="for-touch">아래 <b class="tb">번호</b>로 예약 · <b class="tb">곡 검색</b> · <b class="tb">예약 목록</b><br><b class="tb">⋯ 더 보기</b>: 인기차트·내 목록·키·반주·녹음<br>노래 중에 버튼이 숨으면 화면을 한 번 누르세요</span></div>
+            <!-- 대기 팁 (CR-229): 고급(nb-advanced)을 켜면 예전 3줄, 기본은 1줄 -->
+            <div class="idle-tip"><span class="adv-full"><span class="for-keys"><b>번호</b> 입력 → <kbd>Enter</kbd> 예약 · <kbd>P</kbd> 우선예약<br><kbd>S</kbd> 곡 검색 · <kbd>L</kbd> 예약 목록 · <kbd>C</kbd> 인기차트 · <kbd>M</kbd> 내 목록<br><kbd>Enter</kbd> 시작 · <kbd>Esc</kbd> 취소 · <kbd>J</kbd> 간주점프 · <kbd>R</kbd> 녹음</span><span class="for-touch">아래 <b class="tb">번호</b>로 예약 · <b class="tb">곡 검색</b> · <b class="tb">예약 목록</b><br><b class="tb">⋯ 더 보기</b>: 인기차트·내 목록·키·반주·녹음<br>노래 중에 버튼이 숨으면 화면을 한 번 누르세요</span></span><span class="adv-short" id="idleTipShort"><span class="for-keys"><b>번호</b> → <kbd>Enter</kbd> 예약 · <kbd>S</kbd> 검색 · <kbd>L</kbd> 목록</span><span class="for-touch">아래 <b class="tb">번호</b>로 예약 · <b class="tb">곡 검색</b> · <b class="tb">예약 목록</b></span></span></div>
             <div class="idle-user" id="idleUser"></div>
             <div class="best" id="bestBox"></div>
             <div class="remote-info" id="remoteInfo" hidden></div>
@@ -153,7 +154,7 @@
               <button class="seg-b on" id="searchTabMr" role="tab" aria-selected="true" type="button">내 MR 보관함</button>
               <button class="seg-b" id="searchTabYt" role="tab" aria-selected="false" type="button">유튜브 노래방 검색</button>
             </div>
-            <input type="search" id="searchInput" placeholder="예: 밤편지 · 아이유 · ㅂㅍㅈ · 10002" autocomplete="off" aria-label="곡 검색">
+            <input type="search" id="searchInput" placeholder="제목·가수·번호, 초성(ㅂㅍㅈ)으로 찾기" autocomplete="off" aria-label="곡 검색">
             <ul class="ov-list" id="searchList"></ul>
             <div class="ov-foot" id="searchFoot"><kbd>↑</kbd><kbd>↓</kbd> 고르기 · <kbd>Enter</kbd> 예약 · <kbd>Shift</kbd>+<kbd>Enter</kbd> 우선예약 · <kbd>Esc</kbd> 닫기</div>
             <div class="ov-foot" id="searchFootYt" hidden><kbd>Tab</kbd> 내 MR ↔ 유튜브 · <kbd>↑</kbd><kbd>↓</kbd> 고르기 · <kbd>Enter</kbd> 예약 · <kbd>Shift</kbd>+<kbd>Enter</kbd> 우선예약 · <kbd>Esc</kbd> 닫기</div>
@@ -192,7 +193,7 @@
       <div class="sync-panel" id="syncPanel" hidden>
         <div class="sync-head">
           <div>
-            <h2>가사 싱크 편집</h2>
+            <h2>가사 맞추기</h2>
             <p class="hint">▶ 표시된 줄이 시작되는 순간 <kbd>Space</kbd>를 누르세요. 잘못 눌렀으면 <kbd>⌫</kbd>(되돌리기): 그 줄로 돌아가고 3초 앞부터 다시 들려줘요. 지난 줄은 시간을 눌러 다시 듣고 ◀ ▶로 0.1초씩 고쳐요. <kbd>↑</kbd><kbd>↓</kbd> 줄 이동, <kbd>Enter</kbd> 재생/일시정지, 숫자 <kbd>1</kbd>~<kbd>4</kbd> 배속 (전주·간주는 빠르게 넘기세요). ◀ ▶를 <kbd>Shift</kbd>와 누르면 1초씩</p>
           </div>
           <div class="sync-ctrls">
@@ -233,7 +234,10 @@
         <div class="meter">
           <div class="note"><b id="noteName">–</b><span id="noteKo">마이크를 켜면 음정이 보여요</span></div>
           <div class="bar"><i id="levelBar"></i></div>
-          <div class="lyr-tools">
+          <!-- 가사 타이밍 (CR-229): 기본은 "가사 맞추기 ›" 한 줄, 누르면 ±칸이 펼쳐짐. 고급을 켜면 예전처럼 늘 보임 -->
+          <div class="fold" id="lyrFold">
+          <button class="fold-btn" type="button" aria-expanded="false" aria-controls="lyrTools">가사 맞추기 <span class="fold-sub" id="lyrFoldSub"></span><i aria-hidden="true">›</i></button>
+          <div class="lyr-tools fold-more" id="lyrTools">
             <span>가사 타이밍</span>
             <button class="btn small" type="button" data-lyr="-1" title="가사가 너무 빨리 나오면 (Shift+[)">−1초</button>
             <button class="btn small" type="button" data-lyr="-0.1" title="가사가 너무 빨리 나오면 ([)">−0.1초</button>
@@ -241,7 +245,8 @@
             <button class="btn small" type="button" data-lyr="0.1" title="가사가 늦게 나오면 (])">+0.1초</button>
             <button class="btn small" type="button" data-lyr="1" title="가사가 늦게 나오면 (Shift+])">+1초</button>
             <span class="sep"></span>
-            <button class="btn small" id="syncBtn" type="button">가사 싱크 편집</button>
+            <button class="btn small" id="syncBtn" type="button" title="가사 싱크 편집기">가사 맞추기</button>
+          </div>
           </div>
           <div class="lyr-tools">
             <span>키</span>
@@ -251,19 +256,22 @@
             <button class="btn small" type="button" id="keyReset">원래 키로</button>
           </div>
         </div>
-        <details class="deck-more" id="deckMore" open>
+        <!-- 음향 설정 (CR-229): 기본은 접힘(편 상태는 이 기기 nb-deck에 기억) · 볼륨 2개만 보이고 나머지는 "더 보기 ›" 안.
+             고급(nb-advanced)을 켜면 예전처럼: PC는 펼침, 좁은 화면은 접힘, 칸은 다 보임 -->
+        <details class="deck-more fold" id="deckMore" open>
         <summary>음향 설정 (볼륨 · 에코 · 녹음 싱크)</summary>
         <div class="knobs">
           <div class="knob"><label for="s-mrVol">반주 볼륨 <output id="v-mrVol"></output></label><input type="range" id="s-mrVol" data-key="mrVol" min="0" max="100"></div>
           <div class="knob"><label for="s-micVol">마이크 볼륨 <output id="v-micVol"></output></label><input type="range" id="s-micVol" data-key="micVol" min="0" max="100"></div>
-          <div class="knob"><label for="s-echo">에코 <output id="v-echo"></output></label><input type="range" id="s-echo" data-key="echo" min="0" max="100"></div>
-          <div class="knob"><label for="s-reverb">리버브 <output id="v-reverb"></output></label><input type="range" id="s-reverb" data-key="reverb" min="0" max="100"></div>
-          <div class="knob" id="guideKnob"><label for="s-guide">멜로디 가이드 <output id="v-guide"></output></label><input type="range" id="s-guide" data-key="guide" min="0" max="100"></div>
-          <div class="knob"><label for="s-recOffset">녹음 기본 싱크 <output id="v-recOffset"></output></label>
+          <div class="knob fold-more"><label for="s-echo">에코 <output id="v-echo"></output></label><input type="range" id="s-echo" data-key="echo" min="0" max="100"></div>
+          <div class="knob fold-more"><label for="s-reverb">리버브 <output id="v-reverb"></output></label><input type="range" id="s-reverb" data-key="reverb" min="0" max="100"></div>
+          <div class="knob fold-more" id="guideKnob"><label for="s-guide">멜로디 가이드 <output id="v-guide"></output></label><input type="range" id="s-guide" data-key="guide" min="0" max="100"></div>
+          <div class="knob fold-more"><label for="s-recOffset">녹음 기본 싱크 <output id="v-recOffset"></output></label>
             <div class="with-btn"><input type="range" id="s-recOffset" data-key="recOffset" min="0" max="600" step="5"><button class="btn small" id="measureBtn" type="button" title="딸깍 소리로 지연 시간을 재요">자동 측정</button></div>
           </div>
+          <button class="fold-btn" type="button" aria-expanded="false">더 보기 <span class="fold-sub">에코 · 리버브 · 멜로디 가이드 · 녹음 싱크 · 내 목소리 듣기</span><i aria-hidden="true">›</i></button>
         </div>
-        <div class="toggles">
+        <div class="toggles fold-more">
           <label><input type="checkbox" id="t-monitor"> 내 목소리 같이 듣기 <span class="note">(헤드폰·스피커 중 지금 소리 나는 곳으로 · 약간 늦게 들려요)</span></label>
           <label><input type="checkbox" id="t-speakerMode"> 스피커로 반주 듣는 중 <span class="note">(반주가 녹음에 섞이는 걸 줄여요)</span></label>
         </div>
@@ -440,21 +448,7 @@
 <dialog id="cloudDialog">
   <div class="mix">
     <h2>Drive · 저장 공간</h2>
-    <section class="set-sec travel" id="travelSec">
-      <h3>여행 준비</h3>
-      <p class="travel-state" id="travelState"></p>
-      <p class="hint" id="travelTip" hidden>비행기 모드로 한 곡 불러 보세요. 노래가 나오면 인터넷 없이도 돼요.</p>
-      <p class="travel-msg" id="travelMsg" hidden></p>
-      <div class="meter-line" id="travelBarBox" hidden><i id="travelBar"></i></div>
-      <div class="set-row">
-        <button class="btn primary" id="travelGo" type="button">여행 준비</button>
-        <button class="btn" id="travelNoVideo" type="button" hidden>동영상 곡 빼고 받기</button>
-        <button class="btn" id="travelAnyway" type="button" hidden>인기 곡부터 받다가 멈추기</button>
-        <button class="btn" id="travelStop" type="button" hidden>멈추기</button>
-      </div>
-      <div class="set-row" id="travelUp" hidden><span class="hint" id="travelUpTxt"></span><button class="btn small" id="travelUpBtn" type="button">지금 맞추기</button></div>
-      <p class="hint">① 로그인·맞추기 → ② 남은 공간 보기 → ③ 곡 받기(많이 부른 곡부터) → ④ 영구 저장 → ⑤ 인터넷 없이 켜지는지 확인. 받는 동안 화면을 켜 두세요 (다른 앱으로 가면 멈출 수 있어요). 멈춰도 다시 누르면 이어서 받아요.</p>
-    </section>
+    <p class="set-group">곡 창고</p>
     <section class="set-sec">
       <h3>Google Drive 곡 창고</h3>
       <p class="hint" id="cloudStatus"></p>
@@ -478,13 +472,32 @@
       </details>
       </details>
     </section>
-    <section class="set-sec">
-      <h3>이 기기에 저장된 곡 (인터넷 없이 부르기)</h3>
-      <div class="meter-line"><i id="storeBar"></i></div>
-      <p class="hint" id="storeTxt"></p>
-      <p class="hint" id="storeCounts"></p>
-      <p class="hint" id="persistTxt"></p>
-      <div class="set-row"><button class="btn" id="dlAllBtn" type="button">모두 받기</button><button class="btn" id="persistBtn" type="button">영구 저장 켜기</button></div>
+    <section class="set-sec fold" id="storeSec">
+      <button class="fold-btn set-fold-btn" type="button" aria-expanded="false"><span><b>이 기기에 저장된 곡</b><small id="storeSum"></small></span><i aria-hidden="true">›</i></button>
+      <h3 class="fold-more">이 기기에 저장된 곡 (인터넷 없이 부르기)</h3>
+      <div class="meter-line fold-more"><i id="storeBar"></i></div>
+      <p class="hint fold-more" id="storeTxt"></p>
+      <p class="hint fold-more" id="storeCounts"></p>
+      <p class="hint fold-more" id="persistTxt"></p>
+      <div class="set-row fold-more"><button class="btn" id="dlAllBtn" type="button">모두 받기</button><button class="btn" id="persistBtn" type="button">영구 저장 켜기</button></div>
+    </section>
+    <!-- 더 보기 (고급) (CR-229, W13): 처음엔 접힘, 한 번 펴면 이 기기(nb-advanced)에 기억. 켜면 앱의 다른 숨긴 칸(소리 설정 세부·가사 타이밍·클라이언트 ID 등)도 예전처럼 보인다 -->
+    <button class="set-adv-btn" id="advBtn" type="button" aria-expanded="false" aria-controls="advBox"><span><b>더 보기 (고급)</b><small id="advSub">여행 준비 · 백업 파일 · MR 만들기 서버 · 옛 휴대폰 리모컨</small></span><i aria-hidden="true">›</i></button>
+    <div class="adv-box adv-only" id="advBox">
+    <section class="set-sec travel" id="travelSec">
+      <h3>여행 준비</h3>
+      <p class="travel-state" id="travelState"></p>
+      <p class="hint" id="travelTip" hidden>비행기 모드로 한 곡 불러 보세요. 노래가 나오면 인터넷 없이도 돼요.</p>
+      <p class="travel-msg" id="travelMsg" hidden></p>
+      <div class="meter-line" id="travelBarBox" hidden><i id="travelBar"></i></div>
+      <div class="set-row">
+        <button class="btn primary" id="travelGo" type="button">여행 준비</button>
+        <button class="btn" id="travelNoVideo" type="button" hidden>동영상 곡 빼고 받기</button>
+        <button class="btn" id="travelAnyway" type="button" hidden>인기 곡부터 받다가 멈추기</button>
+        <button class="btn" id="travelStop" type="button" hidden>멈추기</button>
+      </div>
+      <div class="set-row" id="travelUp" hidden><span class="hint" id="travelUpTxt"></span><button class="btn small" id="travelUpBtn" type="button">지금 맞추기</button></div>
+      <p class="hint">① 로그인·맞추기 → ② 남은 공간 보기 → ③ 곡 받기(많이 부른 곡부터) → ④ 영구 저장 → ⑤ 인터넷 없이 켜지는지 확인. 받는 동안 화면을 켜 두세요 (다른 앱으로 가면 멈출 수 있어요). 멈춰도 다시 누르면 이어서 받아요.</p>
     </section>
     <section class="set-sec">
       <h3>백업 파일</h3>
@@ -496,13 +509,15 @@
     <section class="set-sec" id="mrSec">
       <h3>MR 만들기 (집 AI 서버)</h3>
       <p class="hint">노래 파일에서 목소리를 빼 MR을 만드는 집 AI 서버의 주소예요.</p>
+      <details class="mr-addr" id="mrAddr"><summary>서버 주소 보기·바꾸기 (보통은 안 바꿔도 돼요)</summary>
       <div class="set-row"><input type="text" id="mrServer" inputmode="url" spellcheck="false" autocomplete="off" autocapitalize="off" placeholder="http://dgxspark-yena:8765" aria-label="MR 만들기 서버 주소"><button class="btn" id="mrSave" type="button">저장</button><button class="btn" id="mrReset" type="button">기본값으로</button></div>
       <p class="hint">주소창에 '안전하지 않음'이 보여도 집 Tailscale 안에서만 열리는 창이에요</p>
       <p class="hint">이 기기에만 저장돼요. 집 밖에서는 Tailscale을 켜 주세요.</p>
       <p class="hint" id="mrSetMsg" role="status" hidden></p>
+      </details>
     </section>
-    <section class="set-sec">
-      <h3>휴대폰 리모컨</h3>
+    <section class="set-sec" id="remoteSec" hidden>
+      <h3>옛 휴대폰 리모컨 (PC에서 켰을 때만 보여요)</h3>
       <div class="remote-info" id="remoteSet">"YT 노래방 켜기"로 연 화면에서만 쓸 수 있어요. 같은 와이파이의 휴대폰으로 예약·검색·시작·취소를 할 수 있어요.</div>
       <div id="remoteCtl" hidden style="display:contents">
         <label class="set-row chk"><input type="checkbox" id="remoteNewEach"> 켤 때마다 새 코드 만들기</label>
@@ -510,6 +525,9 @@
         <p class="hint" id="remotePinHint"></p>
       </div>
     </section>
+      <p class="hint">켜 둔 동안은 소리 설정 세부·가사 타이밍·클라이언트 ID처럼 숨겨 둔 칸도 모두 보여요. 위 "더 보기 (고급)"를 다시 누르면 접혀요.</p>
+    </div>
+    <p class="hint set-foot adv-short">"더 보기 (고급)"은 처음엔 접혀 있고, 한 번 펴면 이 기기에서 기억해요</p>
     <div class="dlg-btns"><button class="btn primary" type="button" id="cloudClose">닫기</button></div>
   </div>
 </dialog>

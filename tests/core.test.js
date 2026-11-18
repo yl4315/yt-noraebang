@@ -781,3 +781,43 @@ test('폰 [공유]로 받은 주소: 글 속 링크를 찾고, 공유 칸만 지
   assert.equal(C.stripShareParams('?tv=1&text=b'), '?tv=1');
   assert.equal(C.stripShareParams(''), '');
 });
+
+test('숨김 정리 (CR-229): "더 보기 (고급)"은 \'1\'일 때만 켜짐, 저장 열쇠는 nb- 접두어', () => {
+  assert.equal(C.ADV_KEY, 'nb-advanced');
+  assert.equal(C.DECK_KEY, 'nb-deck');
+  assert.equal(C.advOn('1'), true);
+  for (const v of [null, undefined, '', '0', 'true', 1]) assert.equal(C.advOn(v), false, String(v));
+});
+
+test('숨김 정리 (CR-229): 음향 설정 처음 상태 — 고급이면 예전 규칙, 아니면 접힘이 기본이고 편 상태를 기억', () => {
+  // 고급 켬: 예전처럼 PC는 펼침, 560px 이하는 접힘 (저장 값은 안 봄)
+  assert.equal(C.deckOpenAtStart(true, null, false), true);
+  assert.equal(C.deckOpenAtStart(true, '0', false), true);
+  assert.equal(C.deckOpenAtStart(true, '1', true), false);
+  // 고급 끔(기본): 처음엔 접힘, 사람이 펴 두면('1') 다음에도 펼침
+  assert.equal(C.deckOpenAtStart(false, null, false), false);
+  assert.equal(C.deckOpenAtStart(false, '0', false), false);
+  assert.equal(C.deckOpenAtStart(false, '1', false), true);
+  assert.equal(C.deckOpenAtStart(false, '1', true), true);
+});
+
+test('숨김 정리 (CR-229): 저장 공간 한 줄 요약', () => {
+  assert.equal(C.storeSummary(24, 0, '3.2GB'), '곡 24개 · 남은 공간 약 3.2GB');
+  assert.equal(C.storeSummary(3, 2, '120MB'), '곡 3개 · Drive에만 2개 · 남은 공간 약 120MB');
+  assert.equal(C.storeSummary(0, 0, ''), '곡 0개');
+});
+
+test('숨김 정리 (CR-229): 숨김 코드는 설정 값(nb-settings 등)을 쓰지 않는다 — 새 저장 열쇠는 nb-advanced·nb-deck 둘뿐', () => {
+  const fs = require('node:fs'), path = require('node:path');
+  const js = ['core.js', 'karaoke.js', 'cloud.js', 'main.js'].map(f => fs.readFileSync(path.join(__dirname, '..', 'js', f), 'utf8')).join('\n');
+  // CR-229 블록이 쓰는 열쇠는 ADV_KEY·DECK_KEY만
+  const block = js.split('\n').filter(l => /ADV_KEY|DECK_KEY/.test(l));
+  assert.ok(block.length >= 3, '고급·음향 접기 코드가 있음');
+  for (const l of block) assert.ok(!/saveSettings|nb-settings|settings\[/.test(l), l);
+  // 설정 창 HTML: 숨긴 칸의 id는 그대로 남아 있다 (지우지 않음)
+  const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+  for (const id of ['s-echo', 's-reverb', 's-guide', 's-recOffset', 'measureBtn', 't-monitor', 't-speakerMode', 'lyrOff', 'syncBtn', 'clientAdv', 'gClientId',
+    'storeBar', 'storeTxt', 'storeCounts', 'persistTxt', 'dlAllBtn', 'persistBtn', 'travelSec', 'travelGo', 'bkExport', 'bkFile', 'mrServer', 'mrSave', 'mrReset',
+    'remoteSet', 'remoteCtl', 'remoteNewEach', 'remoteNewPin'])
+    assert.ok(html.includes(`id="${id}"`), id);
+});

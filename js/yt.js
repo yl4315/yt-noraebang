@@ -411,7 +411,7 @@ function ytSetTab(tab, quiet) {
   const yt = Yt.tab === 'yt';
   for (const [b, on] of [[$('#searchTabMr'), !yt], [$('#searchTabYt'), yt]]) if (b) { b.classList.toggle('on', on); b.setAttribute('aria-selected', on); }
   const inp = $('#searchInput');
-  inp.placeholder = yt ? (ytHasKey() ? '노래 제목 · 가수, 또는 유튜브 링크' : '유튜브 링크 붙여넣기 (youtu.be/…)') : '예: 밤편지 · 아이유 · ㅂㅍㅈ · 10002';
+  inp.placeholder = yt ? (ytHasKey() ? '노래 제목 · 가수, 또는 유튜브 링크' : '유튜브 링크 붙여넣기 (youtu.be/…)') : '제목·가수·번호, 초성(ㅂㅍㅈ)으로 찾기';
   inp.setAttribute('aria-label', yt ? '유튜브 노래방 검색' : '곡 검색');
   ytHint();
   const foot = $('#searchFoot'); if (foot) foot.hidden = yt;
@@ -507,7 +507,7 @@ function renderYtTab() {
   Yt.sel = clamp(Yt.sel, 0, Math.max(0, Yt.rows.length - 1));
   Yt.rows.forEach((r, i) => {
     let li;
-    if (r.song) li = songRow(r.song, i + 1, i === Yt.sel, [['예약', '', () => r.act(false)], ['우선예약', '', () => r.act(true)], [isFav(r.song) ? '♥' : '♡', 'ghost', () => toggleFav(r.song)]], '곡 목록에 있음');
+    if (r.song) li = songRow(r.song, i + 1, i === Yt.sel, [[isFav(r.song) ? '♥' : '♡', 'ghost', () => toggleFav(r.song)], ['우선', '', () => r.act(true), '우선예약'], ['예약', '', () => r.act(false)]], '곡 목록에 있음');
     else if (r.link) li = ytRow(i + 1, r.title, r.channel, i === Yt.sel, [['예약하기', 'primary', () => r.act(false)], ['곡 목록에만', 'ghost', () => ytAdd(r.id, Yt.meta.get(r.id) || {})]]);
     else li = ytRow(i + 1, r.title, r.channel, i === Yt.sel, [['예약', '', () => r.act(false)]], r.thumb);
     li.onclick = () => { Yt.sel = i; renderYtTab(); $('#searchInput').focus(); };
