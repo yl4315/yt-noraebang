@@ -268,6 +268,51 @@ export default async function hub(ctx) {
       ok('W10', /목소리 없는 곡\(연주곡\)이라 가사를 넣지 않았어요/.test(line) && x.lyrics === PLAIN && !x.chk && ctx.lrcLog.length === nSearch, `한 줄: "${line}" · 가사 그대로`);
     });
 
+    /* ---------------- W6 유튜브 곡 자동 싱크: 영상 길이로 MR 곡과 같은 길이 규칙 (1차 판 검수 중간 1) ---------------- */
+    // 가사 없는 가짜 유튜브 곡 4개 (가짜 플레이어 fake-yt.js). A·B·C는 영상 200초, D는 플레이어가 길이를 모름(0) = 길이 없이 예전처럼
+    const ytLrc = n => `[00:00.50]${n} 첫 줄\n[00:02.00]${n} 둘째 줄\n[00:03.50]${n} 셋째 줄`;
+    const YTA = [
+      { k: 'A', id: 'QAytW6dur0A', title: 'QA 시험 유튜브 자동곡가', dur: 200, get: 200, found: 'get', why: '/api/get 길이 맞음(200) → 들어감' },
+      { k: 'B', id: 'QAytW6dur0B', title: 'QA 시험 유튜브 자동곡나', dur: 200, get: 130, found: null, why: '/api/get 길이 130(영상 200과 다름) → 안 넣고 검색 → 못 찾음' },
+      { k: 'C', id: 'QAytW6dur0C', title: 'QA 시험 유튜브 자동곡다', dur: 200, get: null, search: 200, found: 'search', why: '/api/get 없음(404) → 검색의 길이 200 후보 → 들어감' },
+      { k: 'D', id: 'QAytW6dur0D', title: 'QA 시험 유튜브 자동곡라', dur: 0, get: 130, found: 'get', why: '영상 길이 모름 → 길이 없이 보냄 → 예전처럼 들어감' },
+    ];
+    for (const c of YTA) {
+      await step(`유튜브 곡 [자동 싱크] ${c.k}: ${c.why}`, ['W6'], async () => {
+        const yt = q(c.title + ' - QA가수Y');
+        await pa.eval(`((window.__ytVideos = window.__ytVideos || {})[${q(c.id)}] = {title:${yt}, author:'QA 채널', dur:${c.dur}}, true)`);
+        const sid = await pa.eval(`(async()=>{ const s = await ytAdd(${q(c.id)}, {title:${yt}, channel:'QA 채널'}); ${c.dur ? `s.ytDur = ${c.dur}; await persistSong(s);` : ''} return s.id })()`, 20000);
+        // 넣을 때 도는 유튜브 가사 찾기(yt.js ytAutoLyrics, 가짜 검색 0개)가 끝난 뒤에 가짜 답을 건다
+        await pa.until(`Yt.lyrTried.get(${q(sid)})===${q(c.dur ? 'dur' : 'nodur')}`, 15000);
+        if (c.get) ctx.lrcGetRules.push({ track: '^' + c.title + '$', status: 200, times: 1, body: { id: 9100, trackName: c.title, artistName: 'QA가수Y', albumName: '', duration: c.get, instrumental: false, plainLyrics: 'x', syncedLyrics: ytLrc(c.title) } });
+        const sRule = c.search ? { q: c.title, status: 200, times: 3, body: [{ id: 9101, trackName: c.title, artistName: 'QA가수Y', albumName: '', duration: c.search, instrumental: false, plainLyrics: 'x', syncedLyrics: ytLrc(c.title) }] } : null;
+        if (sRule) ctx.lrcRules.push(sRule);
+        try {
+          await pa.eval(`selectSong(songById(${q(sid)}))`);
+          await pa.until(`state.song && state.song.id===${q(sid)} && (Yt.st===5 || Yt.err!=null)`, 15000).catch(() => {});
+          const pre = { dur: await pa.eval(`state.song.ytDur || 0`), auto: await visible(pa, '#autoSyncBtn') };
+          ok('W6', pre.auto && pre.dur === c.dur, `유튜브 곡 ${c.k} (가사 없음, 영상 길이 ${pre.dur || '모름'}): [자동 싱크] ${pre.auto ? '보임' : '숨음'}`);
+          const nGet = ctx.lrcGetLog.length, nSearch = ctx.lrcLog.length;
+          await pa.click('#autoSyncBtn');
+          await pa.until(`!AutoSync.busy && /찾았어요/.test($('#syncLine').textContent)`, 15000);
+          const line = await txt(pa, '#syncLine'), x = await song(pa, sid);
+          const g = ctx.lrcGetLog.slice(nGet), sN = ctx.lrcLog.length - nSearch;
+          ok('W6', g.length === 1 && (c.dur ? g[0].duration === String(c.dur) : g[0].duration == null) && g[0].params.every(k => ['track_name', 'artist_name', 'duration'].includes(k)),
+            `${c.k} /api/get에 보낸 값: ${g.map(e => e.params.join('·') + ` (길이 ${e.duration ?? '없음'})`).join(' ; ')} · 영상 길이 ${c.dur || '모름'}`);
+          if (c.found) ok('W6', x.lyrics === ytLrc(c.title) && x.chk && /가사 시각을 찾았어요 \(LRCLIB\)/.test(line) && (c.found === 'get' ? sN === 0 : sN > 0),
+            `${c.k} ${c.found === 'get' ? '/api/get' : '검색'}으로 들어감 · 확인 표시 ${x.chk} · 한 줄 "${line}" · 검색 ${sN}번`);
+          else ok('W6', x.lyrics === '' && !x.chk && /가사 시각을 못 찾았어요/.test(line) && sN > 0,
+            `${c.k} 길이 다른 판은 안 넣음 (MR 곡과 같은 3초 규칙) · 검색 ${sN}번 · 한 줄 "${line}" · 가사 ${x.lyrics.length}자`);
+        } finally {
+          if (sRule && ctx.lrcRules.includes(sRule)) ctx.lrcRules.splice(ctx.lrcRules.indexOf(sRule), 1);
+        }
+      });
+    }
+    await step('유튜브 곡 자동 싱크 결과도 허브로 (열쇠 yt-영상 번호, 확인 표시 포함)', ['W6'], async () => {
+      const up = await waitNode(() => rowOf('yt-' + YTA[0].id) && rowOf('yt-' + YTA[0].id).data.lrc === ytLrc(YTA[0].title) && rowOf('yt-' + YTA[0].id).data.chk === 1, 15000);
+      ok('W6', up && !rowOf('yt-' + YTA[1].id), `A 허브 줄 ${up ? '있음' : '없음'} · B(안 넣음) 허브 줄 ${rowOf('yt-' + YTA[1].id) ? '있음' : '없음'}`);
+    });
+
     /* ---------------- W11 연결 정보가 백업·Drive·화면·콘솔에 없음 ---------------- */
     await step('로그인한 기기의 백업 파일·library.json·기기 기록·화면·콘솔을 훑음: 허브 주소·키·토큰·코드 0', ['W11'], async () => {
       const auth = await pa.eval(`(()=>{const k=Object.keys(localStorage).find(k=>k.startsWith('nb-hub-auth')); try { const o=JSON.parse(localStorage.getItem(k)); return {a:o.access_token, r:o.refresh_token}; } catch { return {}; }})()`);

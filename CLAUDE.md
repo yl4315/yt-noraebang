@@ -186,6 +186,7 @@ npm run test:ui                  # 화면 자동 점검: 헤드리스 Edge가 �
 ## 자동 싱크 (`js/autosync.js`, CR-227 1단계)
 
 - LRCLIB에는 **곡 제목·가수(첫 이름)·MR 길이만** 보낸다 (`lrclibGetParams`). 덧붙이는 머리글 없음 (CORS 미리 묻기가 생김).
+- 길이: MR 파일 → 없으면 유튜브 곡은 영상 길이 `s.ytDur` (플레이어가 알려 준 값). 그래서 유튜브 곡도 MR 곡과 같은 길이 규칙(3초 안)이 돈다. 영상 길이를 아직 모르면 길이 없이 보낸다 (그때는 `/api/get` 답을 길이 비교 없이 받음).
 - 정확히 한 곡 찾는 `/api/get` 먼저 → 없거나(404) 맞지 않으면 곡 추가 창과 같은 `findLyrics`(검색) + `chooseLyrics`. 고르는 규칙은 core.js `autoSyncPick`.
 - 연주곡(`instrumental`)이면 가사를 넣지 않고 안내만. 찾으면 `syncChk`를 켜고 "자동 싱크 · 확인해 주세요" 단추 → 가사 맞추기(싱크 편집기)에서 저장하거나 가사를 손으로 고치면 `clearSyncCheck`.
 - [자동 싱크]·[확인해 주세요]는 아래 조작부 `#syncTools` 한 줄: 접힌 "가사 맞추기 ›"(`#lyrFold`) 밖이라 고급을 꺼도 보인다. 두 단추가 다 숨으면 줄도 숨는다 (`css/app.css` `#syncTools`).
