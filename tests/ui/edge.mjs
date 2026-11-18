@@ -12,7 +12,8 @@ import path from 'node:path';
 export const sleep = ms => new Promise(r => setTimeout(r, ms));
 // PC가 바쁠 때(다른 빌드가 CPU를 다 쓸 때) 기다리는 시간을 늘리는 배수. run.mjs가 첫 화면이 열리는 데 걸린 시간을 보고 정한다
 export const timing = { slow: 1 };
-export const PROFILE_PREFIX = 'yt-ui-check-edge-';
+// 이름이 'yt-ui-check-edge-'가 아닌 까닭: 그 이름으로 남의 Edge까지 끄던 옛 점검(다른 가지)이 이 점검의 Edge를 끄지 않게 (CR-030)
+export const PROFILE_PREFIX = 'yt-ui-edge-';
 
 const EDGE_PATHS = [
   process.env.YENA_EDGE,

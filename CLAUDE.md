@@ -23,7 +23,7 @@ npm run test:ui                  # 화면 자동 점검: 헤드리스 Edge가 �
   - 실제 Google에는 요청하지 않는다.
   - 이 점검은 같이 쓰는 탭에서 맨 마지막에 돌고 넣은 것을 지운다.
 - 점검 도구는 npm 패키지 없이 CDP로 Edge를 움직인다 (`tests/ui/edge.mjs`).
-- 끝 정리는 **이번 점검이 켠 Edge 프로필만** 끄고 지운다 (`run.mjs` `myProfiles`). 같은 PC에서 다른 가지(worktree)의 점검이 동시에 돌 수 있어서, 이름 앞부분(`yt-ui-check-edge-`)으로 모두 끄지 않는다.
+- 끝 정리는 **이번 점검이 켠 Edge 프로필만** 끄고 지운다 (`run.mjs` `myProfiles`). 같은 PC에서 다른 가지(worktree)의 점검이 동시에 돌 수 있어서, 이름 앞부분(`yt-ui-edge-`, 옛 이름 `yt-ui-check-edge-`)으로 모두 끄지 않는다.
 - 시험 서버 `tests/ui/serve.py`는 `server.PIN_FILE`을 임시 폴더로 바꾸고 127.0.0.1에만 켠다 (저장소 `.remote.json`을 안 건드림). 밖으로 나가는 요청은 글꼴·QR 라이브러리만 허용, `lrclib.net`은 가짜 답, Google은 막음.
 - 점검이 찾은 앱 문제는 고치지 않고 결과표 "점검하다 본 것"에 적는다. 바로 못 고치는 실패는 `features.json`의 `known`(설명 + 맞는 실패 글)으로 "알려진 문제"로 따로 보이게 하고, 고치면 지운다.
 - 점검이 고장을 잡는지: `node tests/ui/selftest.mjs` (사본에서 단축키 C 빼기·검색 ✕ 숨기기·데모곡 번호 바꾸기 → M4·M10·I9·I12·S1·S4가 실패로 나와야 함).
