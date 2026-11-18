@@ -7,7 +7,7 @@
 //   npm run test:ui -- --compare <폴더>   예전 결과 폴더의 스크린샷과 화소 비교 (바뀐 사진 목록)
 //   npm run test:ui -- --root <폴더>      다른 폴더(예: 일부러 고장 낸 사본)를 점검
 // CEO 데이터와 섞이지 않게: 매번 새 빈 Edge 프로필, 5173이 아닌 빈 포트, 리모컨 코드 파일은 임시 폴더,
-// Google·Drive 요청은 막고 가사 서버(lrclib.net)는 가짜 답. 끝나면 Edge·서버·임시 폴더를 지우고
+// Google·Drive 요청은 막고 가사 서버(lrclib.net)와 허브(CR-227, 만든 주소의 메모리 가짜 허브)는 가짜 답. 끝나면 Edge·서버·임시 폴더를 지우고
 // 저장소 git status와 .remote.json이 그대로인지 본다.
 import { spawn, execFileSync } from 'node:child_process';
 import crypto from 'node:crypto';
@@ -19,6 +19,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { launchEdge, ourEdgeProcesses, killPids, sleep, findEdge, timing } from './edge.mjs';
 import { makeFixtures } from './fixtures.mjs';
 import { compareShots } from './compare.mjs';
+import { makeFakeHub, FAKE_HUB_HOST } from './fakehub.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, '..', '..');
@@ -48,7 +49,7 @@ const findings = [];        // 점검이 본 앱의 문제 (보고만)
 const common = [];          // 공통 점검 (번호 없음): 페이지 오류, 가로 스크롤, 밖으로 나간 요청, 정리
 const logLines = [];
 const log = (...a) => { const line = `[${secs()}s] ` + a.join(' '); logLines.push(line); console.log(line); };
-const conds = { P: null, V: null, O: null, M: null, W: null, S: true, L: true };
+const conds = { P: null, V: null, O: null, M: null, W: null, S: true, L: true, H: true };
 const condWhy = {};
 
 const ctx = {
@@ -72,6 +73,9 @@ const ctx = {
   },
   wants(...areas) { return !ONLY || areas.some(a => ONLY.includes(a)); },
   netLog: [], lrcLog: [], lrcRules: [],
+  // LRCLIB /api/get (CR-227 자동 싱크): 규칙 { track: 정규식, status, body, neterr, times } · 로그 { params(보낸 이름들), track, status }. 맞는 규칙이 없으면 404
+  lrcGetLog: [], lrcGetRules: [],
+  hub: makeFakeHub(),     // 가짜 허브 (fakehub.mjs). 진짜 허브에는 요청 0
 };
 
 /* ---------------- 준비: 시작 전 저장소 상태 ---------------- */
@@ -117,13 +121,27 @@ async function stopServer(pr) {
 /* ---------------- 밖으로 나가는 요청: 허용 / 가짜 답 / 막기 ---------------- */
 const ALLOW = /^(fonts\.googleapis\.com|fonts\.gstatic\.com|cdnjs\.cloudflare\.com)$/;
 // 가로챌 바깥 주소: 허용(글꼴·QR), 가짜 답(가사 서버), 막음(Google 로그인·Drive). 그 밖은 Edge가 이름 찾기부터 실패한다 (edge.mjs)
-const ROUTED = ['fonts.googleapis.com', 'fonts.gstatic.com', 'cdnjs.cloudflare.com', 'lrclib.net', 'accounts.google.com', 'www.googleapis.com', 'oauth2.googleapis.com', 'apis.google.com'];
+const ROUTED = ['fonts.googleapis.com', 'fonts.gstatic.com', 'cdnjs.cloudflare.com', 'lrclib.net', 'accounts.google.com', 'www.googleapis.com', 'oauth2.googleapis.com', 'apis.google.com', FAKE_HUB_HOST];
 const LOCAL = /^(127\.0\.0\.1|localhost)$/;
 function makeRouter(page) {
   return async p => {
     const u = new URL(p.request.url);
     if (u.protocol === 'data:' || u.protocol === 'blob:' || LOCAL.test(u.hostname)) return { continue: true };
     if (page.isOffline) { ctx.netLog.push({ kind: '끊김 흉내', url: u.origin + u.pathname }); return { fail: 'InternetDisconnected' }; }
+    if (u.hostname === FAKE_HUB_HOST) {
+      // 가짜 허브: 로그인·hub_push·hub_pull·hub_secret를 메모리에서 (CORS 미리 묻기도 답한다)
+      ctx.netLog.push({ kind: '가짜 답', url: u.origin + u.pathname, note: '가짜 허브' });
+      return ctx.hub.handle(p.request);
+    }
+    if (u.hostname === 'lrclib.net' && u.pathname === '/api/get') {
+      const sp = u.searchParams, track = sp.get('track_name') || '';
+      const rule = ctx.lrcGetRules.find(r => new RegExp(r.track).test(track)) || { status: 404, body: { code: 404, name: 'TrackNotFound', message: 'Failed to find specified track' } };
+      if (rule.times != null && --rule.times <= 0) ctx.lrcGetRules.splice(ctx.lrcGetRules.indexOf(rule), 1);
+      ctx.lrcGetLog.push({ params: [...sp.keys()], track, artist: sp.get('artist_name') || '', duration: sp.get('duration'), status: rule.neterr ? 'neterr' : rule.status || 200 });
+      ctx.netLog.push({ kind: '가짜 답', url: u.origin + u.pathname });
+      if (rule.neterr) return { fail: 'InternetDisconnected' };
+      return { fulfill: { status: rule.status || 200, body: rule.body ?? {}, delay: rule.delay } };
+    }
     if (u.hostname === 'lrclib.net') {
       const q = u.searchParams.get('q') || '';
       // 규칙: { q: 정규식, status, body, delay, neterr, times(이 횟수만 쓰고 빠짐) } — 먼저 맞는 규칙
@@ -163,6 +181,7 @@ const KNOWN = [
   /백업 파일/,                                               // 백업 파일이 아닌 파일 불러오기 (일부러)
   /status of 404/,                                         // 정적 서버(리모컨 없음)의 /api/remote/info
   /status of 503/,                                         // 가짜 가사 서버 "바빠요" 답 (일부러)
+  /status of 400/,                                         // 가짜 허브: 일부러 틀린 비밀번호 (CR-227)
   /status of 403/,                                         // 휴대폰 리모컨: 바뀐 코드로 보낸 명령 (일부러)
   /AbortError|NotAllowedError: play\(\)/,                  // 영상 재생 끊김 (곡 바꿀 때)
 ];
@@ -278,6 +297,8 @@ const pinDir = path.join(tmp, 'pin'), dlDir = path.join(tmp, 'downloads');
 fs.mkdirSync(pinDir); fs.mkdirSync(dlDir);
 let mainSrv = null, staticSrv = null, fakeMrSrv = null, aborted = null;
 const browsers = new Set();
+// 이번 점검이 켠 Edge의 프로필 폴더만 (같은 PC에서 다른 직원의 점검이 동시에 돌 수 있어서, 정리는 내 것만 끄고 지운다)
+const myProfiles = new Set();
 let shots = [], compare = null;
 const edgeErrors = [];
 fs.mkdirSync(OUT, { recursive: true });
@@ -309,7 +330,7 @@ try {
   ctx.tmp = tmp;
   ctx.newBrowser = async () => {
     const b = await launchEdge({ downloadDir: dlDir });
-    browsers.add(b);
+    browsers.add(b); myProfiles.add(b.profile);
     const origNew = b.newPage;
     // 탭의 페이지 오류·콘솔 오류는 탭을 닫을 때 모은다
     const collect = p => { if (p.collected) return; p.collected = true; edgeErrors.push(...p.events.map(e => ({ ...e, known: KNOWN.some(k => k.test(e.text + ' ' + (e.url || ''))) }))); };
@@ -345,7 +366,7 @@ try {
   if ((!ONLY && !CHECKS) || SHOTS_ONLY) shots = await shotMod.default(ctx);
   // 2) 기능 점검
   if (!SHOTS_ONLY) {
-    const order = ['basics', 'songs', 'bulk', 'video', 'reserve', 'profiles', 'keys', 'syncedit', 'tv', 'touch', 'record', 'mic', 'settings', 'backup', 'remote', 'mr', 'offline', 'devsync'];
+    const order = ['basics', 'songs', 'bulk', 'video', 'reserve', 'profiles', 'keys', 'syncedit', 'tv', 'touch', 'record', 'mic', 'settings', 'backup', 'remote', 'mr', 'offline', 'devsync', 'hub'];
     // 마이크는 '거부' 상태로 시작한다 (마이크가 꺼진 채의 안내를 먼저 본다. 가짜 마이크는 mic 점검에서 켠다)
     await ctx.p.eval(`localStorage.setItem('__ui-mic','deny')`);
     ctx.ids = {};
@@ -375,12 +396,12 @@ try {
 
 // 정리 확인
 const cleanup = [];
-const left = ourEdgeProcesses();
+const left = [...new Set([...myProfiles].flatMap(pr => ourEdgeProcesses(pr)))];
 if (left.length) killPids(left);
 cleanup.push({ name: '헤드리스 Edge 0개 (점검이 켠 것)', ok: left.length === 0, detail: left.length ? `${left.length}개가 남아 있어서 껐어요` : '' });
-const leftProfiles = fs.readdirSync(os.tmpdir()).filter(n => n.startsWith('yt-ui-check-edge-'));
-for (const n of leftProfiles) { try { fs.rmSync(path.join(os.tmpdir(), n), { recursive: true, force: true }); } catch {} }
-cleanup.push({ name: '임시 Edge 프로필 0개', ok: !fs.readdirSync(os.tmpdir()).some(n => n.startsWith('yt-ui-check-edge-')), detail: leftProfiles.length ? `${leftProfiles.length}개 지움` : '' });
+const leftProfiles = [...myProfiles].filter(pr => fs.existsSync(pr));
+for (const pr of leftProfiles) { try { fs.rmSync(pr, { recursive: true, force: true }); } catch {} }
+cleanup.push({ name: '임시 Edge 프로필 0개', ok: ![...myProfiles].some(pr => fs.existsSync(pr)), detail: leftProfiles.length ? `${leftProfiles.length}개 지움` : '' });
 for (let i = 0; i < 10; i++) { try { fs.rmSync(tmp, { recursive: true, force: true }); break; } catch { await sleep(300); } }
 cleanup.push({ name: '임시 폴더(코드 파일·시험 파일·내려받은 파일) 지움', ok: !fs.existsSync(tmp) });
 cleanup.push({ name: '시험 서버 꺼짐', ok: procs.size === 0 });
@@ -395,7 +416,11 @@ const unknown = edgeErrors.filter(e => !e.known);
 ctx.common('페이지 오류(예외) 0', !edgeErrors.some(e => e.kind === 'pageerror'), edgeErrors.filter(e => e.kind === 'pageerror').map(e => e.text).slice(0, 5).join(' / '));
 ctx.common('콘솔 오류는 알려진 것만', !unknown.length, unknown.map(e => e.text).slice(0, 5).join(' / '));
 const outside = ctx.netLog.filter(n => n.kind === '막음' && !/accounts\.google\.com|googleapis\.com|apis\.google\.com/.test(n.url));
-ctx.common('밖으로 나간 요청은 허용 목록(글꼴·QR 라이브러리)뿐, Google은 막고 lrclib은 가짜 답', outside.length === 0, outside.length ? '모르는 곳: ' + [...new Set(outside.map(n => n.url))].join(', ') : `막음 ${ctx.netLog.filter(n => n.kind === '막음').length} · 가짜 답 ${ctx.netLog.filter(n => n.kind === '가짜 답').length} · 허용 ${ctx.netLog.filter(n => n.kind === '허용').length}`);
+const realHub = ctx.netLog.filter(n => /supabase\.(co|in)/.test(n.url) && !n.url.includes(FAKE_HUB_HOST));
+ctx.common('진짜 허브(Supabase)에 보낸 요청 0 (가짜 허브만)', realHub.length === 0, realHub.length ? [...new Set(realHub.map(n => n.kind))].join(', ') + ' ' + realHub.length + '건' : `가짜 허브 ${ctx.hub.log.length}건`);
+const cspHits = edgeErrors.filter(e => /UI점검 CSP 막음|Content Security Policy/i.test(e.text));
+ctx.common('보안 규칙(CSP)이 막은 것 0 (지금 기능 그대로)', cspHits.length === 0, cspHits.map(e => e.text).slice(0, 5).join(' / '));
+ctx.common('밖으로 나간 요청은 허용 목록(글꼴·QR 라이브러리)뿐, Google은 막고 lrclib·허브는 가짜 답', outside.length === 0, outside.length ? '모르는 곳: ' + [...new Set(outside.map(n => n.url))].join(', ') : `막음 ${ctx.netLog.filter(n => n.kind === '막음').length} · 가짜 답 ${ctx.netLog.filter(n => n.kind === '가짜 답').length} · 허용 ${ctx.netLog.filter(n => n.kind === '허용').length}`);
 for (const c of cleanup) if (!c.ok) common.push({ name: '정리: ' + c.name, ok: false, detail: c.detail || '' });
 
 const elapsed = Math.round((Date.now() - T0) / 1000);
