@@ -80,7 +80,7 @@
           <span class="grow"></span>
           <span class="q-chips" id="qChips" hidden></span>
           <span class="badge auto" id="keyBadge" hidden>키 +0</span>
-          <span class="badge sync" id="syncBadge" hidden>싱크 편집 중</span>
+          <span class="badge sync" id="syncBadge" hidden>가사 맞추기 중</span>
           <span class="badge auto" id="autoBadge" hidden>가사 자동 배치</span>
           <span class="badge rec" id="recBadge" hidden>● REC</span>
         </div>
@@ -257,7 +257,7 @@
             <button class="btn small" type="button" data-lyr="0.1" title="가사가 늦게 나오면 (])">+0.1초</button>
             <button class="btn small" type="button" data-lyr="1" title="가사가 늦게 나오면 (Shift+])">+1초</button>
             <span class="sep"></span>
-            <button class="btn small" id="syncBtn" type="button" title="가사 싱크 편집기">가사 맞추기</button>
+            <button class="btn small" id="syncBtn" type="button" title="노래를 들으며 가사 시각을 직접 맞춰요">가사 맞추기</button>
           </div>
           </div>
           <!-- 자동 싱크 (CR-227): 접힌 "가사 맞추기 ›" 밖에 둬서 고급을 꺼도 보임. [자동 싱크]·[확인해 주세요]·[원곡 파일로 자동 싱크]가 다 숨으면 줄도 숨음 (css #syncTools) -->
@@ -366,7 +366,7 @@
         <span class="hint" id="lrcStatus">LRCLIB 공개 가사 데이터베이스에서 찾아요</span>
       </div>
       <ul class="lrc-results" id="lrcResults" hidden></ul>
-      <textarea id="f-lyrics" spellcheck="false" aria-label="가사" placeholder="[00:12.50]첫 번째 줄 가사&#10;[00:17.80]두 번째 줄 가사&#10;&#10;시간 없이 가사만 넣어도 돼요.&#10;그다음 '가사 싱크 편집'으로 타이밍을 맞추면 됩니다."></textarea>
+      <textarea id="f-lyrics" spellcheck="false" aria-label="가사" placeholder="[00:12.50]첫 번째 줄 가사&#10;[00:17.80]두 번째 줄 가사&#10;&#10;시간 없이 가사만 넣어도 돼요.&#10;그다음 [가사 맞추기]로 시각을 맞추면 돼요."></textarea>
       <p class="sync-line" id="syncLine2" role="status" hidden></p>
     </div>
     <div class="set-row" id="deviceRow" hidden><span class="hint" id="deviceTxt"></span><button class="btn small" id="evictBtn" type="button">기기에서 지우기</button><button class="btn small" id="fetchBtn" type="button">기기에 저장</button></div>
