@@ -587,3 +587,40 @@ details summary{cursor:pointer;font-weight:700;font-size:13px}
 #hubSec .set-row input{flex:1;min-width:180px;background:var(--panel);border:1px solid transparent;border-radius:var(--r-in);padding:8px 10px;font-size:13px;color:var(--ink)}
 #hubSec #hubCode{font-family:var(--mono);font-size:12px}
 @media (hover:none){#hubSec .btn{min-height:44px}}
+/* 손님 방 (CR-228): 설정 "손님" 줄 · 손님 초대 QR 시트 (관리 화면 색) · TV 대기 화면 QR 카드 (무대 색 C1) */
+.guest-row{display:flex;align-items:center;gap:12px;width:100%;min-height:56px;padding:8px 12px;border:0;border-radius:var(--r-btn);background:var(--panel);color:var(--ink);text-align:left}
+.guest-row:hover{background:var(--hover)}
+.guest-row-ico{width:36px;height:36px;border-radius:var(--radius-full);background:var(--panel-2);display:inline-flex;align-items:center;justify-content:center;flex:none}
+.guest-row-txt{flex:1;min-width:0;display:flex;flex-direction:column}
+.guest-row-txt b{font:var(--font-title-item)}
+.guest-row-txt small{font:var(--font-meta);color:var(--muted)}
+.guest-row-go{color:var(--muted);font-size:22px;line-height:1}
+.guest-dlg{gap:12px;width:100%}
+#guestDialog{width:min(420px,calc(100vw - 32px))}
+.guest-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.guest-head .icon-btn{font-size:18px;min-width:44px;min-height:44px;justify-content:center;align-items:center}
+#guestOff,#guestOnBox{display:flex;flex-direction:column;gap:10px}
+.guest-qr-box{align-self:center;width:220px;height:220px;border-radius:var(--radius-lg);background:#fff;overflow:hidden;display:flex;align-items:center;justify-content:center}
+.guest-qr-box img{width:220px;height:220px;image-rendering:pixelated;display:block}
+.guest-lead{margin:0;text-align:center;font:var(--font-body-small);color:var(--muted)}
+.guest-sw{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:56px;padding:6px 0;border-top:1px solid var(--line);cursor:pointer}
+.guest-sw>span{display:flex;flex-direction:column;min-width:0}
+.guest-sw b{font:var(--font-body);font-weight:600}
+.guest-sw small{font:var(--font-meta);color:var(--muted)}
+.guest-sw input{appearance:none;-webkit-appearance:none;width:52px;height:32px;border-radius:16px;background:var(--line);position:relative;flex:none;margin:0;cursor:pointer;transition:background .15s}
+.guest-sw input::after{content:'';position:absolute;top:3px;left:3px;width:26px;height:26px;border-radius:13px;background:var(--muted);transition:transform .15s,background .15s}
+.guest-sw input:checked{background:var(--amber)}
+.guest-sw input:checked::after{transform:translateX(20px);background:var(--on-amber)}
+.guest-count{margin:0;font:var(--font-body-small);color:var(--muted);border-top:1px solid var(--line);padding-top:12px}
+#guestOnBox .set-row .btn{min-height:44px}
+@media (prefers-reduced-motion:reduce){.guest-sw input,.guest-sw input::after{transition:none}}
+.guest-card{position:absolute;right:0;bottom:0;max-width:42%;display:flex;align-items:center;gap:.8em;padding:.7em .9em;border-radius:.6em;background:rgba(19,25,56,.94);border:1px solid var(--line);overflow:hidden}
+.guest-card-qr{width:max(96px,6.4em);height:max(96px,6.4em);image-rendering:pixelated;border-radius:.3em;background:#fff;flex:none}
+.guest-card-txt{display:flex;flex-direction:column;gap:.25em;min-width:0;font-size:.8em;line-height:1.35}
+.guest-card-txt b{font-size:1.15em;color:var(--ink)}
+.guest-card-txt span{color:var(--muted)}
+.guest-card-txt small{font-size:.95em;color:var(--cyan)}
+.guest-card-txt .btn{align-self:flex-start;margin-top:.3em;font-size:1em}
+.tv-idle.guest-on .remote-info{display:none!important}   /* 손님 QR이 보이면 옛 휴대폰 리모컨 QR(L6)은 숨김 — 둘 중 하나만 */
+.idle-q .t small.who{color:var(--cyan)}
+@media (hover:none){.guest-card-txt .btn{min-height:44px}}
