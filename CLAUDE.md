@@ -129,6 +129,7 @@ npm run test:ui                  # 화면 자동 점검: 헤드리스 Edge가 �
 - 폰 [공유]: `manifest.webmanifest` `share_target`(GET `./`, title·text·url) → 켤 때 `ytHandleShare`가 주소 칸을 지우고 확인 창. `sw.js`는 공유 주소를 가로채거나 저장하지 않는다. `start_url`·`scope`는 바꾸지 않는다.
 - TV에서 유튜브 곡이면 `#tv.yt-mode`: 무대는 위 칸, `#tvRemote`가 아래 68px 띠. 이때 `flash()`와 `toast()`는 무대 가운데·띠 왼쪽 대신 띠 안(`ytBandNote`)에 뜬다 (yt.js가 두 함수를 감쌈).
 - 폰(무대 폭 640 아래, TV 아님)에서 창(`YT_SPLIT`)이 열리면: 멈춘 영상은 숨기고(창이 무대를 다 씀), 재생 중이면 무대에 `yt-grow`를 붙여 `--yt-cut` + 창 높이만큼 길게 한다 (위 영상 · 아래 창).
+- 폰(폭 560 아래)에서 재생 전에 곡 검색 창을 열면 무대가 `min(600px,78vh)`로 길어지고 창이 무대 폭을 다 쓴다. 검색 줄 단추는 다음 줄 오른쪽(높이 36), 썸네일 96×54, ✕ 48×48 (`app.css` 맨 끝, 무대가 `.main` 안일 때만 → TV 화면은 그대로). 못 트는 영상 안내(`#ytErr`)가 보이면 곡 제목 카드·가사를 숨긴다.
 - 화면 점검은 `tests/ui/fake-yt.js`(가짜 플레이어)·`checks/youtube.mjs`. 열쇠는 `run.mjs`의 가짜 글자만 쓴다.
 
 ## 곡 넣기 자동화 (`js/bulk.js`)

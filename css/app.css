@@ -597,6 +597,7 @@ body:has(#tv:not([hidden])) .yt-box{z-index:20;border-radius:0}
   background:var(--panel);border:1px solid var(--line);border-radius:var(--radius-md);padding:16px 18px;font-size:clamp(13px,1.4cqw,30px)}
 .yt-err b{font:400 1.25em/1.3 var(--display)}
 .yt-err span{color:var(--muted)}
+.stage:has(#ytErr:not([hidden])) :is(.title-card,.lyrics){visibility:hidden}   /* 못 트는 영상 안내 위로 곡 제목·가사가 비치지 않게 (디자인 확인 CR-030 #3) */
 /* 곡 검색 창: [내 MR 보관함 | 유튜브 노래방 검색] (높이 48) */
 .seg{display:flex;background:var(--room);border-radius:var(--radius-sm,8px);padding:2px;min-height:48px;flex:none}
 .seg-b{flex:1;border:0;border-radius:6px;background:none;color:var(--muted);font:600 1em var(--ui);white-space:nowrap;min-height:44px;padding:0 .6em}
@@ -652,4 +653,17 @@ body:has(#tv.yt-mode:not([hidden])) .toast{left:14px;right:auto;transform:none;b
 }
 @media (max-width:560px){
   .stage.yt{aspect-ratio:1/1;max-height:none}
+}
+/* 폰: 곡 검색 창을 열면 무대가 창 높이만큼 길어지고(재생 중 .yt-grow와 같은 방법), 창은 무대 폭을 다 쓰고, 줄 단추는 다음 줄 오른쪽으로 (디자인 확인 CR-030 #1).
+   무대가 .main 안일 때만 (TV 화면은 그대로) */
+@media (max-width:560px){
+  .main>.stage:not(.yt-grow):has(#searchOv:not([hidden])){aspect-ratio:auto;max-height:none;height:min(600px,78vh)}
+  .main>.stage:has(#searchOv:not([hidden])) .ov-panel{align-items:stretch}
+  .main>.stage:has(#searchOv:not([hidden])) .ov-card{overflow:auto;width:100%}
+  .main #searchList .ov-row{grid-template-columns:auto 4.6em minmax(0,1fr);row-gap:.4em}
+  .main #searchList .yt-row{grid-template-columns:auto auto minmax(0,1fr)}
+  .main #searchList .ov-row .acts{grid-column:1/-1;justify-content:flex-end}
+  .main #searchList .ov-row .acts .btn{min-height:36px}
+  .main #searchList .yt-thumb{width:96px;height:54px}
+  .main #searchOv .ov-head .icon-btn{min-width:48px;min-height:48px;align-items:center;justify-content:center}
 }

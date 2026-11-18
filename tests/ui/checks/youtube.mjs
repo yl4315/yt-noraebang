@@ -267,9 +267,10 @@ export default async function youtube(ctx) {
       await p.eval(`(async()=>{ const b=await ytAdd(${q(ID.B)}, {title:'QA 시험 막힌 영상 - QA가수B'}); const a=findYtSong(state.songs, ${q(ID.A)}); state.queue.push(b.id, a.id); saveQueue(); renderQueue(); startNext(); })()`);
       const shown = await p.until(`!document.querySelector('#ytErr').hidden && state.song && state.song.ytId===${q(ID.B)}`, 8000);
       const e = await p.eval(`({h:document.querySelector('#ytErrHead').textContent, w:document.querySelector('#ytErrWhy').textContent, link:!document.querySelector('#ytErrLink').hidden, href:document.querySelector('#ytErrLink').href,
-        box:document.querySelector('#ytBox').classList.contains('off'), playing:state.playing})`);
-      ok('V7', shown && /틀 수 없어요/.test(e.h) && /막았어요/.test(e.w) && e.link && e.href === 'https://www.youtube.com/watch?v=' + ID.B && e.box && !e.playing,
-        `"${e.h}" · "${e.w}" · [유튜브에서 열기] ${e.href.replace('https://www.youtube.com', '')} · 영상 칸 숨김 ${e.box}`);
+        box:document.querySelector('#ytBox').classList.contains('off'), playing:state.playing,
+        hide:['.title-card','.lyrics'].every(s=>getComputedStyle(document.querySelector('#stage '+s)).visibility==='hidden')})`);
+      ok('V7', shown && /틀 수 없어요/.test(e.h) && /막았어요/.test(e.w) && e.link && e.href === 'https://www.youtube.com/watch?v=' + ID.B && e.box && !e.playing && e.hide,
+        `"${e.h}" · "${e.w}" · [유튜브에서 열기] ${e.href.replace('https://www.youtube.com', '')} · 영상 칸 숨김 ${e.box} · 안내 뒤 곡 제목·가사 숨김 ${e.hide}`);
       const t0 = Date.now();
       const next = await p.until(`state.song && state.song.ytId===${q(ID.A)} && state.playing`, 12000);
       ok('V7', next && Date.now() - t0 >= 1500, `3초 안내 뒤 다음 예약곡 재생 (${((Date.now() - t0) / 1000).toFixed(1)}초)`);
@@ -341,6 +342,19 @@ export default async function youtube(ctx) {
       await shot('yt-phone-search-412x915.png');
       ok('V1', a.h >= 44 && a.share && nh && r1.n === r1.of && off1,
         `폰 유튜브 탭(멈춘 유튜브 곡): 탭 높이 ${a.h} · [공유] 안내 ${a.share} · 멈춘 영상은 창이 열린 동안 숨음 ${off1} · 닫기·탭·입력칸 눌림 ${r1.n}/${r1.of}${r1.bad.length ? ' (' + r1.bad.join(',') + ')' : ''} · 가로 넘침 ${nh ? '없음' : '있음!'}`);
+      // 디자인 확인 CR-030 #1·#2: 폰에서 재생 전 곡 검색 창은 무대가 min(600px,78vh)로 길어지고, 줄 단추는 다음 줄(겹침 0, 높이 36), ✕ 48, MR 탭 칸 예시 글
+      await p.eval(`ytSetTab('mr')`);
+      await sleep(250);
+      const g = await p.eval(`(()=>{const st=document.querySelector('#stage').getBoundingClientRect(), l=document.querySelector('#searchList'), lr=l.getBoundingClientRect(), x=document.querySelector('#searchClose').getBoundingClientRect();
+        const hit=(a,b)=>a.width&&b.width&&!(a.right<=b.left+0.5||b.right<=a.left+0.5||a.bottom<=b.top+0.5||b.bottom<=a.top+0.5);
+        let over=0, minH=99; const rows=[...l.querySelectorAll('.ov-row')];
+        for (const r of rows) { const cells=[...r.children].filter(c=>!c.classList.contains('acts')).map(c=>c.getBoundingClientRect()); const bs=[...r.querySelectorAll('.acts .btn')].map(b=>b.getBoundingClientRect());
+          for (const b of bs) { minH=Math.min(minH,b.height); for (const c of cells) if (hit(b,c)) over++; } }
+        const full=rows.filter(r=>{const b=r.getBoundingClientRect(); return b.top>=lr.top-1&&b.bottom<=lr.bottom+1}).length;
+        return {sh:Math.round(st.height), want:Math.round(Math.min(600, innerHeight*.78)), lh:Math.round(lr.height), rows:rows.length, full, over, minH:Math.round(minH), xw:Math.round(x.width), xh:Math.round(x.height),
+          ph:document.querySelector('#searchInput').placeholder}})()`);
+      ok('V1', Math.abs(g.sh - g.want) <= 2 && g.rows > 0 && g.over === 0 && g.minH >= 36 && g.xw >= 48 && g.xh >= 48 && g.full >= Math.min(5, g.rows) && g.ph === '제목·가수·번호, 초성(ㅂㅍㅈ)으로 찾기',
+        `폰 곡 검색(재생 전, MR 탭): 무대 높이 ${g.sh} (= min(600, 78vh) ${g.want}) · 목록 ${g.lh}px에 다 보이는 줄 ${g.full}/${g.rows} · 줄 단추 겹침 ${g.over} · 단추 높이 ${g.minH} · ✕ ${g.xw}×${g.xh} · 칸 예시 "${g.ph}"`);
       await p.eval('closeOverlays()');
       await p.eval(`document.querySelector('#stage').scrollIntoView({block:'start'})`);
       await p.eval('play()');
