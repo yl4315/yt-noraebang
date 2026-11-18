@@ -18,12 +18,14 @@ npm run test:ui                  # 화면 자동 점검: 헤드리스 Edge가 �
 
 - **화면을 고친 CR은 끝내기 전에 `npm test`와 `npm run test:ui`를 둘 다 돌린다.**
 - 결과·사진은 PC 임시 폴더 (`--out`으로 바꿈). 저장소 안은 git에서 빠지는 `tests/ui/out/`만. 옵션은 `tests/ui/run.mjs` 맨 위.
-- **기능을 더하거나 바꾸면 `tests/ui/features.json`(기능 번호 → 분류 auto/test/partial/human/device, 조건 P·V·O·M·W·S·L)과 그 번호를 보는 `tests/ui/checks/*.mjs`를 같이 고친다.** 결과표에 223줄이 다 나오는지, 자동 줄에 확인 기록이 있는지 점검이 스스로 본다 (기록이 없으면 실패).
+- **기능을 더하거나 바꾸면 `tests/ui/features.json`(기능 번호 → 분류 auto/test/partial/human/device, 조건 P·V·O·M·W·S·L·H)과 그 번호를 보는 `tests/ui/checks/*.mjs`를 같이 고친다.** 결과표에 233줄이 다 나오는지, 자동 줄에 확인 기록이 있는지 점검이 스스로 본다 (기록이 없으면 실패).
 - Drive가 필요한 흐름은 `tests/ui/checks/devsync.mjs`처럼 페이지 안 `Cloud.api`를 가짜 Drive(메모리)로 바꿔 본다 (`getToken`은 가짜 API면 `'test'`).
   - 실제 Google에는 요청하지 않는다.
   - 이 점검은 같이 쓰는 탭에서 맨 마지막에 돌고 넣은 것을 지운다.
 - 점검 도구는 npm 패키지 없이 CDP로 Edge를 움직인다 (`tests/ui/edge.mjs`).
-- 시험 서버 `tests/ui/serve.py`는 `server.PIN_FILE`을 임시 폴더로 바꾸고 127.0.0.1에만 켠다 (저장소 `.remote.json`을 안 건드림). 밖으로 나가는 요청은 글꼴·QR 라이브러리만 허용, `lrclib.net`은 가짜 답, Google은 막음.
+- 시험 서버 `tests/ui/serve.py`는 `server.PIN_FILE`을 임시 폴더로 바꾸고 127.0.0.1에만 켠다 (저장소 `.remote.json`을 안 건드림). 밖으로 나가는 요청은 글꼴·QR 라이브러리만 허용, `lrclib.net`(`/api/search`·`/api/get`)은 가짜 답, Google은 막음.
+- 허브(CR-227)는 `tests/ui/fakehub.mjs`의 **메모리 가짜 허브**로만 본다: 만든 주소(`qafakehub…`)·가짜 공개 키·점검이 만든 가짜 계정. 로그인·`hub_push`·`hub_pull`·`hub_secret`을 키트 규칙대로 흉내 낸다. 진짜 허브에 요청하면 공통 점검이 실패한다. `checks/hub.mjs`는 새 Edge에 기기 둘(127.0.0.1·localhost = 다른 저장소)을 열고, 맨 마지막에 돈다.
+- 공통 점검 "보안 규칙(CSP)이 막은 것 0": `_lib.mjs` 기록 장치가 `securitypolicyviolation`을 콘솔 오류로 남긴다. 새 바깥 주소를 쓰면 `index.html` CSP에 더한다 (아래 "허브 연결").
 - 점검이 찾은 앱 문제는 고치지 않고 결과표 "점검하다 본 것"에 적는다. 바로 못 고치는 실패는 `features.json`의 `known`(설명 + 맞는 실패 글)으로 "알려진 문제"로 따로 보이게 하고, 고치면 지운다.
 - 점검이 고장을 잡는지: `node tests/ui/selftest.mjs` (사본에서 단축키 C 빼기·검색 ✕ 숨기기·데모곡 번호 바꾸기 → M4·M10·I9·I12·S1·S4가 실패로 나와야 함).
 - `npm test`는 `tests/*.test.js`와 `tests/test_*.py`만 돈다. `tests/ui/` 파일은 이름 모양이 달라 섞이지 않는다.
@@ -80,6 +82,9 @@ npm run test:ui                  # 화면 자동 점검: 헤드리스 Edge가 �
 | `js/remote.js` | 휴대폰 리모컨 중계 (`server.py`의 `/api/remote/*`) |
 | `js/backup.js` | 녹음 Drive 백업, 백업 파일 |
 | `js/devsync.js` | 기기 맞추기: 켤 때 "Drive와 맞추기" 띠, 점수·부른 횟수 기기별 Drive 파일 올리기·받기, 설정 창 "여행 준비" |
+| `js/vendor/supabase-2.117.1.js` | **남의 라이브러리 그대로** (supabase-js UMD, MIT, 맨 위 한 줄만 더함). 고치지 않는다. 판을 바꾸면 파일 이름·`index.html`·`sw.js`를 같이. 라이선스 글은 `js/vendor/LICENSES.txt` |
+| `js/hub.js` | 허브 연결(CR-227): 설정 창 "허브 연결" 칸(코드·로그인·끊기), 곡 설정 보내기·받기(`hubSync`), 허브 열쇠 칸 읽기(`hubYoutubeKey`) |
+| `js/autosync.js` | 무대 "자동 싱크"(LRCLIB `/api/get` → 검색), 싱크 한 줄, "자동 싱크 · 확인해 주세요" |
 | `js/main.js` | 메인 루프, 앱 시작 (항상 마지막) |
 | `remote.html` | 휴대폰 리모컨 화면 (따로 동작, `remote.webmanifest`로 홈 화면 아이콘) |
 | `sw.js` | 서비스 워커: 앱 파일·글꼴을 저장해 오프라인에서도 열리게 |
@@ -139,6 +144,28 @@ npm run test:ui                  # 화면 자동 점검: 헤드리스 Edge가 �
   - Drive `library.json`·백업 파일에 넣지 않는다.
 - 10초(`MR_HELLO_MS`) 안에 창이 `hello`를 안 하면 "못 닿았어요" + [다시 해보기]. 이어진 창이 열려 있으면 다시 누를 때 새로 열지 않는다 (올리는 중인 곡이 끊기지 않게).
 - 화면 점검은 `tests/ui/fake-mr/index.html`(가짜 창, 다른 포트)과 `checks/mr.mjs`. 진짜 창의 진행·실패 안내(U4·U5)는 yena-mr 저장소 시험이 본다.
+
+## 허브 연결 (`js/hub.js`, CR-227)
+
+- 허브 = 회사 Supabase (키트 `supabase/migrations/0001_hub.sql`의 `hub_push`·`hub_pull`, `0008`의 `hub_secret`). 범위 `noraebang`, 모음 `song_settings`. 표·권한은 데이터플랫폼실 것이라 노래방은 함수만 부른다.
+- **연결 값은 이 기기 `nb-hub*`에만**: `nb-hub`(주소·공개 키) · `nb-hub-auth*`(로그인 세션, supabase-js가 씀) · `nb-hub-out`(보낼 곡) · `nb-hub-owner`(처음 계정의 해시 16자리). 백업 파일·`library.json`·`stats-*.json`·화면·콘솔에 넣지 않는다. 비밀번호는 저장하지 않는다.
+  - 받는 값 검사(`hubCodeParse`·`hubPairOk`, core.js): 주소는 `https://<소문자·숫자 20자>.supabase.co`, 키는 공개 키(anon JWT·`sb_publishable_`)만. `sb_secret_`·service_role은 거절.
+  - 주소 `#hub=nbhub1.…`로 열면 저장하고 `history.replaceState`로 `#`을 지운다 (hub.js 맨 위, 다른 화면 그리기 전에).
+- 곡 열쇠 `songSettingsKey`: MR 곡 = 파일 내용 SHA-256 앞 40자 `mr-…`(곡에 `mrHash`·`mrHashSize`로 한 번만 계산), 유튜브 곡 = `yt-<영상번호>`. 제목·가수는 열쇠가 아니다. **MR 소리 파일은 허브에 올리지 않는다.**
+- 곡에 더한 칸(IndexedDB에만, `SONG_FIELDS`·Drive에는 안 넣음): `mrHash`·`mrHashSize` · `baseKey`(곡 기본 키) · `syncChk`(자동 싱크 확인 표시) · `settingsAt`(설정 고친 시각) · `hubK`·`hubSig`·`hubAt`(허브와 맞춘 표시) · `hubRej`(너무 커서 못 보냄).
+- 합치기는 core.js `hubPlan`(나중 시각이 곡 통째로 이김, 지움은 표시만) · `hubMirrorAdd`(받은 줄 사본). 허브 사본은 IndexedDB `cache`의 `hub-songs` 한 줄.
+- 설정을 고치는 곳은 `hubTouch(s)`를 부른다 (가사 타이밍·키·싱크 편집 저장·곡 수정·여러 곡 넣기·자동 싱크). 3초 뒤 맞추기, 1분마다(앞에 있을 때)·앞으로 올 때·인터넷이 돌아올 때도. 실패하면 5분 쉼.
+- 키 두 층: 사용자별 키(`me().keys`)가 이기고, 없으면 허브를 쓸 때만 곡 기본 키(`keyOf`).
+- 허브 코드가 없으면(`nb-hub` 없음) 요청·타이머 0, 지금과 똑같이 돈다 (W12). 허브 함수를 다른 파일에서 부를 때는 `typeof … === 'function'`.
+- 허브 열쇠 칸(YouTube 검색 열쇠)은 `hubYoutubeKey()` 읽기 하나: 로그인 뒤 한 번 읽어 **메모리에만**, `ytSetKey`(CR-030 `yt.js`)가 있으면 넘긴다. 로그아웃·끊기에서 지운다.
+- **CSP** (`index.html` `<meta>`): `script-src`·`connect-src`만 정한다. 새 바깥 주소(스크립트·fetch)를 쓰면 여기에 더한다. 지금: Google 로그인·Drive, cdnjs(QR), YouTube, LRCLIB, `*.supabase.co`(허브). 허브·LRCLIB·사용자 글은 `textContent`로만 넣는다.
+
+## 자동 싱크 (`js/autosync.js`, CR-227 1단계)
+
+- LRCLIB에는 **곡 제목·가수(첫 이름)·MR 길이만** 보낸다 (`lrclibGetParams`). 덧붙이는 머리글 없음 (CORS 미리 묻기가 생김).
+- 정확히 한 곡 찾는 `/api/get` 먼저 → 없거나(404) 맞지 않으면 곡 추가 창과 같은 `findLyrics`(검색) + `chooseLyrics`. 고르는 규칙은 core.js `autoSyncPick`.
+- 연주곡(`instrumental`)이면 가사를 넣지 않고 안내만. 찾으면 `syncChk`를 켜고 "자동 싱크 · 확인해 주세요" 단추 → 싱크 편집에서 저장하거나 가사를 손으로 고치면 `clearSyncCheck`.
+- 싱크 한 줄(`#syncLine` 무대 아래, `#syncLine2` 곡 수정 창): 찾음 / 불러옴(다른 기기) / 못 찾음 [직접 맞추기]. 2단계(집 AI 정렬 W7·W8)는 아직 없음.
 
 ## 녹음 구조
 
