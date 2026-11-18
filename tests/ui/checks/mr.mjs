@@ -60,13 +60,15 @@ export default async function mr(ctx) {
     const noFetch = !/\bfetch\s*\(|XMLHttpRequest|sendBeacon|new\s+WebSocket|EventSource/.test(js);
     const noTail = !/\.ts\.net|\b100\.\d+\.\d+\.\d+\b/.test(js + fs.readFileSync(path.join(ctx.ROOT, 'js', 'core.js'), 'utf8') + fs.readFileSync(path.join(ctx.ROOT, 'index.html'), 'utf8'));
     ctx.common('MR 만들기 코드 점검: sw.js SHELL·목록에 js/mr.js, 스크립트 순서 bulk→mr→main, mr.js가 서버로 요청하지 않음, tailnet 뒷부분·IP 없음',
-      shell === 'yt-shell-v8' && sw.includes("'./js/mr.js'") && order.every(i => i >= 0) && order[0] < order[1] && order[1] < order[2] && noFetch && noTail,
+      shell === 'yt-shell-v9' && sw.includes("'./js/mr.js'") && order.every(i => i >= 0) && order[0] < order[1] && order[1] < order[2] && noFetch && noTail,
       `SHELL ${shell}, 순서 ${order.join('<')}, 요청 코드 ${noFetch ? '없음' : '있음!'}, 뒷부분·IP ${noTail ? '없음' : '있음!'}`);
   });
 
   await step('설정 창 서버 주소 칸: 기본값·틀린 주소 안내·저장(끝 / 뗌)·기본값으로·저장 안 하고 닫기·L2 안내 줄', ['U3'], async () => {
     await p.eval(`localStorage.removeItem('nb-mrserver')`);
-    await p.click('#settingsBtn');
+    // CR-229: 주소 칸은 "서버 주소 보기·바꾸기"(#mrAddr) 안에 접혀 있다 (설정 창을 열 때마다 접힘) → 펴고 본다
+    const openAddr = () => p.eval(`document.querySelector('#mrAddr').open=true`);
+    await p.click('#settingsBtn'); await openAddr();
     const lay = await p.eval(`(()=>{const secs=[...document.querySelectorAll('#cloudDialog .set-sec')].map(s=>s.querySelector('h3').textContent); const i=secs.indexOf('MR 만들기 (집 AI 서버)');
       return {i, prev:secs[i-1], next:secs[i+1], val:document.querySelector('#mrServer').value, hints:[...document.querySelectorAll('#mrSec .hint')].map(h=>h.hidden?'':h.textContent).filter(Boolean)}})()`);
     const save = async v => { await p.eval(`(()=>{const i=document.querySelector('#mrServer'); i.value=${q(v)}; i.dispatchEvent(new Event('input',{bubbles:true}))})()`); await p.click('#mrSave');
@@ -78,11 +80,11 @@ export default async function mr(ctx) {
     const same = await save('http://dgxspark-yena:8765/');
     // 틀린 값을 쳐 두고 저장 없이 닫으면 → 다시 열 때 저장된 값 (지금은 기본값)
     await p.eval(`document.querySelector('#mrServer').value='http://고치다 만 주소'`);
-    await p.click('#cloudClose'); await p.click('#settingsBtn');
+    await p.click('#cloudClose'); await p.click('#settingsBtn'); await openAddr();
     const reopened = await p.eval(`({val:document.querySelector('#mrServer').value, msg:document.querySelector('#mrSetMsg').hidden})`);
     const fin = await save(FAKE);
     await p.click('#cloudClose');
-    ok('U3', lay.i > 0 && lay.prev === '백업 파일' && lay.next === '휴대폰 리모컨' && lay.val === 'http://dgxspark-yena:8765'
+    ok('U3', lay.i > 0 && lay.prev === '백업 파일' && lay.next === '옛 휴대폰 리모컨 (PC에서 켰을 때만 보여요)' && lay.val === 'http://dgxspark-yena:8765'
       && lay.hints.includes("주소창에 '안전하지 않음'이 보여도 집 Tailscale 안에서만 열리는 창이에요") && lay.hints.includes('이 기기에만 저장돼요. 집 밖에서는 Tailscale을 켜 주세요.'),
       `칸 자리 "${lay.prev}" 아래·"${lay.next}" 위, 기본값 ${lay.val}, 안내 ${lay.hints.length}줄 (L2 줄 있음)`);
     ok('U3', bad1.ls === null && bad1.err && bad1.msg === '주소는 http:// 또는 https://로 시작해야 해요 (예: http://dgxspark-yena:8765)' && bad2.ls === null && bad2.err && /@/.test(bad2.msg),

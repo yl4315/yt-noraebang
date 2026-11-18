@@ -203,12 +203,13 @@ export default async function devsync(ctx) {
       ok('P6', miss, '"모두 받기"도 같은 순서·같은 받기: 파일 없는 곡은 건너뛰고 "1곡은 Drive에 파일이 없어요"');
     });
 
-    await step('PC 1280: 설정 창 맨 위 "여행 준비" 구역', ['P9'], async () => {
+    // CR-229: "여행 준비"는 곡 창고 아래 "더 보기 (고급)"의 첫 구역으로 옮김 (고급 켠 상태에서 점검)
+    await step('PC 1280: 설정 창 "더 보기 (고급)" 첫 구역 "여행 준비"', ['P9'], async () => {
       await p.emulate(PC); await sleep(300);
       await p.click('#settingsBtn');
       await shot('cr039-05-settings-pc.png');
-      const top = await p.eval(`document.querySelector('#cloudDialog .set-sec').id`);
-      ok('P9', top === 'travelSec', `설정 창 첫 구역 = ${top}`);
+      const top = await p.eval(`({id:document.querySelector('#advBox .set-sec').id, shown:getComputedStyle(document.querySelector('#advBox')).display!=='none'})`);
+      ok('P9', top.id === 'travelSec' && top.shown, `"더 보기 (고급)" 첫 구역 = ${top.id} (보임 ${top.shown})`);
     });
 
     await step('"연결 끊기" → 다른 기기 기록 사본이 지워지고 이 기기 기록은 남는다', ['O18'], async () => {

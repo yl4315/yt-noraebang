@@ -237,12 +237,12 @@ const md = s => String(s).replace(/\|/g, '\\|').replace(/\n/g, ' ');
 
 function writeResults({ shots, compare, cleanup, edgeErrors, elapsed, aborted }) {
   fs.mkdirSync(OUT, { recursive: true });
-  const rows = FEATURES.features.map(f => { const r = R.get(f.id), s = finalStatus(r); return { id: f.id, area: f.area, cls: f.cls, cond: f.cond || [], status: s.st, detail: s.why, text: f.text }; });
+  const rows = FEATURES.features.map(f => { const r = R.get(f.id), s = finalStatus(r); return { id: f.id, area: f.area, cls: f.cls, hide: !!f.hide, cond: f.cond || [], status: s.st, detail: s.why, text: f.text }; });
   const count = st => rows.filter(x => x.status === st).length;
   const byCls = {}; for (const x of rows) byCls[x.cls] = (byCls[x.cls] || 0) + 1;
   const commonBad = common.filter(c => !c.ok);
   const failed = count('fail') + commonBad.length + (aborted ? 1 : 0);
-  const summary = { ok: failed === 0, elapsedSec: elapsed, total: rows.length, byClass: byCls, byStatus: Object.fromEntries(Object.keys(ST_KO).map(k => [k, count(k)])),
+  const summary = { ok: failed === 0, elapsedSec: elapsed, total: rows.length, byClass: byCls, hidden: rows.filter(x => x.hide).map(x => x.id), byStatus: Object.fromEntries(Object.keys(ST_KO).map(k => [k, count(k)])),
     commonFailed: commonBad.length, slow: timing.slow, conds, condWhy, only: ONLY, shotsOnly: SHOTS_ONLY, root: ROOT, out: OUT, node: process.version, edge: findEdge(), aborted: aborted || null };
   fs.writeFileSync(path.join(OUT, 'results.json'), JSON.stringify({ summary, features: rows, common, findings, shots, compare, cleanup, net: ctx.netLog, lrclib: ctx.lrcLog, pageErrors: edgeErrors }, null, 1));
   const L = [];
@@ -255,7 +255,8 @@ function writeResults({ shots, compare, cleanup, edgeErrors, elapsed, aborted })
   L.push(`- 조건: ${Object.entries(conds).map(([k, v]) => `${k} ${FEATURES.conds[k].split(' (')[0]} = ${v === null ? '확인 안 함' : v ? '됨' : '안 됨' + (condWhy[k] ? ` (${condWhy[k]})` : '')}`).join(' · ')}`);
   L.push('', '## 한눈에', '', '| 결과 | 수 |', '|---|---|');
   for (const k of ['pass', 'fail', 'known', 'skip', 'partial', 'device', 'test', 'human']) L.push(`| ${ST_KO[k]} | ${count(k)} |`);
-  L.push(`| 합계 | ${rows.length} |`, '', `분류(features.json): ${Object.entries(byCls).map(([k, v]) => `${CLS_KO[k]} ${v}`).join(' · ')}`, '');
+  L.push(`| 합계 | ${rows.length} |`, '', `분류(features.json): ${Object.entries(byCls).map(([k, v]) => `${CLS_KO[k]} ${v}`).join(' · ')}`, '',
+    `숨김(CR-229, 기본 화면에서 숨긴 줄 · 점검은 "더 보기 (고급)"을 켠 화면에서 전과 같이): ${rows.filter(x => x.hide).length}줄 ${rows.filter(x => x.hide).map(x => x.id).join(' ')}`, '');
   L.push('## 공통 점검', '', '| 점검 | 결과 | 내용 |', '|---|---|---|');
   for (const c of common) L.push(`| ${md(c.name)} | ${c.ok ? '통과' : '**실패**'} | ${md(c.detail)} |`);
   if (findings.length) {
@@ -271,7 +272,7 @@ function writeResults({ shots, compare, cleanup, edgeErrors, elapsed, aborted })
     for (const x of rows.filter(x => x.status === 'fail')) L.push(`| ${x.id} | ${md(x.text.slice(0, 60))} | ${md(x.detail)} |`);
   }
   L.push('', `## 기능 번호별 (${FEATURES.features.length}줄)`, '', '| 번호 | 분류 | 조건 | 결과 | 내용 | 확인한 것 / 이유 |', '|---|---|---|---|---|---|');
-  for (const x of rows) L.push(`| ${x.id} | ${CLS_KO[x.cls]} | ${x.cond.join('·')} | ${x.status === 'fail' ? '**실패**' : ST_KO[x.status]} | ${md(x.text.length > 70 ? x.text.slice(0, 70) + '…' : x.text)} | ${md(x.detail.length > 400 ? x.detail.slice(0, 400) + '…' : x.detail)} |`);
+  for (const x of rows) L.push(`| ${x.id} | ${CLS_KO[x.cls]}${x.hide ? ' · 숨김' : ''} | ${x.cond.join('·')} | ${x.status === 'fail' ? '**실패**' : ST_KO[x.status]} | ${md(x.text.length > 70 ? x.text.slice(0, 70) + '…' : x.text)} | ${md(x.detail.length > 400 ? x.detail.slice(0, 400) + '…' : x.detail)} |`);
   if (shots?.length) {
     L.push('', `## 스크린샷 (${shots.length}장, \`shots/\`)`, '', '| 파일 | 크기 | 맞음 |', '|---|---|---|');
     for (const s of shots) L.push(`| ${s.file} | ${s.w}×${s.h} | ${s.ok ? '맞음' : '**다름** (기대 ' + s.want + ')'} |`);
@@ -369,7 +370,7 @@ try {
   if ((!ONLY && !CHECKS) || SHOTS_ONLY) shots = await shotMod.default(ctx);
   // 2) 기능 점검
   if (!SHOTS_ONLY) {
-    const order = ['basics', 'songs', 'bulk', 'video', 'reserve', 'profiles', 'keys', 'syncedit', 'tv', 'touch', 'record', 'mic', 'settings', 'backup', 'remote', 'mr', 'youtube', 'offline', 'devsync'];
+    const order = ['basics', 'songs', 'bulk', 'video', 'reserve', 'profiles', 'keys', 'syncedit', 'tv', 'touch', 'record', 'mic', 'settings', 'backup', 'remote', 'mr', 'youtube', 'offline', 'devsync', 'hide'];
     // 마이크는 '거부' 상태로 시작한다 (마이크가 꺼진 채의 안내를 먼저 본다. 가짜 마이크는 mic 점검에서 켠다)
     await ctx.p.eval(`localStorage.setItem('__ui-mic','deny')`);
     ctx.ids = {};
