@@ -79,7 +79,7 @@ export function makeFakeHub() {
     const hdr = Object.fromEntries(Object.entries(req.headers || {}).map(([k, v]) => [k.toLowerCase(), v]));
     // CORS 미리 묻기: 보낸 머리글을 그대로 허락 (Authorization·apikey 등)
     if (m === 'OPTIONS') return json(204, '', { 'access-control-allow-methods': 'GET,POST,PUT,PATCH,DELETE,OPTIONS', 'access-control-allow-headers': hdr['access-control-request-headers'] || 'authorization,apikey,content-type,x-client-info', 'access-control-max-age': '600' });
-    const entry = { m, path: u.pathname, grant: u.searchParams.get('grant_type') || undefined, size: (req.postData || '').length };
+    const entry = { m, path: u.pathname, grant: u.searchParams.get('grant_type') || undefined, size: (req.postData || '').length, origin: hdr.origin || '' };
     H.log.push(entry);
     if (H.mode === 'neterr') { entry.status = 'neterr'; return { fail: 'ConnectionRefused' }; }
     if (H.mode === 'down') { entry.status = 503; return json(503, { message: 'QA 가짜 허브: 일부러 바쁨' }); }

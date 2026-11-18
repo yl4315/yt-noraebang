@@ -296,18 +296,22 @@ export default async function hub(ctx) {
       const marks1 = await pa.eval(`state.songs.filter(s=>s.hubK||s.hubSig).length`);
       ok('W1', (await hubKeys(pa)).length === 0 && (await pa.eval('Hub.conf')) === null && after === before && marks1 === 0, `끊은 뒤: nb-hub* ${(await hubKeys(pa)).length}개 · 곡 ${after.split(',').length}곡 그대로 · 맞춘 표시 ${marks1}`);
       ok('W12', /연결 안 됨/.test(await txt(pa, '#hubState')) && await visible(pa, '#hubCodeRow'), '끊은 뒤 "연결 안 됨" (허브 없이 그대로)');
+      // 기기 2(localhost)는 아직 연결된 채라 그 요청은 빼고, 끊은 기기 1(127.0.0.1)에서 나간 것만 센다
       const nLog = H.log.length; await sleep(1500);
-      ok('W12', H.log.length === nLog, '끊은 뒤 허브 요청 0');
+      const extra = H.log.slice(nLog).filter(e => e.origin !== ctx.localBase), other = H.log.length - nLog - extra.length;
+      ok('W12', extra.length === 0, `끊은 뒤 기기 1의 허브 요청 ${extra.length}개${extra.length ? ' (' + extra.slice(0, 4).map(e => (e.origin || '출처 없음') + ' ' + e.m + ' ' + e.path).join(', ') + ')' : ''} · 아직 연결된 기기 2 요청 ${other}개는 셈에서 뺌`);
       await closeSettings(pa);
     });
     await step('주소 #hub=… 로 열기: 틀린 값은 저장 안 함 · 맞는 값은 저장 · 둘 다 주소에서 # 지움', ['W1'], async () => {
       await openSettings(pb);
       await pb.click('#hubForget'); await pb.click('#hubForget');
       await pb.until(`Hub.conf===null`, 5000);
-      await pb.goto(ctx.localBase + '/index.html?qa=1#hub=nbhub1.qa-bad', READY_DEMO, 150000);
+      // 열기 실패 글에 주소가 그대로 나오므로 # 뒤(가짜 코드)는 가린다
+      const gotoHub = async url => { try { await pb.goto(url, READY_DEMO, 150000); } catch (e) { throw new Error(String(e?.message || e).replace(/#hub=\S*/g, '#hub=(가림)')); } };
+      await gotoHub(ctx.localBase + '/index.html?qa=1#hub=nbhub1.qa-bad');
       const m0 = { t: 0 };
       ok('W1', await sawToast(pb, /이 값은 못 써요/, m0, 5000) && (await pb.eval('location.hash')) === '' && (await hubKeys(pb)).length === 0, `틀린 #hub: 알림 · 주소 "${await pb.eval('location.hash')}" · nb-hub ${(await hubKeys(pb)).length}개`);
-      await pb.goto(ctx.localBase + '/index.html?qa=2#hub=' + hubCode(), READY_DEMO, 150000);
+      await gotoHub(ctx.localBase + '/index.html?qa=2#hub=' + hubCode());
       const conf = await pb.eval(`JSON.parse(localStorage.getItem('nb-hub')||'null')`);
       ok('W1', await sawToast(pb, /허브 코드를 저장했어요/, { t: 0 }, 5000) && (await pb.eval('location.hash')) === '' && !(await pb.eval('location.href')).includes('nbhub1') && conf && conf.u === FAKE_HUB_URL,
         `맞는 #hub: 저장 · 주소에 코드 ${(await pb.eval('location.href')).includes('nbhub1') ? '남음' : '없음'}`);
