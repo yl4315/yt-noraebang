@@ -23,6 +23,7 @@ npm run test:ui                  # 화면 자동 점검: 헤드리스 Edge가 �
   - 실제 Google에는 요청하지 않는다.
   - 이 점검은 같이 쓰는 탭에서 맨 마지막에 돌고 넣은 것을 지운다.
 - 점검 도구는 npm 패키지 없이 CDP로 Edge를 움직인다 (`tests/ui/edge.mjs`).
+- 끝 정리는 **이번 점검이 켠 Edge 프로필만** 끄고 지운다 (`run.mjs` `myProfiles`). 같은 PC에서 다른 가지(worktree)의 점검이 동시에 돌 수 있어서, 이름 앞부분(`yt-ui-check-edge-`)으로 모두 끄지 않는다.
 - 시험 서버 `tests/ui/serve.py`는 `server.PIN_FILE`을 임시 폴더로 바꾸고 127.0.0.1에만 켠다 (저장소 `.remote.json`을 안 건드림). 밖으로 나가는 요청은 글꼴·QR 라이브러리만 허용, `lrclib.net`은 가짜 답, Google은 막음.
 - 점검이 찾은 앱 문제는 고치지 않고 결과표 "점검하다 본 것"에 적는다. 바로 못 고치는 실패는 `features.json`의 `known`(설명 + 맞는 실패 글)으로 "알려진 문제"로 따로 보이게 하고, 고치면 지운다.
 - 점검이 고장을 잡는지: `node tests/ui/selftest.mjs` (사본에서 단축키 C 빼기·검색 ✕ 숨기기·데모곡 번호 바꾸기 → M4·M10·I9·I12·S1·S4가 실패로 나와야 함).
@@ -126,7 +127,8 @@ npm run test:ui                  # 화면 자동 점검: 헤드리스 Edge가 �
 - 검색 열쇠(YouTube Data API)는 **`ytSetKey(글자 또는 함수)`로 메모리에만** (허브 CR-227이 부름). localStorage·IndexedDB·Drive·화면·로그에 쓰지 않는다. 열쇠가 없으면 링크·[공유]·[유튜브에서 열어 찾기]만. 한도(400·403·429)면 이 화면 동안 열쇠 없는 길.
 - 열쇠가 없을 때 곡 제목은 플레이어가 재생할 때 알려 주는 제목(`getVideoData`)으로 채운다. oEmbed 같은 바깥 접속을 더하지 않는다.
 - 폰 [공유]: `manifest.webmanifest` `share_target`(GET `./`, title·text·url) → 켤 때 `ytHandleShare`가 주소 칸을 지우고 확인 창. `sw.js`는 공유 주소를 가로채거나 저장하지 않는다. `start_url`·`scope`는 바꾸지 않는다.
-- TV에서 유튜브 곡이면 `#tv.yt-mode`: 무대는 위 칸, `#tvRemote`가 아래 68px 띠. 이때 `flash()`는 무대 가운데 대신 띠 안(`ytBandNote`)에 뜬다.
+- TV에서 유튜브 곡이면 `#tv.yt-mode`: 무대는 위 칸, `#tvRemote`가 아래 68px 띠. 이때 `flash()`와 `toast()`는 무대 가운데·띠 왼쪽 대신 띠 안(`ytBandNote`)에 뜬다 (yt.js가 두 함수를 감쌈).
+- 폰(무대 폭 640 아래, TV 아님)에서 창(`YT_SPLIT`)이 열리면: 멈춘 영상은 숨기고(창이 무대를 다 씀), 재생 중이면 무대에 `yt-grow`를 붙여 `--yt-cut` + 창 높이만큼 길게 한다 (위 영상 · 아래 창).
 - 화면 점검은 `tests/ui/fake-yt.js`(가짜 플레이어)·`checks/youtube.mjs`. 열쇠는 `run.mjs`의 가짜 글자만 쓴다.
 
 ## 곡 넣기 자동화 (`js/bulk.js`)

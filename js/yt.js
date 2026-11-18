@@ -267,13 +267,18 @@ function ytFrame(force) {
   if (yt && ytApiReady() && Yt.rate !== clamp(state.rate || 1, 0.25, 2)) ytApplyRate();   // 싱크 편집에서 바꾼 배속
   if (yt && !state.playing && Yt.st === 2 && !Yt.pending) state.offset = ytTime();   // 영상 안 단추로 위치를 옮겨도 따라감
   const active = state.playing || Yt.wantPlay || Yt.st === 3;
-  const show = yt && ytApiReady() && Yt.loaded === s.ytId && Yt.err == null && (active || !YT_IDLE.some(ytOpen));
-  const split = show && YT_SPLIT.some(ytOpen);
+  const sr0 = stage.getBoundingClientRect(), narrow = sr0.width < 640, win = YT_SPLIT.some(ytOpen);
+  // 폰(좁은 화면, TV 아님): 멈춰 있는 영상은 창을 열면 숨겨서 창이 무대를 다 쓴다.
+  // 재생 중이면 위 영상 · 아래 창으로 나누고 무대가 창 높이만큼 길어진다 (yt-grow) → 창 머리·닫기가 영상 밑에 깔리지 않는다
+  const phoneWin = narrow && !tvOn && win;
+  const show = yt && ytApiReady() && Yt.loaded === s.ytId && Yt.err == null && (active || (!YT_IDLE.some(ytOpen) && !phoneWin));
+  const split = show && win;
   stage.classList.toggle('yt-on', show);
   stage.classList.toggle('yt-split', split);
+  stage.classList.toggle('yt-narrow', narrow);
+  stage.classList.toggle('yt-grow', split && phoneWin);
   if (!show) { box.classList.add('off'); stage.classList.remove('yt-small'); return; }
   const sr = stage.getBoundingClientRect();
-  const narrow = sr.width < 640; stage.classList.toggle('yt-narrow', narrow);
   const pad = Math.max(6, Math.round(sr.width * 0.012));
   const head = stage.querySelector('.song-head').getBoundingClientRect();
   let L = sr.left + pad, R = sr.right - pad, T = Math.max(sr.top + pad, head.bottom + pad), B;
@@ -332,13 +337,15 @@ function ytBand(on) {
   if ($('#ytBandNext').textContent !== n) $('#ytBandNext').textContent = n;
 }
 const ytBandOn = () => !$('#tv').hidden && $('#tv').classList.contains('yt-mode');
-function ytBandNote(text) {
+function ytBandNote(text, ms) {
   ytBandNoteEl.textContent = text; $('#ytBand').classList.add('note');
-  clearTimeout(Yt.bandNote); Yt.bandNote = setTimeout(() => $('#ytBand').classList.remove('note'), 3000);
+  clearTimeout(Yt.bandNote); Yt.bandNote = setTimeout(() => $('#ytBand').classList.remove('note'), Math.max(3000, ms || 0));
 }
-// 무대 가운데 알림(karaoke.js flash)은 영상 위에 뜨므로, TV 유튜브 띠가 있으면 띠 안으로 보낸다
-const ytFlash0 = flash;
+// 무대 가운데 알림(karaoke.js flash)은 영상 위에 뜨므로, TV 유튜브 띠가 있으면 띠 안으로 보낸다.
+// 아래 알림(util.js toast)도 띠가 있으면 띠 안으로 (띠 왼쪽 제목 위에 겹치거나 영상 위로 올라가지 않게)
+const ytFlash0 = flash, ytToast0 = toast;
 flash = function (text, ms) { if (ytBandOn()) { ytBandNote(text); return; } return ytFlash0(text, ms); };
+toast = function (msg, ms) { if (ytBandOn()) { $('#toast').hidden = true; ytBandNote(msg, ms); return; } return ytToast0(msg, ms); };
 // TV 화면에서 영상(iframe)을 누르면 키보드가 영상 쪽으로 가서 노래방 키가 안 먹는다 → 노래방 쪽으로 돌려 둔다
 addEventListener('blur', () => setTimeout(() => {
   const a = document.activeElement;

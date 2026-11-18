@@ -582,6 +582,10 @@ body:has(#tv:not([hidden])) .yt-box{z-index:20;border-radius:0}
 .stage.yt-split:not(.yt-narrow) .ov-panel{left:50%}
 .stage.yt-split.yt-narrow .ov-panel{top:var(--yt-cut,50%)}
 .stage.yt-split .ov-card{width:100%}
+/* 폰(TV 아님)에서 재생 중에 창을 열면 무대가 창 높이만큼 길어진다: 위 영상 · 아래 창 (js/yt.js ytFrame) */
+.stage.yt.yt-grow{aspect-ratio:auto;max-height:none;height:calc(var(--yt-cut,57vw) + min(480px,64vh))}
+.stage.yt-grow .ov-panel{align-items:stretch}
+.stage.yt-grow .ov-card{overflow:auto}
 .ytag{display:inline-block;font:700 11px/1.5 var(--ui);color:var(--ink);background:var(--panel-2);border:1px solid var(--line);border-radius:var(--r-tag);padding:0 6px;margin-left:6px;vertical-align:1px;letter-spacing:0;white-space:nowrap}
 .ov-row .ytag{font-size:.7em}
 .yt-off{opacity:var(--opacity-disabled,.4)}
@@ -639,6 +643,7 @@ body:has(#tv:not([hidden])) .yt-box{z-index:20;border-radius:0}
 .yt-band-note{display:none;align-items:center;height:44px;padding:0 14px;border:1px solid var(--amber);border-radius:var(--radius-sm,8px);background:var(--panel-2);font-weight:700;min-width:0;overflow:hidden;text-overflow:ellipsis}
 .yt-band.note b,.yt-band.note .yt-band-next{display:none}
 .yt-band.note .yt-band-note{display:flex}
+/* 띠가 있는 동안 아래 알림(toast)은 띠 안 알림 자리로 간다 (js/yt.js) — 띠가 켜지기 전에 떠 있던 알림만 여기 */
 body:has(#tv.yt-mode:not([hidden])) .toast{left:14px;right:auto;transform:none;bottom:12px;max-width:min(44vw,620px)}
 @media (hover:none){
   .tv.yt-mode .tv-remote,.tv.yt-mode.hide-ui .tv-remote{display:flex;width:auto;max-width:none;padding:0 8px}

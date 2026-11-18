@@ -300,6 +300,8 @@ const pinDir = path.join(tmp, 'pin'), dlDir = path.join(tmp, 'downloads');
 fs.mkdirSync(pinDir); fs.mkdirSync(dlDir);
 let mainSrv = null, staticSrv = null, fakeMrSrv = null, aborted = null;
 const browsers = new Set();
+// 이번 점검이 켠 Edge의 프로필 폴더만 (같은 PC에서 다른 직원의 점검이 동시에 돌 수 있어서, 정리는 내 것만 끄고 지운다)
+const myProfiles = new Set();
 let shots = [], compare = null;
 const edgeErrors = [];
 fs.mkdirSync(OUT, { recursive: true });
@@ -331,7 +333,7 @@ try {
   ctx.tmp = tmp;
   ctx.newBrowser = async () => {
     const b = await launchEdge({ downloadDir: dlDir });
-    browsers.add(b);
+    browsers.add(b); myProfiles.add(b.profile);
     const origNew = b.newPage;
     // 탭의 페이지 오류·콘솔 오류는 탭을 닫을 때 모은다
     const collect = p => { if (p.collected) return; p.collected = true; edgeErrors.push(...p.events.map(e => ({ ...e, known: KNOWN.some(k => k.test(e.text + ' ' + (e.url || ''))) }))); };
@@ -397,12 +399,12 @@ try {
 
 // 정리 확인
 const cleanup = [];
-const left = ourEdgeProcesses();
+const left = [...new Set([...myProfiles].flatMap(pr => ourEdgeProcesses(pr)))];
 if (left.length) killPids(left);
 cleanup.push({ name: '헤드리스 Edge 0개 (점검이 켠 것)', ok: left.length === 0, detail: left.length ? `${left.length}개가 남아 있어서 껐어요` : '' });
-const leftProfiles = fs.readdirSync(os.tmpdir()).filter(n => n.startsWith('yt-ui-check-edge-'));
-for (const n of leftProfiles) { try { fs.rmSync(path.join(os.tmpdir(), n), { recursive: true, force: true }); } catch {} }
-cleanup.push({ name: '임시 Edge 프로필 0개', ok: !fs.readdirSync(os.tmpdir()).some(n => n.startsWith('yt-ui-check-edge-')), detail: leftProfiles.length ? `${leftProfiles.length}개 지움` : '' });
+const leftProfiles = [...myProfiles].filter(pr => fs.existsSync(pr));
+for (const pr of leftProfiles) { try { fs.rmSync(pr, { recursive: true, force: true }); } catch {} }
+cleanup.push({ name: '임시 Edge 프로필 0개', ok: ![...myProfiles].some(pr => fs.existsSync(pr)), detail: leftProfiles.length ? `${leftProfiles.length}개 지움` : '' });
 for (let i = 0; i < 10; i++) { try { fs.rmSync(tmp, { recursive: true, force: true }); break; } catch { await sleep(300); } }
 cleanup.push({ name: '임시 폴더(코드 파일·시험 파일·내려받은 파일) 지움', ok: !fs.existsSync(tmp) });
 cleanup.push({ name: '시험 서버 꺼짐', ok: procs.size === 0 });

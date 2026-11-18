@@ -332,8 +332,15 @@ export default async function youtube(ctx) {
       await sleep(300);
       const a = await p.eval(`({h:Math.round(document.querySelector('#searchTabYt').getBoundingClientRect().height), share:!!document.querySelector('#searchList .yt-c-share')})`);
       const nh = await noHScroll(p);
+      // 창 머리의 닫기(✕)·탭·입력칸이 영상 밑에 깔리지 않고 눌리는지 (가운데를 눌렀을 때 그 요소가 맞는지)
+      const reach = () => p.eval(`(()=>{ const sc=document.querySelector('#searchOv'); sc.scrollIntoView({block:'nearest'});
+        const ids=['#searchClose','#searchTabMr','#searchTabYt','#searchInput']; const bad=ids.filter(id=>{const e=document.querySelector(id), r=e.getBoundingClientRect();
+          const h=document.elementFromPoint(r.left+r.width/2, r.top+r.height/2); return !(h && (h===e || e.contains(h)))}); return {n:ids.length-bad.length, of:ids.length, bad}})()`);
+      const r1 = await reach();
+      const off1 = await p.eval(`document.querySelector('#ytBox').classList.contains('off')`);
       await shot('yt-phone-search-412x915.png');
-      ok('V1', a.h >= 44 && a.share && nh, `폰 유튜브 탭: 탭 높이 ${a.h} · [공유] 안내 ${a.share} · 가로 넘침 ${nh ? '없음' : '있음!'}`);
+      ok('V1', a.h >= 44 && a.share && nh && r1.n === r1.of && off1,
+        `폰 유튜브 탭(멈춘 유튜브 곡): 탭 높이 ${a.h} · [공유] 안내 ${a.share} · 멈춘 영상은 창이 열린 동안 숨음 ${off1} · 닫기·탭·입력칸 눌림 ${r1.n}/${r1.of}${r1.bad.length ? ' (' + r1.bad.join(',') + ')' : ''} · 가로 넘침 ${nh ? '없음' : '있음!'}`);
       await p.eval('closeOverlays()');
       await p.eval(`document.querySelector('#stage').scrollIntoView({block:'start'})`);
       await p.eval('play()');
@@ -343,6 +350,22 @@ export default async function youtube(ctx) {
       await shot('yt-phone-play-412x915.png');
       ok('V6', box?.visible && box.w >= 200 && box.h >= 200 && box.x >= 0 && box.x + box.w <= 412 + 1 && hits.n === 5 && nh2,
         `폰 재생: 영상 칸 ${Math.round(box?.w)}×${Math.round(box?.h)} (왼쪽 ${Math.round(box?.x)}) · 5곳 중 ${hits.n}곳 영상 · 가로 넘침 ${nh2 ? '없음' : '있음!'}`);
+      // 재생 중에 곡 검색을 열면: 위 영상 · 아래 창 (무대가 창만큼 길어짐), 영상은 그대로 보이고 창은 영상 아래에서 시작
+      await p.eval(`openSearch('yt')`);
+      await p.until(`document.querySelector('#stage').classList.contains('yt-grow')`, 2000);
+      await sleep(300);
+      await p.eval(`document.querySelector('#stage').scrollIntoView({block:'start'})`);
+      await sleep(200);
+      const pb = await p.rect('#ytBox'), pp = await p.rect('#searchOv'), ph = await boxHits(p), r2 = await reach();
+      await p.eval(`document.querySelector('#stage').scrollIntoView({block:'start'})`);
+      await sleep(150);
+      const nh3 = await noHScroll(p), playing2 = await p.eval('state.playing');
+      await shot('yt-phone-search-playing-412x915.png');
+      ok('V6', pb?.visible && pb.w >= 200 && pb.h >= 200 && pp && pp.y >= pb.y + pb.h - 1 && pp.h >= 360 && ph.n === 5 && r2.n === r2.of && nh3 && playing2,
+        `폰 재생 중 곡 검색: 영상 ${Math.round(pb?.w)}×${Math.round(pb?.h)} 위 · 창 ${Math.round(pp?.h)} 높이 아래 (창 위 ${Math.round(pp?.y)} ≥ 영상 아래 ${Math.round(pb?.y + pb?.h)}) · 5곳 중 ${ph.n}곳 영상 · 닫기·탭·입력칸 눌림 ${r2.n}/${r2.of} · 노래 계속 ${playing2}`);
+      await p.eval('closeOverlays()');
+      const back = await p.until(`!document.querySelector('#stage').classList.contains('yt-grow')`, 2000);
+      ok('V6', back, `창을 닫으면 무대가 원래 크기로 ${back}`);
       await stopAll(p);
       await p.emulate(PC);
       await sleep(300);
@@ -369,7 +392,12 @@ export default async function youtube(ctx) {
       ok('V12', mode && on && rm && Math.abs(rm.h - 68) <= 2 && Math.abs(rm.y + rm.h - 1080) <= 2 && rm.w >= 1900 && bandOk && /QA 시험 유튜브 하나/.test(band0.t) && /QA 시험 유튜브 둘/.test(band0.n),
         `띠 ${Math.round(rm?.w)}×${Math.round(rm?.h)} 맨 아래 · 단추 ${acts.join(' ')} · "${band0.t}" "${band0.n}"`);
       ok('V12', box?.visible && box.y + box.h <= rm.y + 1 && box.w >= 1200 && hits.n === 5, `영상 ${Math.round(box?.w)}×${Math.round(box?.h)} 띠 위에만 (영상 아래 ${Math.round(box?.y + box?.h)} ≤ 띠 ${Math.round(rm?.y)}) · 5곳 중 ${hits.n}곳 영상`);
+      await p.until(`!document.querySelector('#ytBand').classList.contains('note')`, 4000);   // 사진은 띠 안내(3초)가 지나 제목이 보일 때
       await shot('yt-tv-band-1920x1080.png');
+      await p.eval(`toast('QA 시험 아래 알림')`);
+      const tn = await p.until(`document.querySelector('#ytBand').classList.contains('note') && /QA 시험 아래 알림/.test(document.querySelector('.yt-band-note').textContent)`, 2000);
+      const tHid = await p.eval(`document.querySelector('#toast').hidden`);
+      ok('V12', tn && tHid, `아래 알림(toast)도 띠 안으로 ${tn} · 띠 제목·영상 위에 따로 뜬 알림 ${tHid ? '없음' : '있음!'}`);
       await p.key(',');
       const note = await p.until(`document.querySelector('#ytBand').classList.contains('note') && /키를 바꿀 수 없어요/.test(document.querySelector('.yt-band-note').textContent)`, 2500);
       const flashOn = await p.eval(`!document.querySelector('#flash').hidden && /키를 바꿀/.test(document.querySelector('#flash').textContent)`);
