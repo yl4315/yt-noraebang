@@ -69,7 +69,7 @@ export default async function mr(ctx) {
     // CR-229: 주소 칸은 "서버 주소 보기·바꾸기"(#mrAddr) 안에 접혀 있다 (설정 창을 열 때마다 접힘) → 펴고 본다
     const openAddr = () => p.eval(`document.querySelector('#mrAddr').open=true`);
     await p.click('#settingsBtn'); await openAddr();
-    const lay = await p.eval(`(()=>{const secs=[...document.querySelectorAll('#cloudDialog .set-sec')].map(s=>s.querySelector('h3').textContent); const i=secs.indexOf('MR 만들기 (집 AI 서버)');
+    const lay = await p.eval(`(()=>{const secs=[...document.querySelectorAll('#cloudDialog .set-sec')].map(s=>{const h=s.querySelector('h3'); return h?h.textContent:'#'+s.id});   /* 손님 묶음(#guestSec)은 h3 없이 set-group 글만 (CR-228 디자인 확인) */ const i=secs.indexOf('MR 만들기 (집 AI 서버)');
       return {i, prev:secs[i-1], next:secs[i+1], val:document.querySelector('#mrServer').value, hints:[...document.querySelectorAll('#mrSec .hint')].map(h=>h.hidden?'':h.textContent).filter(Boolean)}})()`);
     const save = async v => { await p.eval(`(()=>{const i=document.querySelector('#mrServer'); i.value=${q(v)}; i.dispatchEvent(new Event('input',{bubbles:true}))})()`); await p.click('#mrSave');
       return p.eval(`({ls:localStorage.getItem('nb-mrserver'), val:document.querySelector('#mrServer').value, msg:document.querySelector('#mrSetMsg').hidden?'':document.querySelector('#mrSetMsg').textContent, err:document.querySelector('#mrSetMsg').classList.contains('err')})`); };

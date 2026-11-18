@@ -257,14 +257,14 @@
             <button class="btn small" type="button" data-lyr="0.1" title="가사가 늦게 나오면 (])">+0.1초</button>
             <button class="btn small" type="button" data-lyr="1" title="가사가 늦게 나오면 (Shift+])">+1초</button>
             <span class="sep"></span>
-            <button class="btn small" id="alignBtn" type="button" hidden title="목소리가 있는 원곡 파일을 집 AI가 듣고 이 곡 가사에 시각을 맞춰요 (MR 만들기 창에서 파일을 골라요)">원곡 파일로 자동 싱크</button>
             <button class="btn small" id="syncBtn" type="button" title="가사 싱크 편집기">가사 맞추기</button>
           </div>
           </div>
-          <!-- 자동 싱크 (CR-227): 접힌 "가사 맞추기 ›" 밖에 둬서 고급을 꺼도 보임. 두 단추가 다 숨으면 줄도 숨음 (css #syncTools) -->
+          <!-- 자동 싱크 (CR-227): 접힌 "가사 맞추기 ›" 밖에 둬서 고급을 꺼도 보임. [자동 싱크]·[확인해 주세요]·[원곡 파일로 자동 싱크]가 다 숨으면 줄도 숨음 (css #syncTools) -->
           <div class="lyr-tools" id="syncTools">
             <button class="btn small" id="autoSyncBtn" type="button" hidden title="곡 제목·가수·길이로 LRCLIB에서 시각 붙은 가사를 찾아요">자동 싱크</button>
             <button class="btn small sync-chk" id="syncChkBtn" type="button" hidden title="자동으로 넣은 가사 시각이에요. 가사 맞추기에서 확인하고 저장하면 사라져요">자동 싱크 · 확인해 주세요</button>
+            <button class="btn small" id="alignBtn" type="button" hidden title="목소리가 있는 원곡 파일을 집 AI가 듣고 이 곡 가사에 시각을 맞춰요 (MR 만들기 창에서 파일을 골라요)">원곡 파일로 자동 싱크</button>
           </div>
           <div class="lyr-tools">
             <span>키</span>
@@ -478,6 +478,12 @@
 <dialog id="cloudDialog">
   <div class="mix">
     <h2>Drive · 저장 공간</h2>
+    <!-- 손님 (CR-228): 설정 창 맨 위 — 손님이 올 때마다 여는 칸이라 고급 밖 (디자인 확인 CR-228 2장) -->
+    <p class="set-group">손님</p>
+    <section class="set-sec" id="guestSec">
+      <button class="guest-row" id="guestRow" type="button"><span class="guest-row-ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3zM20 14v.01M14 20h.01M17 20h4v-3"/></svg></span><span class="guest-row-txt"><b>손님 초대 QR</b><small id="guestRowSub">로그인 없이 폰으로 예약</small></span><span class="guest-row-go" aria-hidden="true">›</span></button>
+      <p class="hint" id="guestSetMsg" role="status" hidden></p>
+    </section>
     <p class="set-group">곡 창고</p>
     <section class="set-sec">
       <h3>Google Drive 곡 창고</h3>
@@ -539,11 +545,6 @@
       </div>
       <div class="set-row" id="travelUp" hidden><span class="hint" id="travelUpTxt"></span><button class="btn small" id="travelUpBtn" type="button">지금 맞추기</button></div>
       <p class="hint">① 로그인·맞추기 → ② 남은 공간 보기 → ③ 곡 받기(많이 부른 곡부터) → ④ 영구 저장 → ⑤ 인터넷 없이 켜지는지 확인. 받는 동안 화면을 켜 두세요 (다른 앱으로 가면 멈출 수 있어요). 멈춰도 다시 누르면 이어서 받아요.</p>
-    </section>
-    <section class="set-sec" id="guestSec">
-      <h3>손님</h3>
-      <button class="guest-row" id="guestRow" type="button"><span class="guest-row-ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3zM20 14v.01M14 20h.01M17 20h4v-3"/></svg></span><span class="guest-row-txt"><b>손님 초대 QR</b><small id="guestRowSub">로그인 없이 폰으로 예약</small></span><span class="guest-row-go" aria-hidden="true">›</span></button>
-      <p class="hint" id="guestSetMsg" role="status" hidden></p>
     </section>
     <section class="set-sec">
       <h3>백업 파일</h3>

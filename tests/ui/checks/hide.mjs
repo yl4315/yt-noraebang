@@ -83,7 +83,7 @@ export default async function hide(ctx) {
       const cid = await h.eval('!!Cloud.clientId');
       const SET_HID = ['#advBox', '#travelSec', '#bkExport', '#mrSec', '#mrServer', '#remoteSec', '#storeTxt', '#storeCounts', '#dlAllBtn', '#persistTxt'];
       const off = await hiddenAll(h, SET_HID);
-      const offV = await hiddenAll(h, ['#storeSec .fold-btn', '#hubSec', '#advBtn', '.set-foot']);
+      const offV = await hiddenAll(h, ['#guestSec', '#storeSec .fold-btn', '#hubSec', '#advBtn', '.set-foot']);
       const o = await h.eval(`({sum:document.querySelector('#storeSum').textContent, aria:document.querySelector('#advBtn').getAttribute('aria-expanded'), cadv:getComputedStyle(document.querySelector('#clientAdv')).display})`);
       ok('W13', off.every(x => x[1]) && offV.every(x => !x[1]) && o.aria === 'false' && /^곡 \d+개/.test(o.sum) && (cid ? o.cadv === 'none' : o.cadv !== 'none'),
         `고급 꺼짐: 숨음 ${list(off)} · 보임 ${list(offV)} · 요약 "${o.sum}" · 클라이언트 ID 칸 ${o.cadv === 'none' ? '숨음' : '보임'}(ID ${cid ? '있음' : '없음'})`);
@@ -145,16 +145,23 @@ export default async function hide(ctx) {
       ph = await open(PHONE, ctx.base + '/index.html');
       await ph.click('#settingsBtn');
       await ph.until(`document.querySelector('#storeSum').textContent.length>0`, 3000);
-      const len = () => ph.eval(`(()=>{const m=document.querySelector('#cloudDialog .mix'), d=document.querySelector('#cloudDialog'); return {mix:m.scrollHeight, dlg:Math.round(d.getBoundingClientRect().height), sh:d.scrollHeight}})()`);
+      // 손님 묶음(CR-228, 설정 창 맨 위 — 디자인 확인 CR-228 2장)은 새로 들어온 칸이라 높이를 따로 잰다 ("곡 창고" 묶음 위끝 − 손님 묶음 위끝)
+      const len = () => ph.eval(`(()=>{const m=document.querySelector('#cloudDialog .mix'), d=document.querySelector('#cloudDialog'), g=document.querySelector('#guestSec'), gp=g&&g.previousElementSibling, nx=g&&g.nextElementSibling;
+        const guest = gp && nx ? Math.round(nx.getBoundingClientRect().top - gp.getBoundingClientRect().top) : 0;
+        return {mix:m.scrollHeight, dlg:Math.round(d.getBoundingClientRect().height), sh:d.scrollHeight, guest}})()`);
       const off = await len();
       await shot(ph, 'cr229-06-settings-default-412x915.png');
+      await ph.eval(`document.querySelector('#hubSec').scrollIntoView({block:'end'})`);
+      await shot(ph, 'cr229-06b-settings-default-hub-412x915.png');   // 손님 맨 위 → 곡 창고 → 허브 칸 (디자인 확인용)
+      await ph.eval(`document.querySelector('#cloudDialog').scrollTop=0`);
       await ph.click('#advBtn'); await sleep(150);
       const on = await len();
       await ph.eval(`document.querySelector('#advBtn').scrollIntoView({block:'start'})`);
       await shot(ph, 'cr229-07-settings-adv-412x915.png');
       await ph.click('#advBtn'); await sleep(100);
       await ph.click('#cloudClose');
-      ok('W13', off.mix < on.mix * 0.75 && off.mix <= 1000, `설정 창 내용 길이 고급 꺼짐 ${off.mix}px ↔ 켬 ${on.mix}px (화면 915, 창 높이 ${off.dlg}px)`);
+      ok('W13', off.mix < on.mix * 0.75 && off.mix - off.guest <= 1000 && off.guest > 0 && off.guest <= 160,
+        `설정 창 내용 길이 고급 꺼짐 ${off.mix}px ↔ 켬 ${on.mix}px (화면 915, 창 높이 ${off.dlg}px) · 손님 묶음 ${off.guest}px 빼면 ${off.mix - off.guest}px`);
       await ph.close(); ph = null;
     });
 

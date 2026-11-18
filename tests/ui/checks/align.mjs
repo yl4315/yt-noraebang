@@ -170,6 +170,19 @@ export default async function align(ctx) {
     await shut();
     const vis = async () => ({ stage: await visible(p, '#alignBtn'), text: await p.eval(`document.querySelector('#alignBtn').textContent`) });
     await selectById(p, A.id); const a = await vis();
+    // 자리 (디자인 확인 W7·W8 #1): 접힌 "가사 맞추기 ›"(#lyrTools) 밖, 아래 조작부 #syncTools 끝 ([확인해 주세요] 다음)
+    const pos = await p.eval(`(()=>{const b=document.querySelector('#alignBtn'); return {row:b.parentElement.id, prev:b.previousElementSibling&&b.previousElementSibling.id, last:!b.nextElementSibling, inFold:!!b.closest('#lyrTools')}})()`);
+    await p.eval('applyAdv(false)');
+    const d0 = { auto: await visible(p, '#autoSyncBtn'), align: await visible(p, '#alignBtn'), row: await visible(p, '#syncTools'), fold: !(await visible(p, '#lyrTools')) };
+    let ph = null;
+    try {
+      await p.emulate(PHONE); await sleep(250);
+      await p.eval(`document.querySelector('#syncTools').scrollIntoView({block:'center'})`);
+      ph = { auto: await visible(p, '#autoSyncBtn'), align: await visible(p, '#alignBtn') };
+      await shot('W8-syncTools-기본화면-412.png');
+    } finally { await p.emulate(PC); await sleep(200); await p.eval('applyAdv(true)'); }
+    ok('W8', pos.row === 'syncTools' && pos.prev === 'syncChkBtn' && pos.last && !pos.inFold && d0.auto && d0.align && d0.row && d0.fold && ph && ph.auto && ph.align,
+      `무대 단추 자리 #${pos.row} 끝(앞 #${pos.prev}, "가사 맞추기 ›" ${pos.inFold ? '안' : '밖'}) · 고급 꺼짐: [자동 싱크] ${d0.auto ? '보임' : '숨음'} · [원곡 파일로 자동 싱크] ${d0.align ? '보임' : '숨음'} · "가사 맞추기 ›" 안 칸 ${d0.fold ? '접힌 채' : '펴짐'} · 폰 412 둘 다 ${ph && ph.auto && ph.align ? '보임' : '안 보임'}`);
     await selectById(p, B.id); const b = await vis();
     await selectById(p, N.id); const n = await vis();
     const demo = await p.eval(`(async()=>{const d=state.songs.find(s=>s.demo); if(!d) return null; await selectSong(d); return !document.querySelector('#alignBtn').hidden})()`);

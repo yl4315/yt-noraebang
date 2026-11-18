@@ -512,6 +512,8 @@ input.ren{background:var(--panel);border:1px solid var(--amber);border-radius:va
    .adv-only 고급에서만 · .adv-full 고급에서만(예전 긴 글) · .adv-short 고급이 아닐 때만(짧은 글)
    .fold 안의 .fold-more는 고급이 아니면 .fold-btn("더 보기 ›")을 눌러 .unfold가 된 뒤에만 보인다 */
 html:not(.adv) .adv-only,html:not(.adv) .adv-full,html.adv .adv-short{display:none!important}
+html.adv .tv-idle.guest-on .adv-full{display:none!important}   /* 손님 카드가 떠 있는 동안에는 고급이어도 팁 한 줄 (디자인 확인 CR-228 #3) */
+html.adv .tv-idle.guest-on .adv-short{display:inline!important}
 html:not(.adv) .fold:not(.unfold) .fold-more{display:none!important}
 .fold-btn{display:none}
 html:not(.adv) .fold:not(.unfold) .fold-btn{display:flex}
@@ -699,7 +701,7 @@ body:has(#tv.yt-mode:not([hidden])) .toast{left:14px;right:auto;transform:none;b
    글 12px 회색, 색은 14px 아이콘에만 (찾음 초록 · 불러옴 파랑 · 못 찾음 회색), [직접 맞추기]는 오른쪽 끝 */
 .sync-line{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:4px 0 0;font-size:12px;line-height:20px;color:var(--color-text-muted-strong,var(--muted))}
 .sync-line[hidden]{display:none}
-#syncTools:not(:has(> :not([hidden]))){display:none}   /* [자동 싱크]·[확인해 주세요]가 다 숨으면 빈 줄도 숨김 */
+#syncTools:not(:has(> :not([hidden]))){display:none}   /* [자동 싱크]·[확인해 주세요]·[원곡 파일로 자동 싱크]가 다 숨으면 빈 줄도 숨김 */
 .sync-line svg{flex:none;width:14px;height:14px;color:var(--color-text-muted)}
 .sync-line[data-state=found] svg{color:var(--color-positive,#9CDCAE)}
 .sync-line[data-state=loaded] svg{color:var(--color-info)}
@@ -752,12 +754,15 @@ body:has(#tv.yt-mode:not([hidden])) .toast{left:14px;right:auto;transform:none;b
 #guestOnBox .set-row .btn{min-height:44px}
 @media (prefers-reduced-motion:reduce){.guest-sw input,.guest-sw input::after{transition:none}}
 .guest-card{position:absolute;right:0;bottom:0;max-width:42%;display:flex;align-items:center;gap:.8em;padding:.7em .9em;border-radius:.6em;background:rgba(19,25,56,.94);border:1px solid var(--line);overflow:hidden}
-.guest-card-qr{width:max(96px,6.4em);height:max(96px,6.4em);image-rendering:pixelated;border-radius:.3em;background:#fff;flex:none}
+.guest-card-qr{width:max(96px,16cqw);height:max(96px,16cqw);image-rendering:pixelated;border-radius:.3em;background:#fff;flex:none}
 .guest-card-txt{display:flex;flex-direction:column;gap:.25em;min-width:0;font-size:.8em;line-height:1.35}
 .guest-card-txt b{font-size:1.15em;color:var(--ink)}
 .guest-card-txt span{color:var(--muted)}
 .guest-card-txt small{font-size:.95em;color:var(--cyan)}
 .guest-card-txt .btn{align-self:flex-start;margin-top:.3em;font-size:1em}
 .tv-idle.guest-on .remote-info{display:none!important}   /* 손님 QR이 보이면 옛 휴대폰 리모컨 QR(L6)은 숨김 — 둘 중 하나만 */
+/* 손님 카드가 보이면 점수 칸은 시계 옆으로 (카드가 점수·사용자 줄을 덮지 않게, 디자인 확인 CR-228 #1) */
+.tv-idle.guest-on .idle-right>.best{grid-column:2;grid-row:1;align-self:start;border-top:0;padding-top:0;font-size:.7em;min-width:0}
+.tv-idle.guest-on .best ol li:only-child{white-space:normal}
 .idle-q .t small.who{color:var(--cyan)}
 @media (hover:none){.guest-card-txt .btn{min-height:44px}}

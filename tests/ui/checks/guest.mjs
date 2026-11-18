@@ -5,7 +5,7 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import { PC, PHONE, READY_DEMO, openPage, seedSong, txt, visible, isHidden, count, marks, sawToast, sleep, enterTVNoFs } from './_lib.mjs';
+import { PC, PHONE, TV, READY_DEMO, openPage, seedSong, txt, visible, isHidden, count, marks, sawToast, sleep, enterTVNoFs } from './_lib.mjs';
 import { wav } from '../fixtures.mjs';
 import { FAKE_HUB_HOST, FAKE_HUB_KEY, hubCode, fakeMail, makeFakeRealtime } from '../fakehub.mjs';
 export const areas = ['X'];
@@ -47,7 +47,7 @@ export default async function guest(ctx) {
   await host.s('Page.addScriptToEvaluateOnNewDocument', { source: CONS });
   await host.goto(ctx.base + '/index.html', READY_DEMO, 150000);
   const openGuest = async (b, url, ready = JOIN_READY, ms = 15000) => {
-    const p = await openPage(ctx, PHONE, null, null, b);
+    const p = await openPage({ ...ctx, adv: false }, PHONE, null, null, b);   // 손님 폰에는 점검 도구의 고급 켜기(nb-advanced·__ui-adv)를 넣지 않는다 — X7 "손님 폰 저장 0"을 그대로 재려고
     await R.attach(p, b);
     await p.s('Page.addScriptToEvaluateOnNewDocument', { source: CONS });
     await p.s('Page.navigate', { url });        // p.goto는 실패 글에 주소를 넣어서 쓰지 않는다 (방 이름이 기록에 남지 않게)
@@ -79,6 +79,14 @@ export default async function guest(ctx) {
   await step('허브 없이: 손님 초대 QR 시트 → "허브를 먼저 연결해 주세요" · TV 카드 없음 · Realtime 연결 0', ['X3'], async () => {
     ok('X3', await host.eval(`$('#guestCard').hidden`), 'TV 대기 카드 숨김 (허브 없음)');
     ok('X3', /로그인 없이 폰으로 예약/.test(await txt(host, '#guestRowSub')), '설정 손님 줄: ' + await txt(host, '#guestRowSub'));
+    // 자리 (디자인 확인 CR-228 2장): 설정 창 맨 위 — <h2> 바로 아래 '손님' 묶음, 안에 <h3> 없음, 다음은 '곡 창고' 묶음, 고급 밖
+    await openSettings();
+    const pos = await host.eval(`(()=>{const g=$('#guestSec'), pv=g.previousElementSibling, nx=g.nextElementSibling, pp=pv&&pv.previousElementSibling;
+      const t=e=>e?(e.tagName.toLowerCase()+(e.className?'.'+e.className:'')+':'+e.textContent.trim()):'';
+      return {first:($('#cloudDialog .set-sec')||{}).id, prev:t(pv), next:t(nx), top:t(pp), h3:!!g.querySelector('h3'), inAdv:$('#advBox').contains(g)}})()`);
+    ok('X3', pos.first === 'guestSec' && pos.prev === 'p.set-group:손님' && pos.next === 'p.set-group:곡 창고' && /^h2:/.test(pos.top) && !pos.h3 && !pos.inAdv,
+      `설정 창 첫 구역 #${pos.first} · 앞 "${pos.prev}" · 그 앞 ${pos.top.split(':')[0]} · 뒤 "${pos.next}" · 안 h3 ${pos.h3 ? '있음' : '없음'} · 고급 ${pos.inAdv ? '안' : '밖'}`);
+    await closeDialogs();
     await openSheet();
     await sleep(300);
     const msg = await txt(host, '#guestMsg');
@@ -313,6 +321,38 @@ export default async function guest(ctx) {
       'TV 대기: 손님 QR 카드 보임 · 옛 리모컨 안내 숨김');
     ok('X3', /로그인 없음 · 손님 \d명/.test(await txt(host, '#guestCardSub')), await txt(host, '#guestCardSub'));
     await shot(host, 'x-guest-tv-card.png');
+    // TV 1920 (디자인 확인 CR-228 #1~#3): 점수가 가장 긴 경우(오늘 최고 + 최근 3줄) 카드가 점수·사용자 줄을 덮지 않음 · QR max(96px,16cqw) · 고급을 켜도 팁 한 줄
+    // 점수는 방장 Edge 임시 프로필에만 넣는 시험 기록 (점검 뒤 지움)
+    const scWas = await host.eval(`localStorage.getItem('nb-scores')`);
+    await host.eval(`(()=>{const s0=state.songs.find(s=>s.title==='QA 손님 첫곡')||state.songs.find(s=>!s.demo); const now=Date.now();
+      [70,85,92].forEach((v,i)=>scores.unshift({id:s0.id,no:s0.no,title:s0.title+' (QA 시험 긴 제목 줄임 확인용)',score:v,at:now-(3-i)*1000,who:'QA'}));
+      localStorage.setItem('nb-scores', JSON.stringify(scores)); renderBest(); renderIdleChart();})()`);
+    const advWas = await host.eval(`document.documentElement.classList.contains('adv')`);
+    const over = (a, b) => a && b ? Math.max(0, Math.min(a.right, b.right) - Math.max(a.left, b.left)) * Math.max(0, Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top)) : -1;
+    const measure = () => host.eval(`(()=>{const r=e=>{const b=e.getBoundingClientRect(); return {left:b.left,right:b.right,top:b.top,bottom:b.bottom,w:Math.round(b.width)}};
+      const tip=document.querySelector('.idle-tip'), best=$('#bestBox'), clock=$('#clock');
+      return {card:r($('#guestCard')), qr:r($('#guestCardQr')), best:r(best), user:r($('#idleUser')), clock:r(clock), stage:Math.round(document.querySelector('#stage').getBoundingClientRect().width),
+        bestBeside:getComputedStyle(best).gridColumnStart==='2', tipFull:getComputedStyle(tip.querySelector('.adv-full')).display, tipShort:getComputedStyle($('#idleTipShort')).display, lines:best.querySelectorAll('li').length}})()`);
+    let tv = null, tvAdv = null;
+    try {
+      await host.emulate(TV); await sleep(400);
+      await host.eval('applyAdv(false)'); await sleep(150);
+      tv = await measure();
+      await shot(host, 'x-guest-tv-card-1920.png');
+      await host.eval('applyAdv(true)'); await sleep(150);
+      tvAdv = await measure();
+    } finally {
+      await host.eval(`applyAdv(${advWas})`);
+      await host.emulate(PC); await sleep(300);
+      await host.eval(`(()=>{const v=${JSON.stringify(scWas)}; if(v===null) localStorage.removeItem('nb-scores'); else localStorage.setItem('nb-scores', v); scores.length=0; scores.push(...JSON.parse(v||'[]')); renderBest(); renderIdleChart();})()`);
+    }
+    const pc = await measure();
+    const qrWant = s => Math.max(96, Math.round(s * 0.16));
+    ok('X3', tv && tv.lines === 4 && tv.bestBeside && over(tv.card, tv.best) === 0 && over(tv.card, tv.user) === 0 && Math.abs(tv.qr.w - qrWant(tv.stage)) <= 2 && tv.tipShort !== 'none' && tv.tipFull === 'none',
+      `TV 1920: 점수 ${tv && tv.lines}줄 시계 옆 ${tv && tv.bestBeside} · 카드가 덮는 넓이 점수 ${tv && over(tv.card, tv.best)} · 사용자 줄 ${tv && over(tv.card, tv.user)} · QR ${tv && tv.qr.w}px (무대 ${tv && tv.stage}px의 16%)`);
+    ok('X3', tvAdv && tvAdv.tipFull === 'none' && tvAdv.tipShort !== 'none' && over(tvAdv.card, tvAdv.user) === 0 && over(tvAdv.card, tvAdv.best) === 0,
+      `TV 1920 고급 켬: 팁 ${tvAdv && tvAdv.tipFull === 'none' ? '한 줄(짧은 글)' : '예전 3줄'} · 카드가 덮는 넓이 사용자 줄 ${tvAdv && over(tvAdv.card, tvAdv.user)} · 점수 ${tvAdv && over(tvAdv.card, tvAdv.best)}`);
+    ok('X3', over(pc.card, pc.user) === 0 && over(pc.card, pc.best) === 0 && Math.abs(pc.qr.w - qrWant(pc.stage)) <= 2, `PC 1280 (점수 없음): 카드가 덮는 넓이 사용자 줄 ${over(pc.card, pc.user)} · 점수 ${over(pc.card, pc.best)} · QR ${pc.qr.w}px (무대 ${pc.stage}px)`);
     await host.eval(`$('#guestTvQr').click()`); await sleep(150);
     ok('X3', await host.eval(`$('#guestCard').hidden && !$('#tvIdle').classList.contains('guest-on') && localStorage.getItem('nb-guest-tv')==='0'`), 'TV에 QR 끄기 → 카드 숨김 (nb-guest-tv=0)');
     await host.eval(`$('#guestTvQr').click()`); await sleep(150);

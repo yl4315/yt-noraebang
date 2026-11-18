@@ -131,7 +131,7 @@ npm run test:ui                  # 화면 자동 점검: 헤드리스 Edge가 �
   - 설정 창 `더 보기 (고급)`(`#advBtn`) → `nb-advanced`='1'이면 `<html class="adv">` = 숨기기 전 화면. 끄면(기본) `.adv-only`·`.adv-full`이 숨고 `.adv-short`가 보인다 (`css/app.css` "숨김 정리").
   - 그 자리에서 펴는 칸: `.fold` 안 `.fold-btn`("더 보기 ›")을 누르면 `.unfold` → `.fold-more`가 보인다 (음향 설정 세부, "가사 맞추기 ›", 설정 창 "이 기기에 저장된 곡"). 고급이면 늘 펴져 있다.
   - 음향 설정(`#deckMore`): 고급 꺼짐이면 사람이 펴고 접은 상태를 `nb-deck`에 기억 (처음엔 접힘). 고급 켬이면 예전 규칙 (PC 펼침, ≤560 접힘) — core.js `deckOpenAtStart`.
-  - 설정 창 차례: 곡 창고(Drive · 이 기기에 저장된 곡 · 허브 연결 `#hubSec` — 고급 밖, 디자인 확인 CR-229 #2) → `더 보기 (고급)` 안에 여행 준비 · 백업 파일 · MR 만들기(주소는 `#mrAddr` 안) · 옛 휴대폰 리모컨(`#remoteSec`, 서버로 켰을 때만 `renderRemoteInfo`가 보이게 함 — Pages에서는 고급을 켜도 안 보임, `#advBtn` 작은 글 끝 "옛 휴대폰 리모컨"(`#advSubRemote`)도 그때만).
+  - 설정 창 차례: 손님(`#guestSec`, 맨 위 묶음 — 고급 밖, 디자인 확인 CR-228 2장) → 곡 창고(Drive · 이 기기에 저장된 곡 · 허브 연결 `#hubSec` — 고급 밖, 디자인 확인 CR-229 #2) → `더 보기 (고급)` 안에 여행 준비 · 백업 파일 · MR 만들기(주소는 `#mrAddr` 안) · 옛 휴대폰 리모컨(`#remoteSec`, 서버로 켰을 때만 `renderRemoteInfo`가 보이게 함 — Pages에서는 고급을 켜도 안 보임, `#advBtn` 작은 글 끝 "옛 휴대폰 리모컨"(`#advSubRemote`)도 그때만).
   - 새 칸을 숨길 때는 위 클래스만 쓰고, 그 칸을 보는 화면 점검은 고급 켠 화면에서 그대로 돌게 둔다 (`tests/ui/checks/_lib.mjs` `openPage`가 탭마다 `nb-advanced`='1'). 숨김 자체는 `checks/hide.mjs`(W13).
 
 ## 유튜브 곡 (`js/yt.js`, CR-030)
@@ -193,14 +193,14 @@ npm run test:ui                  # 화면 자동 점검: 헤드리스 Edge가 �
 - LRCLIB에는 **곡 제목·가수(첫 이름)·MR 길이만** 보낸다 (`lrclibGetParams`). 덧붙이는 머리글 없음 (CORS 미리 묻기가 생김).
 - 정확히 한 곡 찾는 `/api/get` 먼저 → 없거나(404) 맞지 않으면 곡 추가 창과 같은 `findLyrics`(검색) + `chooseLyrics`. 고르는 규칙은 core.js `autoSyncPick`.
 - 연주곡(`instrumental`)이면 가사를 넣지 않고 안내만. 찾으면 `syncChk`를 켜고 "자동 싱크 · 확인해 주세요" 단추 → 가사 맞추기(싱크 편집기)에서 저장하거나 가사를 손으로 고치면 `clearSyncCheck`.
-- [자동 싱크]·[확인해 주세요]는 아래 조작부 `#syncTools` 한 줄: 접힌 "가사 맞추기 ›"(`#lyrFold`) 밖이라 고급을 꺼도 보인다. 두 단추가 다 숨으면 줄도 숨는다 (`css/app.css` `#syncTools`).
+- [자동 싱크]·[확인해 주세요]·[원곡 파일로 자동 싱크](`#alignBtn`, 끝)는 아래 조작부 `#syncTools` 한 줄: 접힌 "가사 맞추기 ›"(`#lyrFold`) 밖이라 고급을 꺼도 보인다. 세 단추가 다 숨으면 줄도 숨는다 (`css/app.css` `#syncTools`).
 - 싱크 한 줄(`#syncLine` 무대 아래, `#syncLine2` 곡 수정 창): 찾음 / 불러옴(다른 기기) / 못 찾음 [직접 맞추기] / 집 AI가 맞추는 중 [그만두기] / 집 AI 오류 글.
 
 ## 집 AI 가사 정렬 (CR-227 2단계 W7·W8, `js/mr.js`·`js/autosync.js`·`js/bulk.js`)
 
 - 노래방은 여전히 서버에 요청하지 않는다. 정렬도 MR 만들기 창(yena-mr `web/index.html`)이 하고, 노래방은 `postMessage`로 가사를 주고 결과만 받는다. 받는 모양 검사는 `core.js mrMessageOk` (`files.lrc`·`lyrics_req`·`aligned`·`hello.caps`), 넣을 곡 가사는 `mrLyricsFor`·`alignLyricsText`, 오류 글은 `ALIGN_ERR_TEXT` (yena-mr `app/errors.py`와 같은 뜻).
 - W7 (MR 만들 때 같이): 창의 `lyrics_req`에 곡마다 답한다 (`mrAnswerLyrics`) — 노래방에 같은 곡(제목·가수)이 있으면 그 가사, 없으면 LRCLIB `/api/get`(제목·가수·길이만, 8초). 시각이 이미 있으면 `synced:true`(글 안 보냄, 창이 맞추지 않음). `files.lrc`는 여러 곡 넣기 창에서 보통·높음 = `✔ 집 AI 시각 · 확인해 주세요`(W9 표시 `syncChk`) · 낮음 = 후보로만.
-- W8 (원곡 파일로 자동 싱크): 무대(시각 없음·확인 표시 곡)·곡 수정 창(가사가 있는 곡) 단추 → `alignStart`가 클릭 안에서 같은 이름 창 `yena-mr`을 열고 `hello` 뒤 `align_req`. 기다리는 요청은 `Align.want` (창이 다시 인사하면 다시 보냄, 창은 같은 곡을 한 줄로). 10초 안에 인사가 없거나 인터넷이 없으면 "집 AI에 닿지 않아요 · 집에 가면 다시 해요".
+- W8 (원곡 파일로 자동 싱크): 무대(`#syncTools`, 시각 없음·확인 표시 곡)·곡 수정 창(가사가 있는 곡) 단추 → `alignStart`가 클릭 안에서 같은 이름 창 `yena-mr`을 열고 `hello` 뒤 `align_req`. 기다리는 요청은 `Align.want` (창이 다시 인사하면 다시 보냄, 창은 같은 곡을 한 줄로). 10초 안에 인사가 없거나 인터넷이 없으면 "집 AI에 닿지 않아요 · 집에 가면 다시 해요".
 - 결과 넣기는 `alignApply`: `level` low → "가사 시각이 많이 틀릴 수 있어요. 넣을까요?", 이미 시각 있는 가사 → "이미 시각이 있는 가사예요. 바꿀까요?" (둘 다 처음 초점·Esc = 넣지 않기). 넣으면 `syncChk` + `hubTouch` (허브 길 그대로). 맞추는 사이 가사를 고쳤으면 넣지 않고 `ack{n:0}`. 다른 창이 열려 있으면 `nack busy`.
 - 화면 점검: `tests/ui/checks/align.mjs` + 가짜 창 `tests/ui/fake-mr/index.html` (caps·aligned 흉내). 진짜 창 쪽은 yena-mr `tools/w7_check.py`.
 
@@ -216,8 +216,8 @@ npm run test:ui                  # 화면 자동 점검: 헤드리스 Edge가 �
 - 방을 닫는 때: [방 닫기] · [새 QR 만들기](새 방) · 노래방 화면 닫기(`pagehide`) · 허브 연결 끊기·바꾸기(`guestTick`이 1초마다 `Hub.sb`를 봄). 닫으면 손님에게 `closed`를 보내고 방 이름·손님 이름·예약 표를 메모리에서도 지운다.
 - 예약 목록의 손님 이름은 `guestNickAt(i)`(karaoke.js `renderQueue`·`renderQueueList`가 `typeof`로 부름). 방이 닫혀 있으면 ''.
 - 이 기기 설정: `nb-guest-tv`(`'0'` = TV에 QR 안 보임) · `nb-guest-key`(`'0'` = 손님 키 바꾸기 끔). 기본은 둘 다 켬이라 키를 안 만든다.
-- TV 대기 카드 `#guestCard`: 방이 열려 있으면 QR(`#tvIdle.guest-on`이면 옛 리모컨 안내 `#remoteInfo`는 숨김), 닫혀 있으면 허브가 있을 때만 [손님 QR 켜기]. `server.py` 휴대폰 리모컨(N1~N21)은 그대로.
-- 손님 화면 CSP는 `guest.html` `<meta>`에 따로: `default-src 'none'`, 스크립트·스타일은 `'self'`, 바깥은 `https://*.supabase.co`·`wss://*.supabase.co`만. `sw.js`는 손님 파일도 저장하지만(`SHELL` v9) 허브 요청은 저장하지 않는다.
+- TV 대기 카드 `#guestCard`: 방이 열려 있으면 QR(`#tvIdle.guest-on`이면 옛 리모컨 안내 `#remoteInfo`는 숨김), 닫혀 있으면 허브가 있을 때만 [손님 QR 켜기]. 카드가 보이면 점수 칸은 시계 옆(`.idle-right>.best` 1행 2열)·팁은 고급이어도 한 줄, QR은 `max(96px,16cqw)` (디자인 확인 CR-228 #1~#3). `server.py` 휴대폰 리모컨(N1~N21)은 그대로.
+- 손님 화면 CSP는 `guest.html` `<meta>`에 따로: `default-src 'none'`, 스크립트·스타일은 `'self'`, 바깥은 `https://*.supabase.co`·`wss://*.supabase.co`만. `sw.js`는 손님 파일도 저장하지만(`SHELL` v11) 허브 요청은 저장하지 않는다.
 - 알려진 한계: 공개 broadcast라 방 이름을 아는 손님은 방장 답(`h`)을 흉내 낼 수 있다 (다른 손님 화면에 가짜 `closed`·목록). 손님 화면은 `textContent`로만 넣어서 스크립트는 못 넣는다.
 
 ## 녹음 구조

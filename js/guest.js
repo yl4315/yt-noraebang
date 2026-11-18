@@ -50,6 +50,7 @@
     const m = MSG[p];
     $('#scrMsg').hidden = !m; $('#msgFoot').hidden = !(m && m.retry);
     $('#scrJoin').hidden = p !== 'join'; $('#scrMain').hidden = p !== 'main';
+    if (p !== 'main') $('#toast').hidden = true;
     if (m) {
       $('#msgIco').innerHTML = ICON[m.icon || p] || ICON.wait;   // 고정된 그림만 (손님·방장 글은 안 들어감)
       $('#msgBig').textContent = m.big; $('#msgBody').textContent = m.body;

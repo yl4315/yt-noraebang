@@ -251,7 +251,7 @@ export default async function hub(ctx) {
       await pa.until(`!state.sync`, 3000);
       const x = await song(pa, s2);
       ok('W9', !x.chk && await isHidden(pa, '#syncChkBtn'), `저장 뒤 표시 ${x.chk ? '남음' : '사라짐'}`);
-      ok('W9', await isHidden(pa, '#autoSyncBtn') && await isHidden(pa, '#syncTools'), '두 단추가 다 숨으면 빈 줄(#syncTools)도 숨음');
+      ok('W9', await isHidden(pa, '#autoSyncBtn') && await isHidden(pa, '#alignBtn') && await isHidden(pa, '#syncTools'), '[자동 싱크]·[확인해 주세요]·[원곡 파일로 자동 싱크]가 다 숨으면 빈 줄(#syncTools)도 숨음');
       const up = await waitNode(() => rowOf(K2) && rowOf(K2).data.chk === undefined, 15000);
       ok('W9', up, '허브 줄의 확인 표시도 사라짐');
     });

@@ -172,7 +172,7 @@ function alignConfirm(s, ask) {
   if (!dlg) return Promise.resolve(false);
   const swap = ask.overwrite && !ask.low;
   $('#alignTitle').textContent = ask.low ? '가사 시각이 많이 틀릴 수 있어요. 넣을까요?' : '이미 시각이 있는 가사예요. 바꿀까요?';
-  $('#alignTxt').textContent = `'${s.title}' · ` + (ask.low && ask.overwrite ? '지금 있는 가사 시각 대신 들어가요. ' : swap ? '집 AI가 맞춘 시각으로 바꿔요. ' : '') + '넣은 뒤에도 싱크 편집에서 고칠 수 있어요';
+  $('#alignTxt').textContent = `'${s.title}' · ` + (ask.low && ask.overwrite ? '지금 있는 가사 시각 대신 들어가요. ' : swap ? '집 AI가 맞춘 시각으로 바꿔요. ' : '') + '넣은 뒤에도 [가사 맞추기]에서 고칠 수 있어요';
   $('#alignYes').textContent = swap ? '바꾸기' : '넣기';
   $('#alignNo').textContent = swap ? '바꾸지 않기' : '넣지 않기';
   // 단추는 바로 답한다 (close 이벤트가 늦거나 안 올 때도). Esc·창 닫힘은 close로 = 넣지 않기
