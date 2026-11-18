@@ -1,11 +1,14 @@
 // 가짜 유튜브 IFrame API (CR-030 화면 점검 전용). 점검이 https://www.youtube.com/iframe_api 요청을 가로채 이 파일을 준다 → 진짜 유튜브에 닿지 않는다.
 // 진짜 API처럼: new YT.Player(el, { events: { onReady, onStateChange, onError } }), cueVideoById·playVideo·pauseVideo·seekTo·getCurrentTime·
 // getDuration·getVideoData·setPlaybackRate. 상태 -1 시작 전 · 0 끝 · 1 재생 · 2 일시정지 · 3 버퍼링 · 5 올려 둠. 올려 둔 영상에 seekTo를 하면 재생이 시작된다 (진짜와 같음).
-// 점검이 정하는 것: window.__ytVideos[id] = { title, author, dur(초), err(오류 번호) } · window.__ytBlockAutoplay = true면 사람이 누르지 않은 재생은 무시.
+// 점검이 정하는 것: window.__ytVideos[id] = { title, author, dur(초), err(오류 번호) } · window.__ytBlockAutoplay = true면 사람이 누르지 않은 재생은 무시
+// (폰 크롬 흉내: 1초 안에 진짜 누름·키(isTrusted)가 없었던 playVideo는 막힘. 점검의 eval은 누름으로 치지 않는다).
 // 부른 것은 window.__ytFake.calls에 적는다.
 (() => {
   const V = id => (window.__ytVideos || {})[id] || {};
   const log = window.__ytFake = { calls: [], players: [], host: null, vars: null };
+  let lastTap = -1e9;
+  for (const ev of ['pointerdown', 'keydown', 'touchstart']) addEventListener(ev, e => { if (e.isTrusted) lastTap = performance.now(); }, true);
   const NAMES = { '-1': '시작 전', 0: '끝', 1: '재생 중', 2: '일시정지', 3: '버퍼링', 5: '올려 둠' };
   class Player {
     constructor(el, o = {}) {
@@ -27,7 +30,7 @@
     playVideo() {
       log.calls.push(['play']);
       if (this._err()) return;
-      if (window.__ytBlockAutoplay && !(navigator.userActivation && navigator.userActivation.isActive)) { log.calls.push(['blocked']); return; }
+      if (window.__ytBlockAutoplay && performance.now() - lastTap > 1000) { log.calls.push(['blocked']); return; }
       setTimeout(() => { this.at = performance.now(); this._emit(1); }, 20);
     }
     pauseVideo() { log.calls.push(['pause']); this.t = this._now(); this._emit(2); }

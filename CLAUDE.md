@@ -80,6 +80,7 @@ npm run test:ui                  # 화면 자동 점검: 헤드리스 Edge가 �
 | `js/remote.js` | 휴대폰 리모컨 중계 (`server.py`의 `/api/remote/*`) |
 | `js/backup.js` | 녹음 Drive 백업, 백업 파일 |
 | `js/devsync.js` | 기기 맞추기: 켤 때 "Drive와 맞추기" 띠, 점수·부른 횟수 기기별 Drive 파일 올리기·받기, 설정 창 "여행 준비" |
+| `js/yt.js` | 유튜브 곡 (CR-030): 공식 IFrame 플레이어, 검색 창 [유튜브 노래방 검색] 탭(링크·열쇠 검색·열어 찾기), 폰 [공유] 받기, 재생 못 함·눌러서 시작 안내, TV 유튜브 띠. `main.js` 바로 앞 |
 | `js/main.js` | 메인 루프, 앱 시작 (항상 마지막) |
 | `remote.html` | 휴대폰 리모컨 화면 (따로 동작, `remote.webmanifest`로 홈 화면 아이콘) |
 | `sw.js` | 서비스 워커: 앱 파일·글꼴을 저장해 오프라인에서도 열리게 |
@@ -115,6 +116,18 @@ npm run test:ui                  # 화면 자동 점검: 헤드리스 Edge가 �
 - 로그인 창은 누른 줄에서 바로 열어야 막히지 않는다: 띠·여행 준비 버튼은 `await` 앞에서 `syncNow({ interactive: true })`를 부른다. `syncNow`는 `{ ok, newSongs, devices }` / `{ ok: false, error }` / `{ busy }`를 돌려준다. 로그인 토큰은 저장하지 않는다.
 - 여러 곡 받기는 `downloadSongs(list)` 하나 ("모두 받기"·여행 준비): 404·403은 건너뛰고, 로그인 끝남·끊김·공간 부족·멈추기에서 멈춘다. `ensureMedia`는 기기에 저장한 뒤에만 `s.blob`을 넣는다.
 - 사용자에게 보이는 글은 쉬운 한국어로, 이유와 해결 방법을 같이 쓴다.
+
+## 유튜브 곡 (`js/yt.js`, CR-030)
+
+- 곡 하나 = `source:'yt'` + `ytId`(영상 번호 11자) (+ 플레이어가 알려 준 길이 `ytDur`). 판정은 `core.js isYtSong`, 찾기는 `findYtSong`. 파일(`blob`·`fileId`)이 없다.
+- **재생 소스 층(R3)**: `playback.js`의 `play`·`pause`·`stopPlayback`·`seekTo`·`onFinish`·`curTime`·`dur`는 `ytSong()`이면 `ytPlay`·`ytPause`·`ytStop`·`ytSeek`·`ytTime`·`ytDur`로 보낸다. MR 곡 길은 그대로. "곡 준비됨"은 `songReady(s)` (`s.buffer`를 직접 보지 않는다).
+- 약관: 공식 IFrame API(`https://www.youtube.com/iframe_api`, 플레이어 host는 youtube-nocookie)만. 영상은 보이는 채로, 노래방 요소가 위에 겹치지 않게(`ytFrame`이 무대 빈 곳에 16:9로 놓음), 200×200 아래로 줄이지 않는다. 화면이 숨으면 멈춘다. **영상 소리를 Web Audio에 잇거나 녹음·내려받기하는 코드를 넣지 않는다** (화면 점검 V6이 `yt.js`를 훑어 봄).
+- 유튜브 곡은 키·녹음·반주 볼륨을 끈다 (`setKey`·`setArmed`·`bumpMr`가 안내만). 점수는 마이크 + `curTime()`(= `ytTime`)이라 그대로 켜 둔다.
+- 검색 열쇠(YouTube Data API)는 **`ytSetKey(글자 또는 함수)`로 메모리에만** (허브 CR-227이 부름). localStorage·IndexedDB·Drive·화면·로그에 쓰지 않는다. 열쇠가 없으면 링크·[공유]·[유튜브에서 열어 찾기]만. 한도(400·403·429)면 이 화면 동안 열쇠 없는 길.
+- 열쇠가 없을 때 곡 제목은 플레이어가 재생할 때 알려 주는 제목(`getVideoData`)으로 채운다. oEmbed 같은 바깥 접속을 더하지 않는다.
+- 폰 [공유]: `manifest.webmanifest` `share_target`(GET `./`, title·text·url) → 켤 때 `ytHandleShare`가 주소 칸을 지우고 확인 창. `sw.js`는 공유 주소를 가로채거나 저장하지 않는다. `start_url`·`scope`는 바꾸지 않는다.
+- TV에서 유튜브 곡이면 `#tv.yt-mode`: 무대는 위 칸, `#tvRemote`가 아래 68px 띠. 이때 `flash()`는 무대 가운데 대신 띠 안(`ytBandNote`)에 뜬다.
+- 화면 점검은 `tests/ui/fake-yt.js`(가짜 플레이어)·`checks/youtube.mjs`. 열쇠는 `run.mjs`의 가짜 글자만 쓴다.
 
 ## 곡 넣기 자동화 (`js/bulk.js`)
 

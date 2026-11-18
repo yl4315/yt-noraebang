@@ -22,8 +22,12 @@ self.addEventListener('fetch', e => {
   // 리모컨 중계(/api/)는 실시간 통신이라 저장하지 않는다
   if (url.origin === location.origin && url.pathname.startsWith('/api/')) return;
 
-  // 폰 유튜브 앱 [공유]로 연 주소(?title=&text=&url=, CR-030)는 저장하지 않는다 (공유한 글이 캐시에 남지 않게)
-  if (url.origin === location.origin && ['title', 'text', 'url'].some(k => url.searchParams.has(k))) return;
+  // 폰 유튜브 앱 [공유]로 연 주소(?title=&text=&url=, CR-030)는 저장하지 않는다 (공유한 글이 캐시에 남지 않게).
+  // 인터넷이 끊겨 있으면 저장해 둔 앱 화면으로 연다 (앱이 "인터넷이 끊겨서…"를 알려 줌)
+  if (url.origin === location.origin && ['title', 'text', 'url'].some(k => url.searchParams.has(k))) {
+    if (req.mode === 'navigate') e.respondWith(fetch(req).catch(() => caches.match('./index.html').then(hit => hit || Response.error())));
+    return;
+  }
 
   // 앱 파일: 인터넷이 되면 항상 최신 파일, 안 되면 저장해 둔 파일
   if (url.origin === location.origin) {

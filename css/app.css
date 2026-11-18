@@ -594,8 +594,8 @@ body:has(#tv:not([hidden])) .yt-box{z-index:20;border-radius:0}
 .yt-err b{font:400 1.25em/1.3 var(--display)}
 .yt-err span{color:var(--muted)}
 /* 곡 검색 창: [내 MR 보관함 | 유튜브 노래방 검색] (높이 48) */
-.seg{display:flex;background:var(--room);border-radius:var(--radius-sm,8px);padding:3px;min-height:48px;flex:none}
-.seg-b{flex:1;border:0;border-radius:6px;background:none;color:var(--muted);font:600 1em var(--ui);white-space:nowrap;min-height:42px;padding:0 .6em}
+.seg{display:flex;background:var(--room);border-radius:var(--radius-sm,8px);padding:2px;min-height:48px;flex:none}
+.seg-b{flex:1;border:0;border-radius:6px;background:none;color:var(--muted);font:600 1em var(--ui);white-space:nowrap;min-height:44px;padding:0 .6em}
 .seg-b.on{background:var(--panel-2);color:var(--ink);font-weight:800;box-shadow:inset 0 -2px 0 var(--amber)}
 .yt-card{display:flex;flex-direction:column;gap:.3em;margin:.6em;padding:.8em 1em;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius-md);color:var(--ink)}
 .yt-card-h{font-weight:800;font-size:1.05em}
