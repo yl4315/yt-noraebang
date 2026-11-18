@@ -4,7 +4,7 @@
 // 집 AI·진짜 LRCLIB·허브에는 요청하지 않는다. 가사는 만든 시험 글만, 소리는 시험 사인파(fixtures)만.
 import fs from 'node:fs';
 import path from 'node:path';
-import { seedSong, selectById, visible, marks, sawToast, sleep, q, stopAll } from './_lib.mjs';
+import { seedSong, selectById, visible, marks, sawToast, sleep, q, stopAll, PC, PHONE } from './_lib.mjs';
 import { LRC_SHORT, PLAIN } from '../fixtures.mjs';
 export const areas = ['W'];
 
@@ -72,6 +72,10 @@ export default async function align(ctx) {
   // 물음 창 단추를 누르고 창이 닫힐 때까지 (사람처럼 바로 다음 것을 읽지 않음)
   const answer = async sel => { await press(sel); await p.until(`!document.querySelector('#alignDialog').open`, 2000); await sleep(150); };
   const shut = () => p.eval(`document.querySelectorAll('dialog[open]').forEach(d=>d.close())`);
+  // 디자인·검수용 사진 (바뀐 화면만): 실패해도 점검은 이어 감
+  const shotDir = ctx.shotsDir; fs.mkdirSync(shotDir, { recursive: true });
+  const shot = async name => { try { await sleep(350); await p.shot(path.join(shotDir, name)); } catch (e) { ctx.log('  (사진 실패 ' + name + ': ' + e.message + ')'); } };
+  const shotPhone = async name => { try { await p.emulate(PHONE); await shot(name); } finally { await p.emulate(PC); await sleep(200); } };
 
   // 시험 곡: 시간 없는 가사(가) · 시각 있는 가사(나) · 시간 없는 가사(다, 물음용) · 가사 없음(라)
   const A = await seedSong(p, { title: 'QA 시험 정렬곡', artist: 'QA가수P', lyrics: PLAIN, wav: ctx.fx.plain });
@@ -137,6 +141,8 @@ export default async function align(ctx) {
       && no.st === 'none' && !no.ai && /집 AI 시각 1/.test(h.sum),
       `높음 "${hi.show}" · 낮음 "${lo.show}"(후보 ${lo.items}개, 저절로 안 넣음) · 없음 "${no.show}" · 머리 "${h.sum}" · 창에 ack {n:3}`);
     // 낮음 줄을 펴서 후보 글을 보고 고른다
+    await p.eval(`(()=>{const r=Bulk.rows.find(x=>x.title==='QA 시험 낮은판'); if(r){r.open=true; paintRow(r)}})()`);
+    await shot('W7-여러곡-집AI시각-1280.png');
     const item = await p.eval(`(()=>{const r=Bulk.rows.find(x=>x.title==='QA 시험 낮은판'); r.open=true; paintRow(r); const b=r.el.querySelector('.lrc-results li button');
       const out={nm:b.querySelector('.nm').textContent, s:b.querySelector('.s').textContent, tag:b.querySelector('.tag').textContent, plain:b.querySelector('.tag').classList.contains('plain'), msg:r.el.querySelector('.bk-msg').textContent};
       b.click(); return Object.assign(out,{st:r.st})})()`);
@@ -183,6 +189,8 @@ export default async function align(ctx) {
     await p.click('#alignBtn');
     const busy = await lineOf(p);
     const dis = await p.eval(`document.querySelector('#alignBtn').disabled`);
+    await shot('W8-맞추는중-1280.png');
+    await shotPhone('W8-맞추는중-412.png');
     pop = await attachPopup(ctx, FAKE);
     const info = pop && await pop.ev(`({url:location.href, name:window.name, opener:!!window.opener})`);
     const req = pop && await waitReq(A.id) ? (await got(`m.type==='align_req'`))[0] : null;
@@ -221,6 +229,7 @@ export default async function align(ctx) {
         no:document.querySelector('#alignNo').textContent, focus:document.activeElement && document.activeElement.id})`);
     };
     const d1 = await ask();
+    await shot('W8-낮음-물음-1280.png');
     const acked = (await got(`m.type==='ack' && m.songId===${q(C.id)}`)).map(m => m.n).join(',');
     await answer('#alignNo');
     await p.until(`(AutoSync.last.get(${q(C.id)})||{}).text===${q(T.skip)}`, 2000);
@@ -285,6 +294,7 @@ export default async function align(ctx) {
       await pop.ev(`sendAligned(${q({ songId: A.id, error: code })})`);
       await p.until(`document.querySelector('#syncLine').dataset.state==='none'`, 3000);
       res[code] = await lineOf(p);
+      if (code === 'no_vocals') await shot('W10-목소리없음-1280.png');
       res[code].ack = (await got(`m.type==='ack'`)).length;
     }
     const s = await songOf(p, A.id);
@@ -387,6 +397,7 @@ export default async function align(ctx) {
     await p.click('#alignBtn');
     await sleep(200);
     const off = await lineOf(p);
+    await shot('W8-집밖-1280.png');
     const opened = (await ctx.browser.send('Target.getTargets')).targetInfos.some(x => x.type === 'page' && x.url.startsWith(FAKE));
     await p.offline(false); await sleep(200);
     // 창이 인사 없음 (가짜 서버의 없는 곳 = 404 화면): 기다리는 시간을 줄여서 본다 (진짜는 10초)
@@ -417,15 +428,15 @@ export default async function align(ctx) {
     await sleep(300);
   });
 
-  await step('W7·W8 코드 점검: sw.js SHELL 그대로(새 파일 없음) · mr.js가 서버로 요청하지 않음 · 가사 글이 밖으로 안 나감', ['W8'], async () => {
+  await step('W7·W8 코드 점검: sw.js SHELL v8 이상(W7·W8은 새 파일 없음) · mr.js가 서버로 요청하지 않음 · 가사 글이 밖으로 안 나감', ['W8'], async () => {
     const sw = fs.readFileSync(path.join(ctx.ROOT, 'sw.js'), 'utf8'), js = fs.readFileSync(path.join(ctx.ROOT, 'js', 'mr.js'), 'utf8');
-    const shell = /const SHELL = '([^']+)'/.exec(sw)?.[1];
+    const shell = /const SHELL = '([^']+)'/.exec(sw)?.[1], shellOk = +(/^yt-shell-v(\d+)$/.exec(shell || '')?.[1] || 0) >= 8;
     const noFetch = !/\bfetch\s*\(|XMLHttpRequest|sendBeacon|new\s+WebSocket|EventSource/.test(js);
     const star = /postMessage\([^)]*['"]\*['"]\s*\)/.test(js);
     const leak = ctx.netLog.filter(n => /QA 시험 (시간 없는|하나|바깥 첫)/.test(decodeURIComponent(n.url)));
-    ctx.common('가사 정렬 코드 점검: SHELL yt-shell-v8 그대로 · mr.js 요청 코드 없음 · postMessage에 * 없음 · 가사 글이 주소에 안 나감',
-      shell === 'yt-shell-v8' && noFetch && !star && !leak.length, `SHELL ${shell}, 요청 코드 ${noFetch ? '없음' : '있음!'}, * ${star ? '있음!' : '없음'}, 가사 글 주소 ${leak.length}건`);
-    ok('W8', shell === 'yt-shell-v8' && noFetch && !star, `SHELL ${shell} · 창에는 정한 주소로만 보냄`);
+    ctx.common('가사 정렬 코드 점검: SHELL v8 이상 · mr.js 요청 코드 없음 · postMessage에 * 없음 · 가사 글이 주소에 안 나감',
+      shellOk && noFetch && !star && !leak.length, `SHELL ${shell}, 요청 코드 ${noFetch ? '없음' : '있음!'}, * ${star ? '있음!' : '없음'}, 가사 글 주소 ${leak.length}건`);
+    ok('W8', shellOk && noFetch && !star, `SHELL ${shell} · 창에는 정한 주소로만 보냄`);
   });
 
   // 정리: 창 닫기, 만든 곡·설정 지우기
