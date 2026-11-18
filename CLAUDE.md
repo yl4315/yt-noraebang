@@ -18,6 +18,7 @@ npm run test:ui                  # 화면 자동 점검: 헤드리스 Edge가 �
 
 - **화면을 고친 CR은 끝내기 전에 `npm test`와 `npm run test:ui`를 둘 다 돌린다.**
 - 결과·사진은 PC 임시 폴더 (`--out`으로 바꿈). 저장소 안은 git에서 빠지는 `tests/ui/out/`만. 옵션은 `tests/ui/run.mjs` 맨 위.
+- **화면 점검은 "더 보기 (고급)"을 켠 화면에서 돈다** (CR-229, `openPage`가 `nb-advanced`='1'). 기본(숨긴) 화면은 `checks/hide.mjs`가 `{ ...ctx, adv: false }`로 따로 본다.
 - **기능을 더하거나 바꾸면 `tests/ui/features.json`(기능 번호 → 분류 auto/test/partial/human/device, 조건 P·V·O·M·W·S·L)과 그 번호를 보는 `tests/ui/checks/*.mjs`를 같이 고친다.** 결과표에 223줄이 다 나오는지, 자동 줄에 확인 기록이 있는지 점검이 스스로 본다 (기록이 없으면 실패).
 - Drive가 필요한 흐름은 `tests/ui/checks/devsync.mjs`처럼 페이지 안 `Cloud.api`를 가짜 Drive(메모리)로 바꿔 본다 (`getToken`은 가짜 API면 `'test'`).
   - 실제 Google에는 요청하지 않는다.
@@ -117,6 +118,12 @@ npm run test:ui                  # 화면 자동 점검: 헤드리스 Edge가 �
 - 로그인 창은 누른 줄에서 바로 열어야 막히지 않는다: 띠·여행 준비 버튼은 `await` 앞에서 `syncNow({ interactive: true })`를 부른다. `syncNow`는 `{ ok, newSongs, devices }` / `{ ok: false, error }` / `{ busy }`를 돌려준다. 로그인 토큰은 저장하지 않는다.
 - 여러 곡 받기는 `downloadSongs(list)` 하나 ("모두 받기"·여행 준비): 404·403은 건너뛰고, 로그인 끝남·끊김·공간 부족·멈추기에서 멈춘다. `ensureMedia`는 기기에 저장한 뒤에만 `s.blob`을 넣는다.
 - 사용자에게 보이는 글은 쉬운 한국어로, 이유와 해결 방법을 같이 쓴다.
+- **숨김 정리 (CR-229)**: 복잡한 칸은 **지우지 않고 숨긴다** (코드·단축키·저장 값·동작은 그대로, 기능 줄은 `features.json` `hide`).
+  - 설정 창 `더 보기 (고급)`(`#advBtn`) → `nb-advanced`='1'이면 `<html class="adv">` = 숨기기 전 화면. 끄면(기본) `.adv-only`·`.adv-full`이 숨고 `.adv-short`가 보인다 (`css/app.css` "숨김 정리").
+  - 그 자리에서 펴는 칸: `.fold` 안 `.fold-btn`("더 보기 ›")을 누르면 `.unfold` → `.fold-more`가 보인다 (음향 설정 세부, "가사 맞추기 ›", 설정 창 "이 기기에 저장된 곡"). 고급이면 늘 펴져 있다.
+  - 음향 설정(`#deckMore`): 고급 꺼짐이면 사람이 펴고 접은 상태를 `nb-deck`에 기억 (처음엔 접힘). 고급 켬이면 예전 규칙 (PC 펼침, ≤560 접힘) — core.js `deckOpenAtStart`.
+  - 설정 창 차례: 곡 창고(Drive · 이 기기에 저장된 곡) → `더 보기 (고급)` 안에 여행 준비 · 백업 파일 · MR 만들기(주소는 `#mrAddr` 안) · 옛 휴대폰 리모컨(`#remoteSec`, 서버로 켰을 때만 `renderRemoteInfo`가 보이게 함 — Pages에서는 고급을 켜도 안 보임).
+  - 새 칸을 숨길 때는 위 클래스만 쓰고, 그 칸을 보는 화면 점검은 고급 켠 화면에서 그대로 돌게 둔다 (`tests/ui/checks/_lib.mjs` `openPage`가 탭마다 `nb-advanced`='1'). 숨김 자체는 `checks/hide.mjs`(W13).
 
 ## 유튜브 곡 (`js/yt.js`, CR-030)
 
