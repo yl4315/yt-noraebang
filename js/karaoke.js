@@ -97,6 +97,8 @@ function renderQueue() {
   q.slice(0, 7).forEach((s, i) => {
     const li = document.createElement('li');
     const t = el('span', 't', s.title); t.append(el('small', '', s.artist || ''));
+    const who = typeof guestNickAt === 'function' ? guestNickAt(i) : '';   // 손님 예약이면 손님 이름 (CR-228)
+    if (who) t.append(el('small', 'who', who));
     li.append(el('span', 'i', i + 1), el('span', 'n', s.no), t); ol.append(li);
   });
   if (q.length > 7) { const li = document.createElement('li'); li.append(el('span', 'i', ''), el('span', 'n', ''), el('span', 't', `외 ${q.length - 7}곡`)); ol.append(li); }
@@ -239,7 +241,7 @@ function renderQueueList() {
       ['지금 부르기', 'primary', () => { state.queue.splice(i, 1); state.queue.unshift(id); startNext(); }],
       ['맨 위로', '', () => moveToTop(i)],
       ['취소', 'ghost danger', () => unreserve(i)],
-    ]);
+    ], typeof guestNickAt === 'function' ? guestNickAt(i) : '');
     li.onclick = () => { queueSel = i; renderQueueList(); };
     ul.append(li);
   });

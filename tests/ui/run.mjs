@@ -389,7 +389,7 @@ try {
   if ((!ONLY && !CHECKS) || SHOTS_ONLY) shots = await shotMod.default(ctx);
   // 2) 기능 점검
   if (!SHOTS_ONLY) {
-    const order = ['basics', 'songs', 'bulk', 'video', 'reserve', 'profiles', 'keys', 'syncedit', 'tv', 'touch', 'record', 'mic', 'settings', 'backup', 'remote', 'mr', 'youtube', 'offline', 'devsync', 'hide', 'hub'];
+    const order = ['basics', 'songs', 'bulk', 'video', 'reserve', 'profiles', 'keys', 'syncedit', 'tv', 'touch', 'record', 'mic', 'settings', 'backup', 'remote', 'mr', 'youtube', 'offline', 'devsync', 'hide', 'hub', 'guest'];
     // 마이크는 '거부' 상태로 시작한다 (마이크가 꺼진 채의 안내를 먼저 본다. 가짜 마이크는 mic 점검에서 켠다)
     await ctx.p.eval(`localStorage.setItem('__ui-mic','deny')`);
     ctx.ids = {};

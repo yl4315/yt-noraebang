@@ -3,7 +3,8 @@
 const SHELL = 'yt-shell-v10', FONTS = 'yt-fonts-v1';
 const SHELL_FILES = ['./', './index.html', './css/tokens.css', './css/app.css', './manifest.webmanifest', './icon-192.png', './icon-512.png', './icon-maskable-512.png',
   './js/util.js', './js/haptics.js', './js/core.js', './js/store.js', './js/demo.js', './js/audio.js', './js/songs.js', './js/bulk.js', './js/mr.js', './js/playback.js', './js/recording.js', './js/syncedit.js', './js/karaoke.js', './js/profiles.js', './js/cloud.js', './js/key.js', './js/remote.js', './js/backup.js', './js/devsync.js',
-  './js/vendor/supabase-2.117.1.js', './js/hub.js', './js/autosync.js', './js/yt.js', './js/main.js'];
+  './js/vendor/supabase-2.117.1.js', './js/hub.js', './js/guesthost.js', './js/vendor/toqr-0.1.1.mjs', './js/autosync.js', './js/yt.js', './js/main.js',
+  './guest.html', './css/guest.css', './js/guest.js'];   // 손님 리모컨 (CR-228): 손님 폰은 서비스 워커를 안 쓰지만 방장 기기에서 같이 열릴 수 있다
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(SHELL).then(c => c.addAll(SHELL_FILES)).then(() => self.skipWaiting()));

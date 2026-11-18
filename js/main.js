@@ -46,6 +46,7 @@ function loop() {
   $('#deckMore').open = deckOpenAtStart(advOn(lsGet(ADV_KEY)), lsGet(DECK_KEY), matchMedia('(max-width:560px)').matches);
   remoteInit();
   if (typeof hubInit === 'function') hubInit();   // 허브 연결 (hub.js, CR-227): 꺼져 있으면 아무것도 안 함
+  if (typeof guestInit === 'function') guestInit();   // 손님 방 (guesthost.js, CR-228): 처음엔 닫혀 있음. 허브가 있으면 TV 대기 카드에 [손님 QR 켜기]
   await selectSong(demo);
   // 폰 유튜브 앱 [공유] → 노래방 (manifest share_target, CR-030): 주소의 ?title=&text=&url=을 지우고 시트 한 장
   if (typeof ytHandleShare === 'function') ytHandleShare();

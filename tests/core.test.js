@@ -967,3 +967,121 @@ test('자동 싱크: LRCLIB에는 제목·가수(첫 이름)·길이만, /api/ge
   assert.equal(C.canAutoSync({ demo: true, title: '데모' }), false);
   assert.equal(C.canAutoSync({ title: ' ' }), false);
 });
+
+/* ---------------- 손님 방 (CR-228) ---------------- */
+const HU = 'https://' + 'qafakehub' + '0'.repeat(11) + '.supabase.co', HK = 'sb_publishable_' + 'qa'.repeat(12);
+const HCODE = C.hubCodeMake(HU, HK);
+const GID = 'g'.repeat(22);
+const seqRng = start => { let n = start; return { getRandomValues: b => { for (let i = 0; i < b.length; i++) b[i] = (n + i * 7) & 255; n++; return b; } }; };
+
+test('손님 방 이름: 32바이트(256비트) → nbr- + 43자, 열 때마다 새 이름 (같은 이름 없음)', () => {
+  const a = C.guestRoomName(), b = C.guestRoomName();
+  assert.match(a, /^nbr-[A-Za-z0-9_-]{43}$/);
+  assert.notEqual(a, b);
+  const many = new Set(Array.from({ length: 200 }, () => C.guestRoomName()));
+  assert.equal(many.size, 200);
+  // 난수 32바이트를 다 쓴다: 바이트 하나만 달라도 이름이 다르다
+  assert.notEqual(C.guestRoomName(seqRng(1)), C.guestRoomName(seqRng(2)));
+  assert.match(C.guestId(), /^[A-Za-z0-9_-]{22}$/);
+});
+
+test('손님 QR 주소: guest.html#r=…&c=… · 값은 # 뒤에만 · ? 0개 · 틀린 값이면 null', () => {
+  const room = C.guestRoomName();
+  const u = C.guestUrl('https://example.test/yt-noraebang/index.html?tv=1#hub=x', room, HCODE);
+  assert.equal(u, 'https://example.test/yt-noraebang/guest.html#r=' + room + '&c=' + HCODE);
+  assert.equal(u.includes('?'), false);
+  assert.equal(u.split('#').length, 2);
+  assert.equal(u.split('#')[0].includes(room), false);
+  assert.equal(u.split('#')[0].includes('supabase'), false);
+  assert.equal(C.guestUrl('http://127.0.0.1:5173/', room, HCODE), 'http://127.0.0.1:5173/guest.html#r=' + room + '&c=' + HCODE);
+  assert.equal(C.guestUrl('https://example.test/', 'nbr-짧음', HCODE), null);
+  assert.equal(C.guestUrl('https://example.test/', room, 'nbhub1.틀림'), null);
+  assert.equal(C.guestUrl('file:///C:/x/index.html', room, HCODE), null);
+  // 손님 폰이 읽기
+  const p = C.guestUrlParse('#' + u.split('#')[1]);
+  same(p, { ok: true, room, u: HU, k: HK });
+  same(C.guestUrlParse('#r=' + room), { ok: false });
+  same(C.guestUrlParse('#r=nbr-abc&c=' + HCODE), { ok: false });
+  same(C.guestUrlParse(''), { ok: false });
+  same(C.guestUrlParse('#r=' + room + '&c=' + C.hubCodeMake(HU, 'sb_secret_' + 'x'.repeat(20))), { ok: false });
+});
+
+test('손님 메시지 확인 guestMsgOk: 모르는 종류·4KB 넘음·번호 없음·키 범위 밖은 버림', () => {
+  const m = o => ({ v: 1, gid: GID, seq: 1, ...o });
+  assert.equal(C.guestMsgOk(m({ t: 'hello' })), true);
+  assert.equal(C.guestMsgOk(m({ t: 'hello', nick: '손님1' })), true);
+  assert.equal(C.guestMsgOk(m({ t: 'search', q: '밤', kind: 'mr' })), true);
+  assert.equal(C.guestMsgOk(m({ t: 'reserve', no: 10001 })), true);
+  assert.equal(C.guestMsgOk(m({ t: 'reserve', ytId: 'abcdefghijk' })), true);
+  assert.equal(C.guestMsgOk(m({ t: 'unreserve', rid: 'r'.repeat(22) })), true);
+  assert.equal(C.guestMsgOk(m({ t: 'key', k: -2 })), true);
+  assert.equal(C.guestMsgOk(m({ t: 'key', k: 2 })), true);
+  assert.equal(C.guestMsgOk(m({ t: 'bye' })), true);
+  // 이상한 종류·모양
+  for (const bad of [null, 'hello', [], {}, m({ t: 'start' }), m({ t: 'cancel' }), m({ t: 'profile' }), m({ t: 'eval' }), m({ t: '__proto__' }),
+    { ...m({ t: 'hello' }), v: 2 }, { ...m({ t: 'hello' }), gid: 'x' }, { ...m({ t: 'hello' }), gid: 'g'.repeat(40) }, { ...m({ t: 'hello' }), seq: -1 }, { ...m({ t: 'hello' }), seq: 1.5 }])
+    assert.equal(C.guestMsgOk(bad), false, JSON.stringify(bad));
+  // 4KB 넘음
+  assert.equal(C.guestMsgOk(m({ t: 'search', q: '가', pad: 'x'.repeat(4100) })), false);
+  assert.equal(C.guestMsgOk(m({ t: 'hello', pad: '가'.repeat(1400) })), false);   // 글자 수는 적어도 바이트로 4KB 넘음
+  // 번호 없음·틀린 번호
+  for (const o of [{ t: 'reserve' }, { t: 'reserve', no: '10001' }, { t: 'reserve', no: 0 }, { t: 'reserve', no: 1.5 }, { t: 'reserve', no: 1e7 },
+    { t: 'reserve', no: 10001, ytId: 'abcdefghijk' }, { t: 'reserve', ytId: 'abc' }, { t: 'reserve', ytId: 'abcdefghij<' }])
+    assert.equal(C.guestMsgOk(m(o)), false, JSON.stringify(o));
+  // 키 범위 밖
+  for (const k of [3, -3, 6, 0.5, '1', null]) assert.equal(C.guestMsgOk(m({ t: 'key', k })), false, String(k));
+  // 이름 10자까지 · 제어 문자 없음 · 검색어 60자까지
+  assert.equal(C.guestMsgOk(m({ t: 'hello', nick: '가'.repeat(10) })), true);
+  assert.equal(C.guestMsgOk(m({ t: 'hello', nick: '가'.repeat(11) })), false);
+  assert.equal(C.guestMsgOk(m({ t: 'hello', nick: 'a\nb' })), false);
+  assert.equal(C.guestMsgOk(m({ t: 'hello', nick: 3 })), false);
+  assert.equal(C.guestMsgOk(m({ t: 'search', q: 'a'.repeat(61) })), false);
+  assert.equal(C.guestMsgOk(m({ t: 'search', q: '밤', kind: 'drive' })), false);
+  assert.equal(C.guestMsgOk(m({ t: 'unreserve', rid: '../x' })), false);
+});
+
+test('손님 속도 제한: 한 사람 1초에 4개까지, 1초 지나면 다시', () => {
+  const log = [];
+  assert.deepEqual([0, 100, 200, 300, 400].map(t => C.guestRateOk(log, t)), [true, true, true, true, false]);
+  assert.equal(C.guestRateOk(log, 999), false);
+  assert.equal(C.guestRateOk(log, 1000), true);
+  assert.equal(C.guestRateOk(log, 1100), true);
+  assert.equal(C.guestRateOk([], 0, 30), true);
+  assert.equal(C.GUEST_MAX, 6); assert.equal(C.GUEST_PER_SEC, 4); assert.equal(C.GUEST_MAX_BYTES, 4096);
+});
+
+test('손님 검색 답: 번호·제목·가수·종류만, 30개까지, 곡 창고 곡 수', () => {
+  const songs = Array.from({ length: 40 }, (_, i) => ({ id: 's' + i, no: 20001 + i, title: (i % 2 ? '시험 바다 ' : '시험 하늘 ') + i, artist: 'QA 가수', lyrics: '지어낸 가사', blob: {}, fileId: 'f', video: i === 3 }));
+  songs.push({ id: 'del', no: 30000, title: '시험 바다 지움', deleted: true });
+  const r = C.guestSearchResult(songs, '시험');
+  assert.equal(r.total, 40); assert.equal(r.n, 40); assert.equal(r.items.length, 30);
+  same(Object.keys(r.items[0]).sort(), ['artist', 'kind', 'no', 'title']);
+  assert.equal(r.items.find(x => x.no === 20004).kind, 'video');
+  assert.equal(r.items.find(x => x.no === 20001).kind, 'mr');
+  const b = C.guestSearchResult(songs, '바다');
+  assert.equal(b.n, 20); assert.equal(b.items.every(x => /바다/.test(x.title)), true);
+  same(C.guestSearchResult(songs, '20005').items.map(x => x.no), [20005]);
+  assert.equal(C.guestSearchResult([{ id: 'y', no: 1, title: '유튜브 곡', source: 'yt', ytId: 'abcdefghijk' }], '').items[0].kind, 'yt');
+  assert.equal(JSON.stringify(r).includes('지어낸 가사'), false);
+});
+
+test('손님 예약 짝짓기·상태: 예약 표만, 누가 넣었는지는 안 감 · 제목 10개 · 뒤의 손님 예약은 rest', () => {
+  const songs = { a: { id: 'a', no: 1, title: '시험 가', artist: 'QA' }, b: { id: 'b', no: 2, title: '시험 나', artist: 'QA' }, c: { id: 'c', no: 3, title: '시험 다', artist: '', ytId: 'abcdefghijk', source: 'yt' } };
+  const R1 = 'r'.repeat(22), R2 = 's'.repeat(22), R3 = 't'.repeat(22);
+  const res = [{ rid: R1, gid: GID, id: 'a', nick: '손님1' }, { rid: R2, gid: 'h'.repeat(22), id: 'b', nick: '' }, { rid: R3, gid: GID, id: 'x', nick: '' }];
+  const queue = ['a', 'b', 'a'];
+  const map = C.guestQueueMap(queue, res);
+  same(map.at.map(r => r && r.rid), [null, R2, R1]);   // 같은 곡 a가 둘이면 뒤쪽이 손님 예약
+  same(map.live.map(r => r.rid), [R1, R2]);            // 짝이 없는 R3(이미 불렀음)는 빠짐
+  const st = C.guestStateMsg({ now: songs.c, playing: true, t: 12.4, d: 200.6, key: 1, keyOk: false, queue, songOf: id => songs[id], map, keyOn: true, yt: false });
+  same(st.now, { title: '시험 다', artist: '', kind: 'yt', playing: true, t: 12, d: 201, key: 1, keyOk: false });
+  same(st.q, [{ title: '시험 가', artist: 'QA', kind: 'mr' }, { title: '시험 나', artist: 'QA', kind: 'mr', r: R2 }, { title: '시험 가', artist: 'QA', kind: 'mr', r: R1 }]);
+  assert.equal(st.n, 3); assert.equal(st.v, 1); assert.equal(st.t, 'state');
+  const text = JSON.stringify(st);
+  assert.equal(text.includes(GID), false); assert.equal(text.includes('손님1'), false); assert.equal(text.includes('"no"'), false);
+  // 12곡: 앞 10개만 제목, 11번째 뒤 손님 예약은 표만
+  const q12 = Array.from({ length: 12 }, (_, i) => i < 11 ? 'a' : 'b');
+  const m12 = C.guestQueueMap(q12, [{ rid: R2, gid: GID, id: 'b', nick: '' }]);
+  const s12 = C.guestStateMsg({ now: null, queue: q12, songOf: id => songs[id], map: m12, keyOn: false, yt: true });
+  assert.equal(s12.q.length, 10); same(s12.rest, [R2]); assert.equal(s12.now, null); assert.equal(s12.n, 12); assert.equal(s12.yt, true);
+});
