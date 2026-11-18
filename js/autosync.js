@@ -1,5 +1,5 @@
 // YT 노래방 · 무대 "자동 싱크" (CR-227 W6·W9·W10 일부): 시각이 없는 곡에 LRCLIB의 시각 붙은 가사를 찾아 넣는다
-// - LRCLIB에는 곡 제목·가수(첫 이름)·MR 길이만 보낸다 (손님 이름·방 주소·허브 정보 0). 덧붙이는 머리글 없음.
+// - LRCLIB에는 곡 제목·가수(첫 이름)·MR 길이(유튜브 곡은 영상 길이)만 보낸다 (손님 이름·방 주소·허브 정보 0). 덧붙이는 머리글 없음.
 // - 정확히 한 곡 찾는 /api/get 먼저, 없으면 곡 추가 창과 같은 /api/search (songs.js findLyrics + core.js chooseLyrics).
 // - 찾으면 곡에 저장 → 허브를 쓰면 허브로 (hubTouch). "자동 싱크 · 확인해 주세요" 표시(W9)는 가사 맞추기(싱크 편집기)에서 저장하거나 가사를 고치면 사라진다.
 // - 싱크 한 줄(디자인 S1·S2): 찾음 / 불러옴(다른 기기 설정) / 못 찾음 [직접 맞추기]. 무대(TV)에는 안 나온다. 글은 textContent로만.
@@ -139,7 +139,8 @@ async function autoSync() {
   const hint = { title: s.title, artist: s.artist };
   let pick = { why: 'none' }, slow = false;
   try {
-    hint.mrDur = (s.buffer && s.buffer.duration) || await mediaDuration(s.blob);
+    // 곡 길이: MR 파일, 유튜브 곡은 영상 길이(플레이어가 알려 준 s.ytDur, 아직 모르면 null = 길이 없이 예전처럼)
+    hint.mrDur = (s.buffer && s.buffer.duration) || await mediaDuration(s.blob) || (isYtSong(s) && s.ytDur) || null;
     const p = lrclibGetParams(s.title, s.artist, hint.mrDur);
     let got = null;
     if (p) { try { got = await lrclibGet(p); } catch { slow = true; } }
