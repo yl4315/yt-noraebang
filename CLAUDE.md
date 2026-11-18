@@ -136,6 +136,7 @@ npm run test:ui                  # 화면 자동 점검: 헤드리스 Edge가 �
 - 노래방은 **서버에 요청하지 않는다** (https 노래방 → http 서버는 막힘). 노래방이 DGX로 `fetch`하는 코드를 넣지 않는다 (2단계 HTTPS는 따로 CR).
   - 곡 목록 `#mrBtn`이 서버 주소 + `/`("MR 만들기 창")를 이름 있는 창 `yena-mr`로 연다 (클릭 안에서 바로, `noopener` 쓰지 않음). 창이 다 만든 MR 파일을 `postMessage`로 넘긴다.
 - 메시지 약속은 yena-mr README와 같다: 모두 `{app:'yena-mr', v:1, type}`. 창 → `hello`·`files{files}`, 노래방 → `welcome`·`ack{n}`·`nack{reason:'busy'|'bad'}`.
+  - 가사 정렬(CR-227 W7·W8)은 v:1에 **더하기만** 했다 (`docs/align-api.md` 5장, yena-mr 저장소): 창 → `hello{caps}`·`lyrics_req{items}`·`files{files, lrc}`·`aligned{songId, lrc, score, level}|{songId, error}`, 노래방 → `welcome{caps:['lyrics','align']}`·`lyrics{items}`·`align_req{songId,title,artist,lyrics}`·`align_stop{songId}`·`ack{n,songId}`·`nack{reason:'busy',songId}`. 예전 창(caps 없음)·예전 노래방은 모르는 칸·type을 지나쳐 예전 길(U1~U7) 그대로.
   - 받는 규칙은 `core.js mrMessageOk` (보낸 창이 `Mr.win`, 보낸 주소가 설정 주소의 origin, 파일 30개·한 파일 120MB·`isMediaFile`).
   - 다른 창이 열려 있거나 TV·싱크 편집 중이면 `nack busy` + 알림 (열린 창·입력은 그대로).
 - 받은 파일은 `openBulk(files, note)` 그대로 (둘째 인자 = 안내 줄 "MR 만들기로 만든 곡 N개예요…", 없으면 예전과 같다). 곡 저장 구조·`SONG_FIELDS`는 안 바꾼다.
@@ -165,7 +166,15 @@ npm run test:ui                  # 화면 자동 점검: 헤드리스 Edge가 �
 - LRCLIB에는 **곡 제목·가수(첫 이름)·MR 길이만** 보낸다 (`lrclibGetParams`). 덧붙이는 머리글 없음 (CORS 미리 묻기가 생김).
 - 정확히 한 곡 찾는 `/api/get` 먼저 → 없거나(404) 맞지 않으면 곡 추가 창과 같은 `findLyrics`(검색) + `chooseLyrics`. 고르는 규칙은 core.js `autoSyncPick`.
 - 연주곡(`instrumental`)이면 가사를 넣지 않고 안내만. 찾으면 `syncChk`를 켜고 "자동 싱크 · 확인해 주세요" 단추 → 싱크 편집에서 저장하거나 가사를 손으로 고치면 `clearSyncCheck`.
-- 싱크 한 줄(`#syncLine` 무대 아래, `#syncLine2` 곡 수정 창): 찾음 / 불러옴(다른 기기) / 못 찾음 [직접 맞추기]. 2단계(집 AI 정렬 W7·W8)는 아직 없음.
+- 싱크 한 줄(`#syncLine` 무대 아래, `#syncLine2` 곡 수정 창): 찾음 / 불러옴(다른 기기) / 못 찾음 [직접 맞추기] / 집 AI가 맞추는 중 [그만두기] / 집 AI 오류 글.
+
+## 집 AI 가사 정렬 (CR-227 2단계 W7·W8, `js/mr.js`·`js/autosync.js`·`js/bulk.js`)
+
+- 노래방은 여전히 서버에 요청하지 않는다. 정렬도 MR 만들기 창(yena-mr `web/index.html`)이 하고, 노래방은 `postMessage`로 가사를 주고 결과만 받는다. 받는 모양 검사는 `core.js mrMessageOk` (`files.lrc`·`lyrics_req`·`aligned`·`hello.caps`), 넣을 곡 가사는 `mrLyricsFor`·`alignLyricsText`, 오류 글은 `ALIGN_ERR_TEXT` (yena-mr `app/errors.py`와 같은 뜻).
+- W7 (MR 만들 때 같이): 창의 `lyrics_req`에 곡마다 답한다 (`mrAnswerLyrics`) — 노래방에 같은 곡(제목·가수)이 있으면 그 가사, 없으면 LRCLIB `/api/get`(제목·가수·길이만, 8초). 시각이 이미 있으면 `synced:true`(글 안 보냄, 창이 맞추지 않음). `files.lrc`는 여러 곡 넣기 창에서 보통·높음 = `✔ 집 AI 시각 · 확인해 주세요`(W9 표시 `syncChk`) · 낮음 = 후보로만.
+- W8 (원곡 파일로 자동 싱크): 무대(시각 없음·확인 표시 곡)·곡 수정 창(가사가 있는 곡) 단추 → `alignStart`가 클릭 안에서 같은 이름 창 `yena-mr`을 열고 `hello` 뒤 `align_req`. 기다리는 요청은 `Align.want` (창이 다시 인사하면 다시 보냄, 창은 같은 곡을 한 줄로). 10초 안에 인사가 없거나 인터넷이 없으면 "집 AI에 닿지 않아요 · 집에 가면 다시 해요".
+- 결과 넣기는 `alignApply`: `level` low → "가사 시각이 많이 틀릴 수 있어요. 넣을까요?", 이미 시각 있는 가사 → "이미 시각이 있는 가사예요. 바꿀까요?" (둘 다 처음 초점·Esc = 넣지 않기). 넣으면 `syncChk` + `hubTouch` (허브 길 그대로). 맞추는 사이 가사를 고쳤으면 넣지 않고 `ack{n:0}`. 다른 창이 열려 있으면 `nack busy`.
+- 화면 점검: `tests/ui/checks/align.mjs` + 가짜 창 `tests/ui/fake-mr/index.html` (caps·aligned 흉내). 진짜 창 쪽은 yena-mr `tools/w7_check.py`.
 
 ## 녹음 구조
 

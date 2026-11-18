@@ -10,6 +10,7 @@ const NAMES = ['fmtMs', 'norm', 'chosung', 'pick', 'parseLyrics', 'toLRC', 'sear
   'isMediaFile', 'byFileName', 'nextSongNumbers', 'findSameSong', 'lacksLyrics', 'artistNames', 'artistMatches', 'titleRank', 'rankLyrics', 'chooseLyrics', 'AUTO_SEC',
   'STATS_CAP', 'statsFileName', 'cleanPlays', 'mergePlays', 'mergeScores', 'statsTotals', 'statsSig', 'buildStatsFile', 'parseStatsFile', 'pickStatsFiles', 'mergeBackupStats', 'planDownload', 'travelStatus',
   'MR_DEFAULT_SERVER', 'MR_MAX_FILES', 'MR_MAX_BYTES', 'normalizeMrServer', 'mrMessageOk',
+  'MR_LRC_MAX', 'MR_LYR_MAX', 'mrLrcOk', 'mrLyricsFor', 'mrLyricsFromLrclib', 'alignLyricsText', 'canAlignSong', 'alignAsk', 'alignErrText', 'ALIGN_ERR_TEXT',
   'HUB_LRC_MAX', 'HUB_PUSH_MAX', 'HUB_PULL_MAX', 'hubPairOk', 'hubCodeParse', 'hubCodeMake', 'mrHashKey', 'songSettingsKey', 'settingsOf', 'settingsSig', 'settingsHas', 'settingsFromData',
   'songSettingsData', 'hubPlan', 'hubMirrorAdd', 'hubRemote', 'hubQueueAdd', 'hubQueueDrop', 'hubRecord', 'lrclibGetParams', 'autoSyncPick', 'canAutoSync'];
 

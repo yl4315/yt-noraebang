@@ -580,9 +580,15 @@ details summary{cursor:pointer;font-weight:700;font-size:13px}
 .sync-line .sl-text{min-width:0}
 .sync-line .sl-act{margin-left:auto}
 @keyframes sl-spin{to{transform:rotate(360deg)}}
+/* 원곡 파일로 자동 싱크 "집 AI가 맞추는 중" (CR-227 W8, 디자인 5-sync-line dots3): 점 3개가 차례로 밝아짐 */
+.sync-line .sl-dots{display:inline-flex;gap:3px;align-items:center;flex:none;width:18px;height:14px}
+.sync-line .sl-dots i{width:4px;height:4px;border-radius:2px;background:var(--color-text-muted,var(--muted));animation:sl-dot 1.2s ease-in-out infinite}
+.sync-line .sl-dots i:nth-child(2){animation-delay:.2s}
+.sync-line .sl-dots i:nth-child(3){animation-delay:.4s}
+@keyframes sl-dot{0%,80%,100%{opacity:.3}40%{opacity:1}}
 .sync-chk{color:var(--color-info)}
 @media (hover:none){.sync-line .sl-act{min-height:48px}}
-@media (prefers-reduced-motion:reduce){.sync-line[data-state=busy] svg{animation:none}}
+@media (prefers-reduced-motion:reduce){.sync-line[data-state=busy] svg,.sync-line .sl-dots i{animation:none}}
 /* 허브 연결 (설정): 코드·메일·비밀번호 칸은 Drive 클라이언트 ID 칸과 같은 모양 */
 #hubSec .set-row input{flex:1;min-width:180px;background:var(--panel);border:1px solid transparent;border-radius:var(--r-in);padding:8px 10px;font-size:13px;color:var(--ink)}
 #hubSec #hubCode{font-family:var(--mono);font-size:12px}

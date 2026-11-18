@@ -253,9 +253,18 @@ function lyricItem(it, mrDur, onPick) {
   const li = document.createElement('li'), b = document.createElement('button'); b.type = 'button';
   b.innerHTML = '<span class="nm"></span><span class="s"></span><span class="tag"></span>';
   b.querySelector('.nm').textContent = it.trackName;
+  const tag = b.querySelector('.tag');
+  if (it.ai) {          // 집 AI가 MR을 만들며 맞춘 시각 (CR-227 W7, bulk.js). 길이는 이 MR 그대로
+    b.querySelector('.s').textContent = `${it.artistName || '가수 미상'} · 집 AI가 이 노래 소리로 맞춤`;
+    tag.textContent = '집 AI 시각' + (it.level === 'low' ? ' · 많이 틀릴 수 있어요' : '');
+    if (it.level === 'low') tag.classList.add('plain');
+    b.onclick = () => onPick(it);
+    li.append(b);
+    return li;
+  }
   b.querySelector('.s').textContent = `${it.artistName}${it.albumName ? ' · ' + it.albumName : ''} · ${fmt(it.duration)}`;
   const close = mrDur && Math.abs(it.duration - mrDur) <= AUTO_SEC;
-  const tag = b.querySelector('.tag'); tag.textContent = (it.syncedLyrics ? '싱크 있음' : '가사만') + (close ? ' · 길이 비슷' : ''); if (!it.syncedLyrics) tag.classList.add('plain');
+  tag.textContent = (it.syncedLyrics ? '싱크 있음' : '가사만') + (close ? ' · 길이 비슷' : ''); if (!it.syncedLyrics) tag.classList.add('plain');
   b.onclick = () => onPick(it);
   li.append(b);
   return li;

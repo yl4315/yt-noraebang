@@ -437,16 +437,104 @@ function normalizeMrServer(input) {
   return { ok: true, url: u.origin + u.pathname.replace(/\/+$/, ''), origin: u.origin };
 }
 // 받은 메시지가 믿을 만한가. from = { origin(보낸 주소), mine(내가 연 창에서 왔나) }, want = 설정한 서버 주소의 origin
-// 돌려주는 것: null(무시) | { type } | files면 { type:'files', files } 또는 { type:'files', bad:true } (→ nack bad)
+// 돌려주는 것: null(무시) | { type } | files면 { type:'files', files, lrc? } 또는 { type:'files', bad:true } (→ nack bad)
+// 가사 정렬(CR-227 W7·W8)이 v:1에 더한 모양 (예전 창·예전 노래방은 모르는 칸·모르는 type을 그냥 지나친다):
+//   files.lrc  [{name, lrc, score, level} | null]  files와 같은 수·같은 차례. 틀린 칸은 null (파일은 그대로 받음), 수가 다르면 lrc 통째로 뺌
+//   lyrics_req {items:[{key, name, duration}]}      → { type, items } · 모양이 틀리면 null
+//   aligned    {songId, lrc, score, level} | {songId, error}  → 그대로 · 모양이 틀리면 null
 // isFile: 브라우저에서는 f => f instanceof File (Node 시험은 모양만 봄)
+const MR_LRC_MAX = 64 * 1024, MR_LYR_MAX = 48 * 1024;
+const MR_SONG_ID = /^[A-Za-z0-9_-]{1,64}$/, MR_KEY = /^[A-Za-z0-9_-]{1,40}$/, MR_ERR_CODE = /^[a-z_]{1,32}$/;
+const MR_LEVELS = ['high', 'mid', 'low'];
+// 집 AI가 맞춘 가사 한 곡 {lrc, score, level}: 글(64KB까지, 시각 붙은 LRC)·점수 0~1·높음/보통/낮음. 틀리면 null
+function mrLrcOk(x) {
+  if (!x || typeof x !== 'object' || Array.isArray(x)) return null;
+  if (typeof x.lrc !== 'string' || !x.lrc || x.lrc.length > MR_LRC_MAX || !parseLyrics(x.lrc).synced) return null;
+  if (typeof x.score !== 'number' || !(x.score >= 0 && x.score <= 1)) return null;
+  if (!MR_LEVELS.includes(x.level)) return null;
+  return { lrc: x.lrc, score: x.score, level: x.level };
+}
 function mrMessageOk(msg, from, want, isFile = f => !!f && typeof f.name === 'string' && typeof f.size === 'number') {
   if (!from || from.mine !== true || !want || from.origin !== want) return null;
   if (!msg || typeof msg !== 'object' || msg.app !== 'yena-mr' || msg.v !== 1 || typeof msg.type !== 'string') return null;
+  if (msg.type === 'lyrics_req') {
+    const items = Array.isArray(msg.items) ? msg.items : [];
+    if (!items.length || items.length > MR_MAX_FILES) return null;
+    const out = [];
+    for (const it of items) {
+      if (!it || typeof it !== 'object' || typeof it.key !== 'string' || !MR_KEY.test(it.key)) return null;
+      if (typeof it.name !== 'string' || !it.name || it.name.length > 255) return null;
+      const d = it.duration;
+      if (d != null && !(typeof d === 'number' && d >= 0 && d <= 3600)) return null;
+      out.push({ key: it.key, name: it.name, duration: d == null ? null : d });
+    }
+    return { type: 'lyrics_req', items: out };
+  }
+  if (msg.type === 'aligned') {
+    if (typeof msg.songId !== 'string' || !MR_SONG_ID.test(msg.songId)) return null;
+    if (msg.error != null) return typeof msg.error === 'string' && MR_ERR_CODE.test(msg.error) ? { type: 'aligned', songId: msg.songId, error: msg.error } : null;
+    const r = mrLrcOk(msg);
+    return r ? { type: 'aligned', songId: msg.songId, ...r } : null;
+  }
+  if (msg.type === 'hello') {
+    // caps: 창이 알아듣는 새 메시지 (예전 창은 없음 → 원곡 파일 자동 싱크를 보내지 않음)
+    const caps = Array.isArray(msg.caps) && msg.caps.length <= 10 ? msg.caps.filter(c => typeof c === 'string' && /^[a-z_]{1,20}$/.test(c)) : [];
+    return caps.length ? { type: 'hello', caps } : { type: 'hello' };
+  }
   if (msg.type !== 'files') return { type: msg.type };
   const files = Array.isArray(msg.files) ? msg.files : [];
   const ok = files.length > 0 && files.length <= MR_MAX_FILES && files.every(f => isFile(f) && f.size > 0 && f.size <= MR_MAX_BYTES && isMediaFile(f));
-  return ok ? { type: 'files', files } : { type: 'files', bad: true };
+  if (!ok) return { type: 'files', bad: true };
+  const out = { type: 'files', files };
+  if (Array.isArray(msg.lrc) && msg.lrc.length === files.length) {
+    // 이름이 그 차례 파일과 같아야 (다른 곡의 시각이 붙지 않게)
+    const lrc = msg.lrc.map((x, i) => (x && x.name === files[i].name ? mrLrcOk(x) : null));
+    if (lrc.some(Boolean)) out.lrc = lrc;
+  }
+  return out;
 }
+// 창의 lyrics_req에 노래방 곡으로 답할 것: 가사 글이 있는 곡이면 {synced, text}. 시각이 이미 있으면 글은 보내지 않음 (정렬 안 함)
+function mrLyricsFor(s) {
+  const t = s && typeof s.lyrics === 'string' ? s.lyrics : '';
+  const p = parseLyrics(t);
+  if (!p.lines.some(l => l.text)) return null;
+  if (p.synced) return { synced: true, text: '' };
+  return t.length <= MR_LYR_MAX ? { synced: false, text: t } : null;
+}
+// LRCLIB /api/get 답 → {synced, text}. 연주곡·없음이면 빈 글, 시각 가사가 있으면 synced (정렬하지 않음)
+function mrLyricsFromLrclib(got) {
+  if (!got || typeof got !== 'object' || got.instrumental) return { synced: false, text: '' };
+  if (typeof got.syncedLyrics === 'string' && parseLyrics(got.syncedLyrics).synced) return { synced: true, text: '' };
+  const t = typeof got.plainLyrics === 'string' ? got.plainLyrics : '';
+  return { synced: false, text: t.trim() && t.length <= MR_LYR_MAX ? t : '' };
+}
+/* 원곡 파일로 자동 싱크 (CR-227 W8): 곡 가사를 집 AI에 보내 원곡 소리에 시각을 맞춘다 */
+// 집 AI에 보낼 가사 글: 시각 없는 가사는 그대로(줄바꿈·[후렴] 같은 표시 포함), 시각이 있으면 시각을 뗀 줄 글만
+function alignLyricsText(s) {
+  const t = s && typeof s.lyrics === 'string' ? s.lyrics : '';
+  const p = parseLyrics(t);
+  if (!p.lines.some(l => l.text)) return '';
+  const out = p.synced ? p.lines.map(l => l.text).filter(Boolean).join('\n') : t;
+  return out.length <= MR_LYR_MAX ? out : '';
+}
+// 단추를 보일 곡: 데모곡 아님 · 가사 글 있음. 무대 단추(stage)는 시각이 없거나 "자동 싱크 · 확인해 주세요"인 곡만
+const canAlignSong = (s, stage = false) => !!s && !s.demo && !!alignLyricsText(s) && (!stage || !parseLyrics(s.lyrics || '').synced || !!s.syncChk);
+// 받은 결과를 넣기 전에 물을 것: low = 시각이 많이 틀릴 수 있음, overwrite = 이미 시각이 있는 가사 (기본은 넣지 않음)
+const alignAsk = (s, level) => ({ low: level === 'low', overwrite: !!(s && parseLyrics(s.lyrics || '').synced) });
+// 집 AI 오류 코드 → 노래방 안내 (yena-mr app/errors.py와 같은 뜻, 노래방 말로)
+const ALIGN_ERR_TEXT = {
+  no_match: '가사와 노래 소리가 맞지 않아 시각을 못 붙였어요',
+  no_vocals: '목소리가 없는 파일이에요(MR). 원곡 파일을 골라 주세요',
+  bad_lyrics: '가사를 읽지 못했어요 · 곡 수정에서 가사 글을 확인해 주세요',
+  not_audio: '소리 파일이 아니거나 읽을 수 없어요 · 원곡 파일을 골라 주세요',
+  no_align: '집 AI가 아직 가사 시각 맞추기를 못 해요',
+  unreachable: '집 AI에 닿지 않아요 · 집에 가면 다시 해요',
+  canceled: 'MR 만들기 창에서 그만뒀어요',
+  closed: 'MR 만들기 창이 닫혔어요 · 다시 누르면 이어서 해요',
+  blocked: '새 창이 막혔어요. 주소창 오른쪽에서 이 사이트의 팝업을 허용해 주세요',
+  changed: '맞추는 사이에 가사를 고쳐서 넣지 않았어요 · 다시 눌러 주세요',
+};
+const alignErrText = code => (Object.prototype.hasOwnProperty.call(ALIGN_ERR_TEXT, code) && ALIGN_ERR_TEXT[code]) || '가사 시각을 못 맞췄어요 · 잠시 뒤 다시 해 주세요';
 
 /* ---------------- 허브: 곡 설정 맞추기 (CR-227) ----------------
    곡 설정(가사 LRC·전체 오프셋·곡 기본 키)을 회사 허브(묶음 noraebang · 모음 song_settings)에 곡 하나씩 통째로 둔다.

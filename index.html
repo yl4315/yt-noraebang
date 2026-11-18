@@ -237,6 +237,7 @@
             <span class="sep"></span>
             <button class="btn small" id="autoSyncBtn" type="button" hidden title="곡 제목·가수·길이로 LRCLIB에서 시각 붙은 가사를 찾아요">자동 싱크</button>
             <button class="btn small sync-chk" id="syncChkBtn" type="button" hidden title="자동으로 넣은 가사 시각이에요. 싱크 편집에서 확인하고 저장하면 사라져요">자동 싱크 · 확인해 주세요</button>
+            <button class="btn small" id="alignBtn" type="button" hidden title="목소리가 있는 원곡 파일을 집 AI가 듣고 이 곡 가사에 시각을 맞춰요 (MR 만들기 창에서 파일을 골라요)">원곡 파일로 자동 싱크</button>
             <button class="btn small" id="syncBtn" type="button">가사 싱크 편집</button>
           </div>
           <div class="lyr-tools">
@@ -314,6 +315,7 @@
       <span>가사</span>
       <div class="lrc-row">
         <button class="btn small" id="lrcFind" type="button">제목·가수로 싱크 가사 찾기</button>
+        <button class="btn small" id="alignBtn2" type="button" hidden title="목소리가 있는 원곡 파일을 집 AI가 듣고 이 가사에 시각을 맞춰요 (MR 만들기 창에서 파일을 골라요)">원곡 파일로 자동 싱크</button>
         <span class="hint" id="lrcStatus">LRCLIB 공개 가사 데이터베이스에서 찾아요</span>
       </div>
       <ul class="lrc-results" id="lrcResults" hidden></ul>
@@ -413,6 +415,16 @@
     <ul class="pl-pick" id="plList"></ul>
     <form class="inline-form" id="plNewForm"><input type="text" id="plNewName" maxlength="30" placeholder="새 재생목록 이름" aria-label="새 재생목록 이름"><button class="btn" type="submit">만들고 넣기</button></form>
     <div class="dlg-btns"><button class="btn primary" type="button" id="plClose">닫기</button></div>
+  </div>
+</dialog>
+
+<dialog id="alignDialog" aria-labelledby="alignTitle">
+  <div class="mix">
+    <div><h2 id="alignTitle">가사 시각이 많이 틀릴 수 있어요. 넣을까요?</h2><p class="hint" id="alignTxt"></p></div>
+    <div class="dlg-btns">
+      <button class="btn" type="button" id="alignYes">넣기</button>
+      <button class="btn primary" type="button" id="alignNo">넣지 않기</button>
+    </div>
   </div>
 </dialog>
 
