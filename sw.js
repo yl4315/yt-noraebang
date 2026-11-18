@@ -1,8 +1,9 @@
 // YT 노래방 서비스 워커: 앱 화면과 글꼴을 기기에 저장해서 인터넷 없이도 열리게 한다.
 // 곡(MR)과 녹음은 여기가 아니라 앱의 IndexedDB에 저장된다.
-const SHELL = 'yt-shell-v7', FONTS = 'yt-fonts-v1';
+const SHELL = 'yt-shell-v8', FONTS = 'yt-fonts-v1';
 const SHELL_FILES = ['./', './index.html', './css/tokens.css', './css/app.css', './manifest.webmanifest', './icon-192.png', './icon-512.png', './icon-maskable-512.png',
-  './js/util.js', './js/haptics.js', './js/core.js', './js/store.js', './js/demo.js', './js/audio.js', './js/songs.js', './js/bulk.js', './js/mr.js', './js/playback.js', './js/recording.js', './js/syncedit.js', './js/karaoke.js', './js/profiles.js', './js/cloud.js', './js/key.js', './js/remote.js', './js/backup.js', './js/devsync.js', './js/main.js'];
+  './js/util.js', './js/haptics.js', './js/core.js', './js/store.js', './js/demo.js', './js/audio.js', './js/songs.js', './js/bulk.js', './js/mr.js', './js/playback.js', './js/recording.js', './js/syncedit.js', './js/karaoke.js', './js/profiles.js', './js/cloud.js', './js/key.js', './js/remote.js', './js/backup.js', './js/devsync.js',
+  './js/vendor/supabase-2.117.1.js', './js/hub.js', './js/autosync.js', './js/main.js'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(SHELL).then(c => c.addAll(SHELL_FILES)).then(() => self.skipWaiting()));
@@ -42,5 +43,5 @@ self.addEventListener('fetch', e => {
       return hit || net;
     }));
   }
-  // 그 밖(Google 로그인·Drive·가사 서버)은 그대로 인터넷으로
+  // 그 밖(Google 로그인·Drive·가사 서버 LRCLIB·회사 허브)은 저장하지 않고 그대로 인터넷으로
 });

@@ -81,6 +81,7 @@ async function selectSong(s) {
   for (const x of state.songs) if (x !== s) x.keyCache = null;
   state.key = 0; state.keyBufs = null; keyJob++; updateKeyUI();
   $('#syncBtn').hidden = !!s.demo;
+  if (typeof autoSyncUI === 'function') autoSyncUI();   // 자동 싱크 단추·한 줄 (autosync.js, CR-227)
   updateLyrOffUI();
   if (!s.buffer) {
     $('#loading').hidden = false;
@@ -108,9 +109,11 @@ function computeLines() {
   $('#autoBadge').hidden = !state.autoTimed;
   resetLineCache();
   renderLyrics(curTime());
+  if (typeof autoSyncUI === 'function') autoSyncUI();
 }
 
 async function deleteSong(s) {
+  if (typeof hubForget === 'function') hubForget(s);   // 허브와 맞춘 곡이면 "지움 표시" (hub.js, CR-227)
   state.songs = state.songs.filter(x => x !== s);
   // Drive에 올라간 곡은 다른 기기에서도 지워지도록 '지움' 기록을 남긴다
   if (s.fileId || Cloud.connected) {
@@ -133,6 +136,7 @@ function nudgeLyrics(d) {
   const s = state.song; if (!s || state.sync) return;
   s.lyricOffset = Math.round(((s.lyricOffset || 0) + d) * 10) / 10;
   updateLyrOffUI(); resetLineCache(); renderLyrics(curTime());
+  if (typeof hubTouch === 'function') hubTouch(s);
   clearTimeout(lyrSaveTimer); lyrSaveTimer = setTimeout(() => persistSong(s), 600);
 }
 function updateLyrOffUI() {
@@ -155,7 +159,9 @@ function openSongDialog(s = null) {
   $('#f-video').checked = s ? !!s.video : true; $('#f-videoLyrics').checked = !!s?.videoLyrics;
   $('#dlgErr').hidden = true; $('#lrcResults').hidden = true;
   $('#lrcStatus').textContent = 'LRCLIB 공개 가사 데이터베이스에서 찾아요';
+  if (typeof syncLineDialog === 'function') syncLineDialog(s);
   $('#songDialog').showModal();
+  if (s && typeof hubSoon === 'function') hubSoon(0);   // 고치기 전에 허브 것을 한 번 받아 둔다 (창을 연 곡은 닫은 뒤에 넣음)
 }
 $('#f-file').addEventListener('change', () => {
   const files = [...$('#f-file').files];
@@ -181,10 +187,14 @@ $('#songForm').addEventListener('submit', async e => {
   const s = editing || { id: uid(), no: nextSongNumbers(state.songs, 1)[0], createdAt: Date.now(), lyricOffset: 0 };
   const lyricsChanged = s.lyrics !== $('#f-lyrics').value;
   s.title = title; s.artist = $('#f-artist').value.trim(); s.lyrics = $('#f-lyrics').value;
-  if (lyricsChanged) s.lyricOffset = 0;
+  if (lyricsChanged) { s.lyricOffset = 0; if (typeof clearSyncCheck === 'function') clearSyncCheck(s); }
+  if (file && typeof hubFileChanged === 'function') hubFileChanged(s);
   if (file) { s.blob = file; s.buffer = null; s.keyCache = null; s.mediaDirty = true; s.mime = file.type; s.size = file.size; for (const r of state.recs) if (r.songId === s.id) recCache.delete(r.id); }
   s.video = (isVideoBlob(s.blob) || (!s.blob && /^video\//.test(s.mime || ''))) && $('#f-video').checked; s.videoLyrics = $('#f-videoLyrics').checked;
   if (file) requestPersist();
+  // 허브: 고친 곡은 설정 고친 시각을 남겨 보낸다. 새로 넣은 곡은 허브에 같은 MR 설정이 있으면 그것을 받는다
+  if (editing && (lyricsChanged || file) && typeof hubTouch === 'function') hubTouch(s);
+  else if (!editing && typeof hubSoon === 'function') hubSoon();
   await persistSong(s);
   if (!editing) state.songs.push(s);
   $('#songDialog').close();

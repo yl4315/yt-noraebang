@@ -44,6 +44,7 @@ function loop() {
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
   if (matchMedia('(max-width:560px)').matches) $('#deckMore').open = false;
   remoteInit();
+  if (typeof hubInit === 'function') hubInit();   // 허브 연결 (hub.js, CR-227): 꺼져 있으면 아무것도 안 함
   await selectSong(demo);
   // "YT 노래방 TV로 켜기"(주소 ?tv=1)로 열었으면 곡 목록·데모곡 준비가 끝난 뒤 바로 TV 화면으로
   if (tvParam(location.search)) startInTV();
