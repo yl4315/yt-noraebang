@@ -591,3 +591,86 @@ function autoSyncPick(get, found, { title, artist, mrDur } = {}) {
 }
 // 무대 "자동 싱크" 단추를 보일 곡: 데모곡 아님 · 제목 있음 · 시각 붙은 가사가 아직 없음
 const canAutoSync = s => !!s && !s.demo && !!String(s.title || '').trim() && !parseLyrics(s.lyrics || '').synced;
+
+/* ---------------- 손님 방 (CR-228): 허브 Realtime 공개 broadcast 채널 하나 ----------------
+   방장(노래방 화면, guesthost.js)이 열 때마다 새 방 이름으로 먼저 붙어 듣고, 손님 폰(guest.html)은 QR 주소의
+   #r=<방 이름>&c=<연결 코드>로 같은 채널에 붙는다. 손님 → 방장 이벤트 'g', 방장 → 손님 이벤트 'h', 메시지는 모두 v:1.
+   손님은 허브 표·RPC·로그인 0 (broadcast만). 방장이 확인·처리하고 결과만 돌려준다:
+   검색 답은 번호·제목·가수·종류만 30개, 예약 목록은 제목만 10개. 누가 넣었는지(손님 표·이름)는 손님에게 보내지 않는다. */
+const GUEST_V = 1;
+const GUEST_MAX = 6, GUEST_PER_SEC = 4, GUEST_MAX_BYTES = 4096, GUEST_RESULTS = 30, GUEST_QUEUE_SHOW = 10, GUEST_NICK_MAX = 10, GUEST_MINE_MAX = 20;
+const GUEST_TYPES = ['hello', 'search', 'reserve', 'unreserve', 'key', 'bye'];
+const GUEST_ROOM_RE = /^nbr-[A-Za-z0-9_-]{43}$/;
+const GUEST_ID_RE = /^[A-Za-z0-9_-]{16,32}$/;
+const GUEST_YT_RE = /^[A-Za-z0-9_-]{11}$/;
+const b64urlBytes = bytes => btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+const guestRand = (n, rng) => { const b = new Uint8Array(n); (rng || crypto).getRandomValues(b); return b64urlBytes(b); };
+// 방 이름: 열 때마다 새 32바이트(256비트) 난수 → 'nbr-' + base64url 43자. 이름을 모르면 그 방에 못 붙는다
+const guestRoomName = rng => 'nbr-' + guestRand(32, rng);
+// 손님 표(손님 폰이 만듦)·예약 표(방장이 만듦): 16바이트 난수 22자. 이름·기기 정보가 아님
+const guestId = rng => guestRand(16, rng);
+// QR 주소: <노래방 폴더>/guest.html#r=<방 이름>&c=<연결 코드>. 값은 # 뒤에만 (서버 기록·Referer에 안 남게), ? 없음
+function guestUrl(base, room, code) {
+  const b = String(base || '').replace(/[?#].*$/, '').replace(/[^/]*$/, '');
+  if (!/^https?:\/\/[^/?#]+\//.test(b) || !GUEST_ROOM_RE.test(String(room)) || !hubCodeParse(code).ok) return null;
+  return b + 'guest.html#r=' + room + '&c=' + code;
+}
+// 손님 폰: 주소의 # 읽기. 맞으면 { ok:true, room, u, k }, 아니면 { ok:false } (틀린 값은 돌려주지 않는다)
+function guestUrlParse(hash) {
+  const h = String(hash ?? '').replace(/^#/, '');
+  if (!h || h.length > 4000) return { ok: false };
+  const p = new URLSearchParams(h), room = p.get('r') || '', c = hubCodeParse(p.get('c') || '');
+  return GUEST_ROOM_RE.test(room) && c.ok ? { ok: true, room, u: c.u, k: c.k } : { ok: false };
+}
+const guestBytes = o => { try { return new TextEncoder().encode(JSON.stringify(o)).length; } catch { return Infinity; } };
+const guestLen = s => [...String(s)].length;
+const guestCut = (s, n) => { const a = [...String(s ?? '')]; return (a.length > n ? a.slice(0, n) : a).join(''); };
+const guestNickOk = v => typeof v === 'string' && guestLen(v) <= GUEST_NICK_MAX && !/[\u0000-\u001f\u007f]/.test(v);
+// 손님 메시지 모양 확인 (방장이 처리하기 전에). 모르는 종류·4KB 넘음·칸 모양이 틀리면 false → 방장은 그냥 버린다
+function guestMsgOk(m) {
+  if (!m || typeof m !== 'object' || Array.isArray(m)) return false;
+  if (guestBytes(m) > GUEST_MAX_BYTES) return false;
+  if (m.v !== GUEST_V || !GUEST_TYPES.includes(m.t) || typeof m.gid !== 'string' || !GUEST_ID_RE.test(m.gid)) return false;
+  if (m.seq !== undefined && !(Number.isInteger(m.seq) && m.seq >= 0 && m.seq < 1e9)) return false;
+  if (m.nick !== undefined && !guestNickOk(m.nick)) return false;
+  switch (m.t) {
+    case 'hello': case 'bye': return true;
+    case 'search': return typeof m.q === 'string' && guestLen(m.q) <= 60 && (m.kind === undefined || m.kind === 'mr' || m.kind === 'yt');
+    case 'reserve': return m.ytId === undefined ? Number.isInteger(m.no) && m.no > 0 && m.no < 1e6 : m.no === undefined && typeof m.ytId === 'string' && GUEST_YT_RE.test(m.ytId);
+    case 'unreserve': return typeof m.rid === 'string' && GUEST_ID_RE.test(m.rid);
+    case 'key': return Number.isInteger(m.k) && m.k >= -2 && m.k <= 2;
+  }
+  return false;
+}
+// 손님 한 사람(또는 방 전체) 1초에 perSec개까지. log는 최근 시각 배열 (고쳐 쓴다). 되면 true
+function guestRateOk(log, now, perSec = GUEST_PER_SEC) {
+  while (log.length && now - log[0] >= 1000) log.shift();
+  if (log.length >= perSec) return false;
+  log.push(now); return true;
+}
+const guestKind = s => s && (s.source === 'yt' || s.ytId) ? 'yt' : s && s.video ? 'video' : 'mr';
+// 손님 검색 답: 번호·제목·가수·종류만, 30개까지 (♡·재생목록·녹음·점수·파일 정보 없음). total = 곡 창고 곡 수
+function guestSearchResult(songs, q) {
+  const all = (songs || []).filter(s => s && !s.deleted && Number.isInteger(s.no));
+  const hit = searchIn(all, q);
+  return { total: all.length, n: hit.length, items: hit.slice(0, GUEST_RESULTS).map(s => ({ no: s.no, title: guestCut(s.title, 80), artist: guestCut(s.artist, 60), kind: guestKind(s) })) };
+}
+// 예약 목록의 어느 줄이 손님 예약인지 짝짓기. res = [{ rid, gid, id, nick }] (먼저 넣은 것부터).
+// 같은 곡이 여러 번 있으면 뒤에서부터 짝짓는다 (손님 예약은 보통 맨 뒤에 붙음). 짝이 없는 예약(이미 불렀거나 방장이 뺌)은 live에서 빠진다
+function guestQueueMap(queue, res) {
+  const at = queue.map(() => null), used = new Set();
+  for (let i = queue.length - 1; i >= 0; i--) {
+    for (let j = res.length - 1; j >= 0; j--) if (!used.has(j) && res[j].id === queue[i]) { at[i] = res[j]; used.add(j); break; }
+  }
+  return { at, live: res.filter((_, j) => used.has(j)) };
+}
+// 손님 모두에게 같이 가는 상태: 지금 곡(제목·가수·종류·진행·키)과 예약 목록 제목 10개.
+// 손님 예약 줄에는 예약 표(r)만 붙는다 (10개 뒤의 손님 예약 표는 rest). 손님 폰은 자기가 받은 표만 "내 예약"으로 안다
+function guestStateMsg({ now, playing, t, d, key, keyOk, queue, songOf, map, keyOn, yt }) {
+  const row = (id, i) => { const s = songOf(id); const r = { title: guestCut(s?.title, 80), artist: guestCut(s?.artist, 60), kind: guestKind(s) }; if (map.at[i]) r.r = map.at[i].rid; return r; };
+  return {
+    v: GUEST_V, t: 'state',
+    now: now ? { title: guestCut(now.title, 80), artist: guestCut(now.artist, 60), kind: guestKind(now), playing: !!playing, t: Math.max(0, Math.round(t || 0)), d: Math.max(0, Math.round(d || 0)), key: key | 0, keyOk: !!keyOk } : null,
+    q: queue.slice(0, GUEST_QUEUE_SHOW).map(row), rest: map.at.slice(GUEST_QUEUE_SHOW).filter(Boolean).map(r => r.rid), n: queue.length, keyOn: !!keyOn, yt: !!yt,
+  };
+}
