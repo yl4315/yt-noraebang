@@ -127,7 +127,7 @@ npm run test:ui                  # 화면 자동 점검: 헤드리스 Edge가 �
   - 설정 창 `더 보기 (고급)`(`#advBtn`) → `nb-advanced`='1'이면 `<html class="adv">` = 숨기기 전 화면. 끄면(기본) `.adv-only`·`.adv-full`이 숨고 `.adv-short`가 보인다 (`css/app.css` "숨김 정리").
   - 그 자리에서 펴는 칸: `.fold` 안 `.fold-btn`("더 보기 ›")을 누르면 `.unfold` → `.fold-more`가 보인다 (음향 설정 세부, "가사 맞추기 ›", 설정 창 "이 기기에 저장된 곡"). 고급이면 늘 펴져 있다.
   - 음향 설정(`#deckMore`): 고급 꺼짐이면 사람이 펴고 접은 상태를 `nb-deck`에 기억 (처음엔 접힘). 고급 켬이면 예전 규칙 (PC 펼침, ≤560 접힘) — core.js `deckOpenAtStart`.
-  - 설정 창 차례: 곡 창고(Drive · 이 기기에 저장된 곡) → `더 보기 (고급)` 안에 여행 준비 · 백업 파일 · MR 만들기(주소는 `#mrAddr` 안) · 옛 휴대폰 리모컨(`#remoteSec`, 서버로 켰을 때만 `renderRemoteInfo`가 보이게 함 — Pages에서는 고급을 켜도 안 보임).
+  - 설정 창 차례: 곡 창고(Drive · 이 기기에 저장된 곡 · 허브 연결 `#hubSec` — 고급 밖, 디자인 확인 CR-229 #2) → `더 보기 (고급)` 안에 여행 준비 · 백업 파일 · MR 만들기(주소는 `#mrAddr` 안) · 옛 휴대폰 리모컨(`#remoteSec`, 서버로 켰을 때만 `renderRemoteInfo`가 보이게 함 — Pages에서는 고급을 켜도 안 보임, `#advBtn` 작은 글 끝 "옛 휴대폰 리모컨"(`#advSubRemote`)도 그때만).
   - 새 칸을 숨길 때는 위 클래스만 쓰고, 그 칸을 보는 화면 점검은 고급 켠 화면에서 그대로 돌게 둔다 (`tests/ui/checks/_lib.mjs` `openPage`가 탭마다 `nb-advanced`='1'). 숨김 자체는 `checks/hide.mjs`(W13).
 
 ## 유튜브 곡 (`js/yt.js`, CR-030)
@@ -187,7 +187,8 @@ npm run test:ui                  # 화면 자동 점검: 헤드리스 Edge가 �
 
 - LRCLIB에는 **곡 제목·가수(첫 이름)·MR 길이만** 보낸다 (`lrclibGetParams`). 덧붙이는 머리글 없음 (CORS 미리 묻기가 생김).
 - 정확히 한 곡 찾는 `/api/get` 먼저 → 없거나(404) 맞지 않으면 곡 추가 창과 같은 `findLyrics`(검색) + `chooseLyrics`. 고르는 규칙은 core.js `autoSyncPick`.
-- 연주곡(`instrumental`)이면 가사를 넣지 않고 안내만. 찾으면 `syncChk`를 켜고 "자동 싱크 · 확인해 주세요" 단추 → 싱크 편집에서 저장하거나 가사를 손으로 고치면 `clearSyncCheck`.
+- 연주곡(`instrumental`)이면 가사를 넣지 않고 안내만. 찾으면 `syncChk`를 켜고 "자동 싱크 · 확인해 주세요" 단추 → 가사 맞추기(싱크 편집기)에서 저장하거나 가사를 손으로 고치면 `clearSyncCheck`.
+- [자동 싱크]·[확인해 주세요]는 아래 조작부 `#syncTools` 한 줄: 접힌 "가사 맞추기 ›"(`#lyrFold`) 밖이라 고급을 꺼도 보인다. 두 단추가 다 숨으면 줄도 숨는다 (`css/app.css` `#syncTools`).
 - 싱크 한 줄(`#syncLine` 무대 아래, `#syncLine2` 곡 수정 창): 찾음 / 불러옴(다른 기기) / 못 찾음 [직접 맞추기]. 2단계(집 AI 정렬 W7·W8)는 아직 없음.
 
 ## 녹음 구조

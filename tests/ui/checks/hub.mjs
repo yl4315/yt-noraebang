@@ -196,6 +196,13 @@ export default async function hub(ctx) {
       s2 = (await seedSong(pa, { title: 'QA 시험 자동싱크 곡', artist: 'QA가수 (feat. QA둘)', lyrics: PLAIN, wav: fx.plain })).id;
       await selectById(pa, s2);
       ok('W6', await visible(pa, '#autoSyncBtn') && await isHidden(pa, '#syncChkBtn'), '시각 없는 가사 곡: [자동 싱크] 보임');
+      // 고급 꺼짐(기본 화면)에서도 보임: 접힌 "가사 맞추기 ›"(#lyrFold) 밖 #syncTools 한 줄 (1차 판 kar-r1)
+      await pa.eval('applyAdv(false)');
+      const d0 = { auto: await visible(pa, '#autoSyncBtn'), row: await visible(pa, '#syncTools'), fold: await isHidden(pa, '#lyrTools') };
+      await pa.eval(`document.querySelector('#syncTools').scrollIntoView({block:'center'})`);
+      await shot(pa, 'W6-자동싱크-기본화면-1280.png');
+      await pa.eval('applyAdv(true)');
+      ok('W6', d0.auto && d0.row && d0.fold, `고급 꺼짐: [자동 싱크] ${d0.auto ? '보임' : '숨음'} · "가사 맞추기 ›" 안 칸 ${d0.fold ? '접힌 채' : '펴짐'}`);
       const lrc = '[00:00.50]QA 시험 자동 첫 줄\n[00:02.00]QA 시험 자동 둘째 줄\n[00:03.50]QA 시험 자동 셋째 줄';
       ctx.lrcGetRules.push({ track: '^QA 시험 자동싱크 곡$', status: 200, times: 1, body: { id: 9001, trackName: 'QA 시험 자동싱크 곡', artistName: 'QA가수', albumName: 'QA 시험 앨범', duration: 5, instrumental: false, plainLyrics: 'QA 시험 자동 첫 줄', syncedLyrics: lrc } });
       const nGet = ctx.lrcGetLog.length, nSearch = ctx.lrcLog.length;
@@ -210,6 +217,10 @@ export default async function hub(ctx) {
       ok('W6', ctx.lrcLog.length === nSearch, '정확히 찾아서 검색(/api/search)은 안 함');
       ok('W6', await isHidden(pa, '#autoSyncBtn') && await visible(pa, '#syncChkBtn'), '찾은 뒤: [자동 싱크] 숨김 · "확인해 주세요" 보임');
       ok('W9', await visible(pa, '#syncChkBtn') && /자동 싱크 · 확인해 주세요/.test(await txt(pa, '#syncChkBtn')), '"자동 싱크 · 확인해 주세요" 단추');
+      await pa.eval('applyAdv(false)');
+      const d1 = await visible(pa, '#syncChkBtn');
+      await pa.eval('applyAdv(true)');
+      ok('W9', d1, `고급 꺼짐에서도 "확인해 주세요" ${d1 ? '보임' : '숨음'}`);
       const up = await waitNode(() => rowOf(K2) && rowOf(K2).data.lrc === lrc && rowOf(K2).data.chk === 1, 15000);
       ok('W6', up, '자동 싱크 결과가 허브로 (확인 표시 포함)');
       await shot(pa, 'W6-자동싱크-찾음-1280.png');
@@ -226,20 +237,21 @@ export default async function hub(ctx) {
       ok('W6', ctx.lrcGetLog.slice(nGet).some(e => e.status === 404) && ctx.lrcLog.length > nSearch && x.lyrics === PLAIN, `get 404 → 검색 ${ctx.lrcLog.length - nSearch}번 · 가사 그대로`);
       await shot(pa, 'W6-자동싱크-못찾음-412.png');
       await pa.click('#syncLine .sl-act');
-      ok('W6', await pa.until('!!state.sync', 3000), '[직접 맞추기] → 싱크 편집');
+      ok('W6', await pa.until('!!state.sync', 3000), '[직접 맞추기] → 가사 맞추기(싱크 편집기)');
       await pa.click('#syCancel');
       await pa.emulate(PC);
     });
 
     /* ---------------- W9 확인 표시 ---------------- */
-    await step('"확인해 주세요" → 싱크 편집 → 저장 → 표시 사라짐 (허브로도)', ['W9'], async () => {
+    await step('"확인해 주세요" → 가사 맞추기 → 저장 → 표시 사라짐 (허브로도)', ['W9'], async () => {
       await selectById(pa, s2);
       await pa.click('#syncChkBtn');
-      ok('W9', await pa.until('!!state.sync', 3000), '누르면 싱크 편집');
+      ok('W9', await pa.until('!!state.sync', 3000), '누르면 가사 맞추기(싱크 편집기)');
       await pa.click('#sySave');
       await pa.until(`!state.sync`, 3000);
       const x = await song(pa, s2);
       ok('W9', !x.chk && await isHidden(pa, '#syncChkBtn'), `저장 뒤 표시 ${x.chk ? '남음' : '사라짐'}`);
+      ok('W9', await isHidden(pa, '#autoSyncBtn') && await isHidden(pa, '#syncTools'), '두 단추가 다 숨으면 빈 줄(#syncTools)도 숨음');
       const up = await waitNode(() => rowOf(K2) && rowOf(K2).data.chk === undefined, 15000);
       ok('W9', up, '허브 줄의 확인 표시도 사라짐');
     });

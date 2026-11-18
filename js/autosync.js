@@ -1,7 +1,7 @@
 // YT 노래방 · 무대 "자동 싱크" (CR-227 W6·W9·W10 일부): 시각이 없는 곡에 LRCLIB의 시각 붙은 가사를 찾아 넣는다
 // - LRCLIB에는 곡 제목·가수(첫 이름)·MR 길이만 보낸다 (손님 이름·방 주소·허브 정보 0). 덧붙이는 머리글 없음.
 // - 정확히 한 곡 찾는 /api/get 먼저, 없으면 곡 추가 창과 같은 /api/search (songs.js findLyrics + core.js chooseLyrics).
-// - 찾으면 곡에 저장 → 허브를 쓰면 허브로 (hubTouch). "자동 싱크 · 확인해 주세요" 표시(W9)는 싱크 편집에서 저장하거나 가사를 고치면 사라진다.
+// - 찾으면 곡에 저장 → 허브를 쓰면 허브로 (hubTouch). "자동 싱크 · 확인해 주세요" 표시(W9)는 가사 맞추기(싱크 편집기)에서 저장하거나 가사를 고치면 사라진다.
 // - 싱크 한 줄(디자인 S1·S2): 찾음 / 불러옴(다른 기기 설정) / 못 찾음 [직접 맞추기]. 무대(TV)에는 안 나온다. 글은 textContent로만.
 // 순수 로직(lrclibGetParams·autoSyncPick·canAutoSync)은 core.js, 테스트는 tests/core.test.js.
 'use strict';
@@ -43,7 +43,7 @@ function paintSyncLine(box, info, s) {
   }
   box.hidden = false;
 }
-// [직접 맞추기]: 가사가 있으면 싱크 편집, 없으면 곡 수정 창(가사 넣기)
+// [직접 맞추기]: 가사가 있으면 가사 맞추기(싱크 편집기), 없으면 곡 수정 창(가사 넣기)
 async function syncFixByHand(s) {
   if (!state.songs.includes(s)) return;
   if ($('#songDialog').open) $('#songDialog').close();
@@ -128,7 +128,7 @@ async function autoSync() {
   }
   autoSyncUI();
 }
-// "자동 싱크 · 확인해 주세요" 표시 지우기 (싱크 편집에서 저장했거나 가사를 손으로 고쳤을 때)
+// "자동 싱크 · 확인해 주세요" 표시 지우기 (가사 맞추기에서 저장했거나 가사를 손으로 고쳤을 때)
 function clearSyncCheck(s) { if (s && s.syncChk) delete s.syncChk; }
 {
   const on = (sel, ev, fn) => $(sel)?.addEventListener(ev, fn);

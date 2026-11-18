@@ -323,7 +323,7 @@ dialog h2{margin:0;font:var(--font-title-sheet)}
 .ov-card{background:var(--panel);border:1px solid var(--line);border-radius:.8em;width:min(100%,78cqw);max-height:100%;display:flex;flex-direction:column;gap:.7em;padding:1em 1.2em;font-size:clamp(12px,1.35cqw,30px);min-height:0}
 .ov-head{display:flex;align-items:baseline;gap:.8em}
 .ov-head h3{margin:0;font:400 1.6em var(--display)}
-.ov-head .hint{font-size:.85em;flex:1}
+.ov-head .hint{font-size:.85em;flex:1;text-wrap:pretty}   /* 끝 글자 하나만 다음 줄로 넘어가지 않게 (디자인 확인 CR-030) */
 .ov-head .icon-btn{font-size:1.2em;padding:.1em .4em}
 .ov-card input[type=search]{background:var(--room);border:2px solid var(--line);border-radius:.5em;padding:.5em .7em;font-size:1.3em;width:100%}
 .ov-card input[type=search]:focus{border-color:var(--amber);outline:none}
@@ -624,6 +624,7 @@ body:has(#tv:not([hidden])) .yt-box{z-index:20;border-radius:0}
   background:var(--panel);border:1px solid var(--line);border-radius:var(--radius-md);padding:16px 18px;font-size:clamp(13px,1.4cqw,30px)}
 .yt-err b{font:400 1.25em/1.3 var(--display)}
 .yt-err span{color:var(--muted)}
+.yt-err .btn{min-height:48px}   /* [유튜브에서 열기] 손가락 자리 (디자인 확인 CR-030) */
 .stage:has(#ytErr:not([hidden])) :is(.title-card,.lyrics){visibility:hidden}   /* 못 트는 영상 안내 위로 곡 제목·가사가 비치지 않게 (디자인 확인 CR-030 #3) */
 /* 곡 검색 창: [내 MR 보관함 | 유튜브 노래방 검색] (높이 48) */
 .seg{display:flex;background:var(--room);border-radius:var(--radius-sm,8px);padding:2px;min-height:48px;flex:none}
@@ -698,6 +699,7 @@ body:has(#tv.yt-mode:not([hidden])) .toast{left:14px;right:auto;transform:none;b
    글 12px 회색, 색은 14px 아이콘에만 (찾음 초록 · 불러옴 파랑 · 못 찾음 회색), [직접 맞추기]는 오른쪽 끝 */
 .sync-line{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:4px 0 0;font-size:12px;line-height:20px;color:var(--color-text-muted-strong,var(--muted))}
 .sync-line[hidden]{display:none}
+#syncTools:not(:has(> :not([hidden]))){display:none}   /* [자동 싱크]·[확인해 주세요]가 다 숨으면 빈 줄도 숨김 */
 .sync-line svg{flex:none;width:14px;height:14px;color:var(--color-text-muted)}
 .sync-line[data-state=found] svg{color:var(--color-positive,#9CDCAE)}
 .sync-line[data-state=loaded] svg{color:var(--color-info)}
