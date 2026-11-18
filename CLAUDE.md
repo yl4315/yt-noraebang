@@ -18,13 +18,14 @@ npm run test:ui                  # 화면 자동 점검: 헤드리스 Edge가 �
 
 - **화면을 고친 CR은 끝내기 전에 `npm test`와 `npm run test:ui`를 둘 다 돌린다.**
 - 결과·사진은 PC 임시 폴더 (`--out`으로 바꿈). 저장소 안은 git에서 빠지는 `tests/ui/out/`만. 옵션은 `tests/ui/run.mjs` 맨 위.
-- **기능을 더하거나 바꾸면 `tests/ui/features.json`(기능 번호 → 분류 auto/test/partial/human/device, 조건 P·V·O·M·W·S·L·H)과 그 번호를 보는 `tests/ui/checks/*.mjs`를 같이 고친다.** 결과표에 233줄이 다 나오는지, 자동 줄에 확인 기록이 있는지 점검이 스스로 본다 (기록이 없으면 실패).
+- **기능을 더하거나 바꾸면 `tests/ui/features.json`(기능 번호 → 분류 auto/test/partial/human/device, 조건 P·V·O·M·W·S·L·H)과 그 번호를 보는 `tests/ui/checks/*.mjs`를 같이 고친다.** 결과표에 241줄이 다 나오는지, 자동 줄에 확인 기록이 있는지 점검이 스스로 본다 (기록이 없으면 실패).
 - Drive가 필요한 흐름은 `tests/ui/checks/devsync.mjs`처럼 페이지 안 `Cloud.api`를 가짜 Drive(메모리)로 바꿔 본다 (`getToken`은 가짜 API면 `'test'`).
   - 실제 Google에는 요청하지 않는다.
   - 이 점검은 같이 쓰는 탭에서 맨 마지막에 돌고 넣은 것을 지운다.
 - 점검 도구는 npm 패키지 없이 CDP로 Edge를 움직인다 (`tests/ui/edge.mjs`).
 - 시험 서버 `tests/ui/serve.py`는 `server.PIN_FILE`을 임시 폴더로 바꾸고 127.0.0.1에만 켠다 (저장소 `.remote.json`을 안 건드림). 밖으로 나가는 요청은 글꼴·QR 라이브러리만 허용, `lrclib.net`(`/api/search`·`/api/get`)은 가짜 답, Google은 막음.
-- 허브(CR-227)는 `tests/ui/fakehub.mjs`의 **메모리 가짜 허브**로만 본다: 만든 주소(`qafakehub…`)·가짜 공개 키·점검이 만든 가짜 계정. 로그인·`hub_push`·`hub_pull`·`hub_secret`을 키트 규칙대로 흉내 낸다. 진짜 허브에 요청하면 공통 점검이 실패한다. `checks/hub.mjs`는 새 Edge에 기기 둘(127.0.0.1·localhost = 다른 저장소)을 열고, 맨 마지막에 돈다.
+- 허브(CR-227)는 `tests/ui/fakehub.mjs`의 **메모리 가짜 허브**로만 본다: 만든 주소(`qafakehub…`)·가짜 공개 키·점검이 만든 가짜 계정. 로그인·`hub_push`·`hub_pull`·`hub_secret`을 키트 규칙대로 흉내 낸다. 진짜 허브에 요청하면 공통 점검이 실패한다. `checks/hub.mjs`는 새 Edge에 기기 둘(127.0.0.1·localhost = 다른 저장소)을 열고, 끝에서 두 번째로 돈다.
+- 손님 방(CR-228)은 `fakehub.mjs`의 `makeFakeRealtime`(가짜 Realtime: 페이지의 `WebSocket`을 바꿔 끼우고 CDP 바인딩으로 Node의 메모리 broadcast에 잇는다, Phoenix vsn 2.0.0 글·이진 틀)으로만 본다. `checks/guest.mjs`가 맨 마지막: 새 Edge 셋(방장 PC · 손님 폰 A · 손님 폰 B, 저장소가 따로)에 방장 1 + 손님 2, 가짜 손님은 Node가 방에 직접 보낸다(`R.inject`). 방 이름·연결 코드는 점검 기록·결과표에도 쓰지 않는다(개수만 셈). 손님 주소로 갈 때 `p.goto` 대신 `Page.navigate`(실패 글에 주소가 남지 않게).
 - 공통 점검 "보안 규칙(CSP)이 막은 것 0": `_lib.mjs` 기록 장치가 `securitypolicyviolation`을 콘솔 오류로 남긴다. 새 바깥 주소를 쓰면 `index.html` CSP에 더한다 (아래 "허브 연결").
 - 점검이 찾은 앱 문제는 고치지 않고 결과표 "점검하다 본 것"에 적는다. 바로 못 고치는 실패는 `features.json`의 `known`(설명 + 맞는 실패 글)으로 "알려진 문제"로 따로 보이게 하고, 고치면 지운다.
 - 점검이 고장을 잡는지: `node tests/ui/selftest.mjs` (사본에서 단축키 C 빼기·검색 ✕ 숨기기·데모곡 번호 바꾸기 → M4·M10·I9·I12·S1·S4가 실패로 나와야 함).
@@ -84,9 +85,12 @@ npm run test:ui                  # 화면 자동 점검: 헤드리스 Edge가 �
 | `js/devsync.js` | 기기 맞추기: 켤 때 "Drive와 맞추기" 띠, 점수·부른 횟수 기기별 Drive 파일 올리기·받기, 설정 창 "여행 준비" |
 | `js/vendor/supabase-2.117.1.js` | **남의 라이브러리 그대로** (supabase-js UMD, MIT, 맨 위 한 줄만 더함). 고치지 않는다. 판을 바꾸면 파일 이름·`index.html`·`sw.js`를 같이. 라이선스 글은 `js/vendor/LICENSES.txt` |
 | `js/hub.js` | 허브 연결(CR-227): 설정 창 "허브 연결" 칸(코드·로그인·끊기), 곡 설정 보내기·받기(`hubSync`), 허브 열쇠 칸 읽기(`hubYoutubeKey`) |
+| `js/guesthost.js` | 손님 방 방장 쪽(CR-228): 설정 "손님" 줄·손님 초대 QR 시트·TV 대기 카드, 허브 Realtime 공개 broadcast 방 열기·닫기, 손님 메시지 처리 (`hub.js` 다음) |
+| `js/vendor/toqr-0.1.1.mjs` | **남의 라이브러리 그대로** (toqr, MIT, `block-calendar` node_modules 사본). 손님 QR 그림만 `import()`로 씀. 고치지 않는다 |
 | `js/autosync.js` | 무대 "자동 싱크"(LRCLIB `/api/get` → 검색), 싱크 한 줄, "자동 싱크 · 확인해 주세요" |
 | `js/main.js` | 메인 루프, 앱 시작 (항상 마지막) |
 | `remote.html` | 휴대폰 리모컨 화면 (따로 동작, `remote.webmanifest`로 홈 화면 아이콘) |
+| `guest.html` · `js/guest.js` · `css/guest.css` | 손님 폰 화면(CR-228). `util.js`·`core.js`·`guest.js`·supabase-js 순서. 앱 화면과 따로 돌고 저장 0 |
 | `sw.js` | 서비스 워커: 앱 파일·글꼴을 저장해 오프라인에서도 열리게 |
 | `tests/ui/` | 화면 자동 점검 (`npm run test:ui`): `run.mjs` 차례·결과표, `edge.mjs` 헤드리스 Edge(CDP), `serve.py` 시험 서버, `checks/*.mjs` 흐름별 점검, `features.json` 기능 번호 연결표, `fixtures.mjs` 시험 파일(그때그때 만듦), `compare.mjs` 사진 비교, `selftest.mjs` 고장 잡는지 시험. 앱 파일이 아니라 `sw.js` 목록에 넣지 않는다 |
 
@@ -158,7 +162,7 @@ npm run test:ui                  # 화면 자동 점검: 헤드리스 Edge가 �
 - 키 두 층: 사용자별 키(`me().keys`)가 이기고, 없으면 허브를 쓸 때만 곡 기본 키(`keyOf`).
 - 허브 코드가 없으면(`nb-hub` 없음) 요청·타이머 0, 지금과 똑같이 돈다 (W12). 허브 함수를 다른 파일에서 부를 때는 `typeof … === 'function'`.
 - 허브 열쇠 칸(YouTube 검색 열쇠)은 `hubYoutubeKey()` 읽기 하나: 로그인 뒤 한 번 읽어 **메모리에만**, `ytSetKey`(CR-030 `yt.js`)가 있으면 넘긴다. 로그아웃·끊기에서 지운다.
-- **CSP** (`index.html` `<meta>`): `script-src`·`connect-src`만 정한다. 새 바깥 주소(스크립트·fetch)를 쓰면 여기에 더한다. 지금: Google 로그인·Drive, cdnjs(QR), YouTube, LRCLIB, `*.supabase.co`(허브). 허브·LRCLIB·사용자 글은 `textContent`로만 넣는다.
+- **CSP** (`index.html` `<meta>`): `script-src`·`connect-src`만 정한다. 새 바깥 주소(스크립트·fetch)를 쓰면 여기에 더한다. 지금: Google 로그인·Drive, cdnjs(QR), YouTube, LRCLIB, `*.supabase.co`(허브·손님 방 Realtime `wss`). 손님 화면 `guest.html`은 따로 CSP (아래 "손님 방"). 허브·LRCLIB·사용자 글은 `textContent`로만 넣는다.
 
 ## 자동 싱크 (`js/autosync.js`, CR-227 1단계)
 
@@ -166,6 +170,22 @@ npm run test:ui                  # 화면 자동 점검: 헤드리스 Edge가 �
 - 정확히 한 곡 찾는 `/api/get` 먼저 → 없거나(404) 맞지 않으면 곡 추가 창과 같은 `findLyrics`(검색) + `chooseLyrics`. 고르는 규칙은 core.js `autoSyncPick`.
 - 연주곡(`instrumental`)이면 가사를 넣지 않고 안내만. 찾으면 `syncChk`를 켜고 "자동 싱크 · 확인해 주세요" 단추 → 싱크 편집에서 저장하거나 가사를 손으로 고치면 `clearSyncCheck`.
 - 싱크 한 줄(`#syncLine` 무대 아래, `#syncLine2` 곡 수정 창): 찾음 / 불러옴(다른 기기) / 못 찾음 [직접 맞추기]. 2단계(집 AI 정렬 W7·W8)는 아직 없음.
+
+## 손님 방 (`js/guesthost.js` · `guest.html`, CR-228)
+
+- 방 = 회사 허브 Realtime **공개 broadcast** 채널 하나 (`private`·presence·표 변경 0). 방 이름은 열 때마다 새 256비트 난수 `nbr-…`(core.js `guestRoomName`). 방장(노래방)이 먼저 붙고, 손님 메시지는 이벤트 `g`, 방장 답은 `h`.
+- QR 주소 = `…/guest.html#r=<방 이름>&c=<허브 연결 코드 nbhub1.…>` (core.js `guestUrl`). **값은 `#` 뒤에만, `?` 없음.** 손님 화면은 열자마자 `history.replaceState`로 `#`을 지우고 값은 메모리에만 둔다 (`guestUrlParse`).
+- **방 이름·연결 코드·허브 주소·키는 콘솔·기록·화면 글에 찍지 않는다** (QR 그림 안에만). 손님은 로그인·허브 표·RPC 0, 저장(localStorage·sessionStorage·IndexedDB·쿠키·서비스 워커) 0.
+- 메시지 모양은 core.js `guestMsgOk`(종류 `hello`·`search`·`reserve`·`unreserve`·`key`·`bye`, 4KB까지, 키 −2~2, 손님 표 16~32자, 이름 10자). 모르는 종류·모양 틀림·안 들어온(hello 안 한) 손님 메시지는 답 없이 버린다. 손님 6명(`GUEST_MAX`), 한 사람 1초 4개(`guestRateOk`), 방 전체 1초 30개.
+- 방장이 대신 처리하고 **결과만** 돌려준다: 찾기 = MR 창고에서 번호·제목·가수·종류만 30개(`guestSearchResult`), 예약 = 곡 번호가 진짜 있는지 다시 확인, 빼기 = 그 손님이 넣은 예약만(`guestQueueMap`), 상태 = 지금 곡·다음·예약 제목 10개(`guestStateMsg`, 바뀔 때와 20초마다).
+- 답: `welcome`·`full`·`found`·`ok{rid,pos}`(pos 0 = 바로 시작)·`ok{gone}`·`no{why: many·nosong·gone·keyoff·nokey·yt}`·`state`·`closed`.
+- 유튜브 곡(`reserve{ytId}`·`search{kind:'yt'}`)은 `typeof ytReserve === 'function'`(CR-030 `yt.js`)일 때만 처리. 없으면 `no{why:'yt'}`, 손님 화면 유튜브 칸은 숨김(`state.yt`).
+- 방을 닫는 때: [방 닫기] · [새 QR 만들기](새 방) · 노래방 화면 닫기(`pagehide`) · 허브 연결 끊기·바꾸기(`guestTick`이 1초마다 `Hub.sb`를 봄). 닫으면 손님에게 `closed`를 보내고 방 이름·손님 이름·예약 표를 메모리에서도 지운다.
+- 예약 목록의 손님 이름은 `guestNickAt(i)`(karaoke.js `renderQueue`·`renderQueueList`가 `typeof`로 부름). 방이 닫혀 있으면 ''.
+- 이 기기 설정: `nb-guest-tv`(`'0'` = TV에 QR 안 보임) · `nb-guest-key`(`'0'` = 손님 키 바꾸기 끔). 기본은 둘 다 켬이라 키를 안 만든다.
+- TV 대기 카드 `#guestCard`: 방이 열려 있으면 QR(`#tvIdle.guest-on`이면 옛 리모컨 안내 `#remoteInfo`는 숨김), 닫혀 있으면 허브가 있을 때만 [손님 QR 켜기]. `server.py` 휴대폰 리모컨(N1~N21)은 그대로.
+- 손님 화면 CSP는 `guest.html` `<meta>`에 따로: `default-src 'none'`, 스크립트·스타일은 `'self'`, 바깥은 `https://*.supabase.co`·`wss://*.supabase.co`만. `sw.js`는 손님 파일도 저장하지만(`SHELL` v9) 허브 요청은 저장하지 않는다.
+- 알려진 한계: 공개 broadcast라 방 이름을 아는 손님은 방장 답(`h`)을 흉내 낼 수 있다 (다른 손님 화면에 가짜 `closed`·목록). 손님 화면은 `textContent`로만 넣어서 스크립트는 못 넣는다.
 
 ## 녹음 구조
 
