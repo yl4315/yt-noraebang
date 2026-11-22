@@ -29,10 +29,12 @@ export function makeFakeHub() {
     log: [],               // [{ m, path, grant, status, size }] (요청 몸은 크기만)
     badKey: 0,             // apikey가 가짜 공개 키가 아닌 요청 수
     bodies: [],            // hub_push 몸 (점검이 "소리 파일 안 감"을 본다)
-    secrets: new Map(),    // 열쇠 칸 (계정 id|앱|이름 → 값). 키트 0008 hub_secret 흉내
+    secrets: new Map(),    // 열쇠 칸 (계정 id|앱|이름 → 값). 키트 0008 hub_secret·hub_secret_set 흉내
+    secretSets: [],        // hub_secret_set 부른 기록 [{ app, name, size }] (값은 크기만)
+    failRpc: new Set(),    // 이 이름의 rpc만 503 (CR-231: 허브에 넣기만 실패. 다른 요청은 그대로라 맞추기·뒤로 미루기는 안 바뀜)
     rt: null,              // 가짜 Realtime (makeFakeRealtime, 손님 방 점검이 붙임)
   };
-  H.reset = () => { H.users.clear(); H.tokens.clear(); H.refresh.clear(); H.rows.clear(); H.seq = 0; H.mode = null; H.log.length = 0; H.badKey = 0; H.bodies.length = 0; H.secrets.clear(); };
+  H.reset = () => { H.users.clear(); H.tokens.clear(); H.refresh.clear(); H.rows.clear(); H.seq = 0; H.mode = null; H.log.length = 0; H.badKey = 0; H.bodies.length = 0; H.secrets.clear(); H.secretSets.length = 0; H.failRpc.clear(); };
   H.addUser = (email, password) => { const id = crypto.randomUUID(); H.users.set(email, { id, email, password }); return id; };
   H.rowsOf = (owner, scope = 'noraebang', coll = 'song_settings') => [...H.rows.values()].filter(r => r.owner === owner && r.scope === scope && r.coll === coll);
   const userObj = u => ({ id: u.id, aud: 'authenticated', role: 'authenticated', email: u.email, phone: '', email_confirmed_at: '2026-01-01T00:00:00Z',
@@ -109,12 +111,24 @@ export function makeFakeHub() {
         const usr = H.tokens.get(bearer);
         if (!usr) return bearer.split('.').length === 3 ? json(401, { code: 'PGRST301', message: 'JWT invalid' }) : json(403, { code: '28000', message: 'hub: sign in first' });
         const fn = u.pathname.slice('/rest/v1/rpc/'.length);
+        if (H.failRpc.has(fn)) return json(503, { message: 'QA 가짜 허브: 이 함수만 일부러 바쁨' });
         if (fn === 'hub_push') { H.bodies.push(req.postData || ''); return push(usr, body || {}); }
         if (fn === 'hub_pull') return pull(usr, body || {});
         if (fn === 'hub_secret') {
           if (!APP_RE.test(body?.p_app || '') || !COLL_RE.test(body?.p_name || '')) return json(400, { code: '22023', message: 'hub: bad app or name' });
           const v = H.secrets.get([usr.id, body.p_app, body.p_name].join('|'));
           return json(200, JSON.stringify(v === undefined ? null : v));     // PostgREST: text 함수는 JSON 글자 하나 (없으면 null)
+        }
+        // 0008 hub_secret_set: 앞뒤 빈칸을 떼고 넣는다 (512자·제어 문자 = 22023). 빈 값·null = 지움 → false, 넣으면 true
+        if (fn === 'hub_secret_set') {
+          if (!APP_RE.test(body?.p_app || '') || !COLL_RE.test(body?.p_name || '')) return json(400, { code: '22023', message: 'hub: bad app or name' });
+          const key = [usr.id, body.p_app, body.p_name].join('|'), raw = body.p_value;
+          H.secretSets.push({ app: body.p_app, name: body.p_name, size: typeof raw === 'string' ? raw.length : 0 });
+          const v = typeof raw === 'string' ? raw.trim() : '';
+          if (!v) { H.secrets.delete(key); return json(200, 'false'); }
+          if (v.length > 512 || /[\u0000-\u001f\u007f]/.test(v)) return json(400, { code: '22023', message: 'hub: bad value' });
+          H.secrets.set(key, v);
+          return json(200, 'true');
         }
         return json(404, { code: 'PGRST202', message: 'no such function' });
       }

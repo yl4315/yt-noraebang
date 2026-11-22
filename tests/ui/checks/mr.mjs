@@ -1,9 +1,10 @@
 // CR-089: MR 만들기 — 곡 목록 버튼 → 집 AI 서버 "MR 만들기 창"(여기서는 가짜 창 tests/ui/fake-mr, 다른 포트 = 다른 origin)
 // → 창끼리 메시지(hello/welcome/files/ack/nack) → "여러 곡 한 번에 넣기" 창. 설정 창 서버 주소 칸. 집 AI 서버에는 요청하지 않는다.
+// CR-231: 코드에 서버 주소가 없다 → 주소 없음 안내·[주소 넣기]. 허브 열쇠 칸(mr_server)으로 다른 기기와 같이 쓰는 것은 hub.mjs가 본다 (이 탭은 허브 없이).
 // 가짜 창은 노래방이 window.open으로 연 진짜 탭이고, 점검은 CDP로 그 탭에 붙어 파일을 보내게 하고 받은 답(__got)을 읽는다.
 import fs from 'node:fs';
 import path from 'node:path';
-import { txt, visible, marks, sawToast, sleep, q, stopAll } from './_lib.mjs';
+import { txt, visible, marks, sawToast, sleep, q, stopAll, clipShot } from './_lib.mjs';
 import { waitDownload } from './record.mjs';
 import { cand } from '../fixtures.mjs';
 export const areas = ['U'];
@@ -58,40 +59,71 @@ export default async function mr(ctx) {
     const sw = fs.readFileSync(path.join(ctx.ROOT, 'sw.js'), 'utf8'), js = fs.readFileSync(path.join(ctx.ROOT, 'js', 'mr.js'), 'utf8');
     const shell = /const SHELL = '([^']+)'/.exec(sw)?.[1];
     const noFetch = !/\bfetch\s*\(|XMLHttpRequest|sendBeacon|new\s+WebSocket|EventSource/.test(js);
-    const noTail = !/\.ts\.net|\b100\.\d+\.\d+\.\d+\b/.test(js + fs.readFileSync(path.join(ctx.ROOT, 'js', 'core.js'), 'utf8') + fs.readFileSync(path.join(ctx.ROOT, 'index.html'), 'utf8'));
-    ctx.common('MR 만들기 코드 점검: sw.js SHELL v8 이상·목록에 js/mr.js, 스크립트 순서 bulk→mr→main, mr.js가 서버로 요청하지 않음, tailnet 뒷부분·IP 없음',
+    // CR-231: 집 AI 주소(짧은 이름·tailnet 이름·IP)가 코드에 없다 (이 파일에도 그 글자를 그대로 두지 않으려고 조각으로 만든다)
+    const ADDR_RE = new RegExp(['dgx' + 'spark', '\\.ts\\.net', '\\b100\\.\\d+\\.\\d+\\.\\d+\\b', 'fd7' + 'a:'].join('|'), 'i');
+    const noTail = !ADDR_RE.test(['js/mr.js', 'js/core.js', 'js/hub.js', 'js/autosync.js', 'index.html', 'sw.js'].map(f => fs.readFileSync(path.join(ctx.ROOT, f), 'utf8')).join('\n'));
+    ctx.common('MR 만들기 코드 점검: sw.js SHELL v8 이상·목록에 js/mr.js, 스크립트 순서 bulk→mr→main, mr.js가 서버로 요청하지 않음, 집 AI 주소(이름·tailnet·IP) 없음',
       +(/^yt-shell-v(\d+)$/.exec(shell || '')?.[1] || 0) >= 8 && sw.includes("'./js/mr.js'") && order.every(i => i >= 0) && order[0] < order[1] && order[1] < order[2] && noFetch && noTail,
-      `SHELL ${shell}, 순서 ${order.join('<')}, 요청 코드 ${noFetch ? '없음' : '있음!'}, 뒷부분·IP ${noTail ? '없음' : '있음!'}`);
+      `SHELL ${shell}, 순서 ${order.join('<')}, 요청 코드 ${noFetch ? '없음' : '있음!'}, 집 AI 주소 ${noTail ? '없음' : '있음!'}`);
   });
 
-  await step('설정 창 서버 주소 칸: 기본값·틀린 주소 안내·저장(끝 / 뗌)·기본값으로·저장 안 하고 닫기·L2 안내 줄', ['U3'], async () => {
+  // CR-231: 코드에 서버 주소가 없다 → 주소가 없으면 창을 열지 않고 안내 + [주소 넣기] (설정 창 주소 칸으로)
+  await step('주소가 없으면 [MR 만들기]가 창을 열지 않고 안내 + [주소 넣기] → 설정 창 → 더 보기 (고급) → MR 만들기 주소 칸이 펴지고 초점', ['U1'], async () => {
     await p.eval(`localStorage.removeItem('nb-mrserver')`);
-    // CR-229: 주소 칸은 "서버 주소 보기·바꾸기"(#mrAddr) 안에 접혀 있다 (설정 창을 열 때마다 접힘) → 펴고 본다
+    await closePopups(ctx, FAKE);
+    const pages = async () => (await ctx.browser.send('Target.getTargets')).targetInfos.filter(x => x.type === 'page').length;
+    const n0 = await pages();
+    await p.click('#mrBtn'); await sleep(500);
+    const m = await p.eval(`({cur:mrServer(), shown:!$('#mrMsg').hidden, text:$('#mrMsgTxt').textContent, want:MR_NOSERVER_TEXT, retry:!$('#mrRetry').hidden, go:!$('#mrGo').hidden, goTxt:$('#mrGo').textContent, win:!!Mr.win})`);
+    const n1 = await pages();
+    const sh = await clipShot(p, ['#mrBtn', '#mrMsg'], path.join(ctx.shotsDir, 'U1-MR-주소없음-안내-1280.png')).catch(e => { ctx.log('  (사진 실패: ' + e.message + ')'); return null; });
+    if (sh) ctx.log('  사진 U1-MR-주소없음-안내-1280.png');
+    ok('U1', m.cur === '' && m.shown && m.text === m.want && !m.retry && m.go && m.goTxt === '주소 넣기' && !m.win && n1 === n0,
+      `주소 없음 → 창 ${n1 - n0}개 열림 · "${m.text}" + [${m.goTxt}] ([다시 해보기] ${m.retry ? '보임' : '숨김'})`);
+    // [주소 넣기]: 고급이 꺼진 화면에서 눌러도 → 설정 창 + 고급 켬 + 주소 칸 펴고 초점 (사람이 누르는 길과 같음)
+    await p.eval('applyAdv(false)');
+    await p.click('#mrGo'); await sleep(400);
+    const g = await p.eval(`({dlg:$('#cloudDialog').open, adv:document.documentElement.classList.contains('adv'), ls:localStorage.getItem('nb-advanced'), addr:$('#mrAddr').open, focus:document.activeElement===$('#mrServer'), val:$('#mrServer').value, msg:!$('#mrMsg').hidden})`);
+    ok('U1', g.dlg && g.adv && g.ls === '1' && g.addr && g.focus && g.val === '' && !g.msg,
+      `[주소 넣기] → 설정 창 ${g.dlg ? '열림' : '안 열림'} · 고급 ${g.adv ? '켬' : '꺼짐'} · 주소 칸 ${g.addr ? '펴짐' : '접힘'} · 초점 ${g.focus ? '칸' : '다른 곳'} · 빈 칸`);
+    await p.click('#cloudClose');
+    // 자동 싱크(정렬) 길도 같은 글 (주소 없음 = 창을 열지 않음), [직접 맞추기] 없음. 단추로 여는 것은 align.mjs(W8)가 본다
+    const al = await p.eval(`(()=>{ const info=alignInfo('alignfail','noserver'); return {text:info.text, fix:info.fix, want:MR_NOSERVER_TEXT}; })()`);
+    ok('U1', al.text === al.want && al.fix === false, `자동 싱크 이유 noserver → "${al.text}" ([직접 맞추기] ${al.fix ? '있음' : '없음'})`);
+  });
+
+  await step('설정 창 서버 주소 칸: 처음엔 빈 칸(코드에 주소 없음)·틀린 주소 안내·저장(이 기기, 끝 / 뗌)·[이 기기에서 지우기]·빈 칸 저장 = 지움·저장 안 하고 닫기·안내 줄', ['U3'], async () => {
+    await p.eval(`localStorage.removeItem('nb-mrserver')`);
+    // CR-229: 주소 칸은 "서버 주소 넣기·바꾸기"(#mrAddr) 안에 접혀 있다 (설정 창을 열 때마다 접힘) → 펴고 본다
     const openAddr = () => p.eval(`document.querySelector('#mrAddr').open=true`);
     await p.click('#settingsBtn'); await openAddr();
     const lay = await p.eval(`(()=>{const secs=[...document.querySelectorAll('#cloudDialog .set-sec')].map(s=>{const h=s.querySelector('h3'); return h?h.textContent:'#'+s.id});   /* 손님 묶음(#guestSec)은 h3 없이 set-group 글만 (CR-228 디자인 확인) */ const i=secs.indexOf('MR 만들기 (집 AI 서버)');
-      return {i, prev:secs[i-1], next:secs[i+1], val:document.querySelector('#mrServer').value, hints:[...document.querySelectorAll('#mrSec .hint')].map(h=>h.hidden?'':h.textContent).filter(Boolean)}})()`);
-    const save = async v => { await p.eval(`(()=>{const i=document.querySelector('#mrServer'); i.value=${q(v)}; i.dispatchEvent(new Event('input',{bubbles:true}))})()`); await p.click('#mrSave');
-      return p.eval(`({ls:localStorage.getItem('nb-mrserver'), val:document.querySelector('#mrServer').value, msg:document.querySelector('#mrSetMsg').hidden?'':document.querySelector('#mrSetMsg').textContent, err:document.querySelector('#mrSetMsg').classList.contains('err')})`); };
-    const bad1 = await save('dgxspark-yena:8765'), bad2 = await save('http://me:pw@dgxspark-yena:8765');
+      const inp=document.querySelector('#mrServer');
+      return {i, prev:secs[i-1], next:secs[i+1], val:inp.value, ph:inp.placeholder, sum:document.querySelector('#mrAddr > summary').textContent, reset:document.querySelector('#mrReset').textContent,
+        hints:[...document.querySelectorAll('#mrSec .hint')].map(h=>h.hidden?'':h.textContent).filter(Boolean), T:{dev:MR_SAVE_TEXT.device, clr:mrClearText(false)}}})()`);
+    const st = () => p.eval(`({ls:localStorage.getItem('nb-mrserver'), val:document.querySelector('#mrServer').value, msg:document.querySelector('#mrSetMsg').hidden?'':document.querySelector('#mrSetMsg').textContent, err:document.querySelector('#mrSetMsg').classList.contains('err')})`);
+    const save = async v => { await p.eval(`(()=>{const i=document.querySelector('#mrServer'); i.value=${q(v)}; i.dispatchEvent(new Event('input',{bubbles:true}))})()`); await p.click('#mrSave'); await sleep(150); return st(); };
+    const bad1 = await save('mr.example.test:8765'), bad2 = await save('http://me:pw@mr.example.test:8765');
     const good = await save(FAKE + '/');
     await p.click('#mrReset');
-    const reset = await p.eval(`({ls:localStorage.getItem('nb-mrserver'), val:document.querySelector('#mrServer').value, msg:document.querySelector('#mrSetMsg').textContent})`);
-    const same = await save('http://dgxspark-yena:8765/');
-    // 틀린 값을 쳐 두고 저장 없이 닫으면 → 다시 열 때 저장된 값 (지금은 기본값)
+    const reset = await st();
+    await save(FAKE);
+    const empty = await save('');        // 빈 칸 저장 = 이 기기에서 지우기
+    await save(FAKE);
+    // 틀린 값을 쳐 두고 저장 없이 닫으면 → 다시 열 때 저장된 값
     await p.eval(`document.querySelector('#mrServer').value='http://고치다 만 주소'`);
     await p.click('#cloudClose'); await p.click('#settingsBtn'); await openAddr();
     const reopened = await p.eval(`({val:document.querySelector('#mrServer').value, msg:document.querySelector('#mrSetMsg').hidden})`);
-    const fin = await save(FAKE);
     await p.click('#cloudClose');
-    ok('U3', lay.i > 0 && lay.prev === '백업 파일' && lay.next === '옛 휴대폰 리모컨 (PC에서 켰을 때만 보여요)' && lay.val === 'http://dgxspark-yena:8765'
-      && lay.hints.includes("주소창에 '안전하지 않음'이 보여도 집 Tailscale 안에서만 열리는 창이에요") && lay.hints.includes('이 기기에만 저장돼요. 집 밖에서는 Tailscale을 켜 주세요.'),
-      `칸 자리 "${lay.prev}" 아래·"${lay.next}" 위, 기본값 ${lay.val}, 안내 ${lay.hints.length}줄 (L2 줄 있음)`);
-    ok('U3', bad1.ls === null && bad1.err && bad1.msg === '주소는 http:// 또는 https://로 시작해야 해요 (예: http://dgxspark-yena:8765)' && bad2.ls === null && bad2.err && /@/.test(bad2.msg),
+    ok('U3', lay.i > 0 && lay.prev === '백업 파일' && lay.next === '옛 휴대폰 리모컨 (PC에서 켰을 때만 보여요)' && lay.val === '' && lay.ph === 'http://(집 AI 이름):8765'
+      && lay.sum === '서버 주소 넣기·바꾸기' && lay.reset === '이 기기에서 지우기'
+      && lay.hints.includes("주소창에 '안전하지 않음'이 보여도 집 Tailscale 안에서만 열리는 창이에요") && lay.hints.includes('이 기기에 저장돼요. 허브에 로그인해 있으면 허브에도 넣어서 내 다른 기기도 같이 써요. 집 밖에서는 Tailscale을 켜 주세요.'),
+      `칸 자리 "${lay.prev}" 아래·"${lay.next}" 위, 처음 값 "${lay.val}"(빈 칸) · 예시 "${lay.ph}" · [${lay.reset}] · 안내 ${lay.hints.length}줄`);
+    ok('U3', bad1.ls === null && bad1.err && bad1.msg === '주소는 http:// 또는 https://로 시작해야 해요 (예: http://(집 AI 이름):8765)' && bad2.ls === null && bad2.err && /@/.test(bad2.msg),
       `틀린 주소는 저장 안 함: "${bad1.msg}" · "${bad2.msg}"`);
-    ok('U3', good.ls === FAKE && good.val === FAKE && !good.err && /^저장했어요/.test(good.msg) && reset.ls === null && reset.val === 'http://dgxspark-yena:8765' && reset.msg === '기본값으로 돌렸어요'
-      && same.ls === null && same.val === 'http://dgxspark-yena:8765' && reopened.val === 'http://dgxspark-yena:8765' && reopened.msg && fin.ls === FAKE,
-      `저장 → nb-mrserver "${good.ls}"(끝 / 뗌) · [기본값으로] → 지움 · 기본값과 같은 주소 → 지움 · 저장 안 하고 닫으면 다시 열 때 저장된 값`);
+    ok('U3', good.ls === FAKE && good.val === FAKE && !good.err && good.msg === lay.T.dev && reset.ls === null && reset.val === '' && reset.msg === lay.T.clr
+      && empty.ls === null && empty.val === '' && empty.msg === lay.T.clr && reopened.val === FAKE && reopened.msg,
+      `저장 → nb-mrserver(끝 / 뗌) "${good.msg}" · [이 기기에서 지우기] → 지움·빈 칸 "${reset.msg}" · 빈 칸 저장 → 지움 · 저장 안 하고 닫으면 다시 열 때 저장된 값`);
     // 백업 파일·Drive 곡 목록에는 안 들어감
     const lib = await p.eval(`JSON.stringify(buildLibrary({ songs: state.songs, tombs: state.tombs, profiles: Profiles.list, recs: state.recs, recTombs: state.recTombs }))`);
     await p.click('#settingsBtn');

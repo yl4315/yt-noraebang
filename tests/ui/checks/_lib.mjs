@@ -1,5 +1,6 @@
 // 화면 자동 점검(CR-019) · 점검들이 같이 쓰는 도구
 import fs from 'node:fs';
+import path from 'node:path';
 import { sleep } from '../edge.mjs';
 export { sleep };
 
@@ -69,6 +70,19 @@ export const lastToast = p => p.eval(`(__ui.toasts[__ui.toasts.length-1]||{}).te
 export const lastFlash = p => p.eval(`(__ui.flashes[__ui.flashes.length-1]||{}).text||''`);
 /** 가로 스크롤 없음: 문서 폭 = 화면 폭 */
 export const noHScroll = p => p.eval(`document.documentElement.scrollWidth <= innerWidth + 1`);
+/** 요소 몇 개를 둘러싼 칸만 찍는다 (CR-231: 바뀐 칸만, 허브 계정 줄 같은 다른 칸은 안 들어가게). 실패하면 null */
+export async function clipShot(p, sels, file, pad = 8) {
+  await p.eval(`document.querySelector(${q(sels[0])})?.scrollIntoView({block:'nearest'})`);
+  await sleep(350);
+  const r = await p.eval(`(()=>{let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9; for (const s of ${q(sels)}) { const e=document.querySelector(s); if(!e) continue; const b=e.getBoundingClientRect(); if(!b.width||!b.height) continue;
+    x0=Math.min(x0,b.left); y0=Math.min(y0,b.top); x1=Math.max(x1,b.right); y1=Math.max(y1,b.bottom); } return x1>x0 ? {x:x0+scrollX, y:y0+scrollY, w:x1-x0, h:y1-y0} : null})()`);
+  if (!r) return null;
+  const clip = { x: Math.max(0, r.x - pad), y: Math.max(0, r.y - pad), width: Math.ceil(r.w + pad * 2), height: Math.ceil(r.h + pad * 2), scale: 1 };
+  const res = await p.s('Page.captureScreenshot', { format: 'png', fromSurface: true, clip });
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, Buffer.from(res.data, 'base64'));
+  return clip;
+}
 export const playing = p => p.eval('state.playing');
 export const curT = p => p.eval('curTime()');
 

@@ -167,8 +167,12 @@ npm run test:ui                  # 화면 자동 점검: 헤드리스 Edge가 �
   - 받는 규칙은 `core.js mrMessageOk` (보낸 창이 `Mr.win`, 보낸 주소가 설정 주소의 origin, 파일 30개·한 파일 120MB·`isMediaFile`).
   - 다른 창이 열려 있거나 TV·싱크 편집 중이면 `nack busy` + 알림 (열린 창·입력은 그대로).
 - 받은 파일은 `openBulk(files, note)` 그대로 (둘째 인자 = 안내 줄 "MR 만들기로 만든 곡 N개예요…", 없으면 예전과 같다). 곡 저장 구조·`SONG_FIELDS`는 안 바꾼다.
-- 서버 주소: 기본값은 `js/core.js`의 `MR_DEFAULT_SERVER` (짧은 기계 이름 + `:8765`만. tailnet 뒷부분·IP를 코드·문서에 적지 않는다).
-  - 설정 창 "MR 만들기 (집 AI 서버)" 칸에서 이 기기만 바꾼다 → `nb-mrserver` (기본값과 같으면 지움, `normalizeMrServer`로 검사).
+- 서버 주소 (CR-231): **코드·문서·테스트에 집 AI 주소를 적지 않는다** (짧은 기계 이름·tailnet 이름·IP 모두. 공개 저장소). `MR_DEFAULT_SERVER`는 `''`. 예시는 `http://(집 AI 이름):8765`, 테스트는 `*.example.test` 같은 가짜 이름만.
+  - 쓰는 차례 (`core.js mrServerPick`): ① 이 기기 `nb-mrserver` ② 허브 열쇠 칸 `hub_secret('noraebang','mr_server')` (로그인한 뒤 한 번 읽어 메모리 `Hub.mrServer`, `hub.js hubMrServer`) ③ 없음 → [MR 만들기]·[원곡 파일로 자동 싱크]가 창을 열지 않고 `MR_NOSERVER_TEXT` + [주소 넣기](`#mrGo`, 설정 창 주소 칸으로).
+  - 허브 값이 왔는데 이 기기에 값이 없으면 `mrHubValueOk`(=`normalizeMrServer`)가 맞을 때만 이 기기에도 저장 (`mrHubFill`). 틀린 값은 버린다.
+  - 설정 창 [저장]: 언제나 이 기기에 저장 + 허브에 로그인해 있으면 `hub_secret_set`도 (`hubMrServerSet` → ok·off·fail, 안내 `MR_SAVE_TEXT`). 허브만 실패하면 이 기기 값은 그대로 두고 허브만 못 넣었다고. 빈 칸 저장 = [이 기기에서 지우기] = 이 기기 값만 지움 (허브 값을 지우는 단추는 없다).
+  - 로그아웃·연결 끊기·허브 바꾸기는 메모리 값만 지운다 (`hubForgetMrServer`, 이 기기 `nb-mrserver`는 그대로). 손님 화면(guest.html)은 hub.js·mr.js를 안 불러온다.
+  - 주소는 설정 칸에만 보인다: 콘솔·Drive `library.json`·백업 파일·허브 곡 기록에 넣지 않는다.
   - Drive `library.json`·백업 파일에 넣지 않는다.
 - 10초(`MR_HELLO_MS`) 안에 창이 `hello`를 안 하면 "못 닿았어요" + [다시 해보기]. 이어진 창이 열려 있으면 다시 누를 때 새로 열지 않는다 (올리는 중인 곡이 끊기지 않게).
 - 화면 점검은 `tests/ui/fake-mr/index.html`(가짜 창, 다른 포트)과 `checks/mr.mjs`. 진짜 창의 진행·실패 안내(U4·U5)는 yena-mr 저장소 시험이 본다.
@@ -218,7 +222,7 @@ npm run test:ui                  # 화면 자동 점검: 헤드리스 Edge가 �
 - 예약 목록의 손님 이름은 `guestNickAt(i)`(karaoke.js `renderQueue`·`renderQueueList`가 `typeof`로 부름). 방이 닫혀 있으면 ''.
 - 이 기기 설정: `nb-guest-tv`(`'0'` = TV에 QR 안 보임) · `nb-guest-key`(`'0'` = 손님 키 바꾸기 끔). 기본은 둘 다 켬이라 키를 안 만든다.
 - TV 대기 카드 `#guestCard`: 방이 열려 있으면 QR(`#tvIdle.guest-on`이면 옛 리모컨 안내 `#remoteInfo`는 숨김), 닫혀 있으면 허브가 있을 때만 [손님 QR 켜기]. 카드가 보이면 점수 칸은 시계 옆(`.idle-right>.best` 1행 2열)·팁은 고급이어도 한 줄, QR은 `max(96px,16cqw)` (디자인 확인 CR-228 #1~#3). `server.py` 휴대폰 리모컨(N1~N21)은 그대로.
-- 손님 화면 CSP는 `guest.html` `<meta>`에 따로: `default-src 'none'`, 스크립트·스타일은 `'self'`, 바깥은 `https://*.supabase.co`·`wss://*.supabase.co`만. `sw.js`는 손님 파일도 저장하지만(`SHELL` v11) 허브 요청은 저장하지 않는다.
+- 손님 화면 CSP는 `guest.html` `<meta>`에 따로: `default-src 'none'`, 스크립트·스타일은 `'self'`, 바깥은 `https://*.supabase.co`·`wss://*.supabase.co`만. `sw.js`는 손님 파일도 저장하지만(`SHELL` v12) 허브 요청은 저장하지 않는다.
 - 알려진 한계: 공개 broadcast라 방 이름을 아는 손님은 방장 답(`h`)을 흉내 낼 수 있다 (다른 손님 화면에 가짜 `closed`·목록). 손님 화면은 `textContent`로만 넣어서 스크립트는 못 넣는다.
 
 ## 녹음 구조

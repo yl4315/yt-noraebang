@@ -653,21 +653,58 @@ test('여행 준비: 끝 판정은 지금 상태로 — 새 곡이 생기면 아
   assert.equal(C.travelStatus({ songs: [...on, { id: 'n', blob: {} }, { id: 'm', fileId: 'fm', blob: {}, mediaDirty: true }], shellCached: true }).pendingUpload, 2);
 });
 
-test('MR 만들기: 서버 주소 다듬기 — 기본값, 끝 / 떼기, http·https만, @·?·# 안 됨', () => {
-  assert.equal(C.MR_DEFAULT_SERVER, 'http://dgxspark-yena:8765');
-  same(C.normalizeMrServer('http://dgxspark-yena:8765'), { ok: true, url: 'http://dgxspark-yena:8765', origin: 'http://dgxspark-yena:8765' });
-  same(C.normalizeMrServer('  http://dgxspark-yena:8765///  '), { ok: true, url: 'http://dgxspark-yena:8765', origin: 'http://dgxspark-yena:8765' });
+test('MR 만들기: 서버 주소 다듬기 — 코드에 기본 주소 없음, 끝 / 떼기, http·https만, @·?·# 안 됨', () => {
+  assert.equal(C.MR_DEFAULT_SERVER, '');       // CR-231: 공개 저장소라 코드에 주소를 두지 않는다
+  same(C.normalizeMrServer('http://mr.example.test:8765'), { ok: true, url: 'http://mr.example.test:8765', origin: 'http://mr.example.test:8765' });
+  same(C.normalizeMrServer('  http://mr.example.test:8765///  '), { ok: true, url: 'http://mr.example.test:8765', origin: 'http://mr.example.test:8765' });
   same(C.normalizeMrServer('HTTPS://Dgx.Example:8443/mr/'), { ok: true, url: 'https://dgx.example:8443/mr', origin: 'https://dgx.example:8443' });
   assert.equal(C.normalizeMrServer('http://127.0.0.1:80').url, 'http://127.0.0.1');       // 기본 포트는 빠진다 (origin과 같게)
   assert.equal(C.normalizeMrServer('').why, 'empty');
   assert.equal(C.normalizeMrServer(null).why, 'empty');
-  for (const bad of ['dgxspark-yena:8765', 'ftp://dgx:21', 'http:/dgx', 'http:///x', 'javascript:alert(1)']) assert.equal(C.normalizeMrServer(bad).why, 'scheme', bad);
+  for (const bad of ['mr.example.test:8765', 'ftp://dgx:21', 'http:/dgx', 'http:///x', 'javascript:alert(1)']) assert.equal(C.normalizeMrServer(bad).why, 'scheme', bad);
   for (const bad of ['http://me:pw@dgx:8765', 'http://@dgx']) assert.equal(C.normalizeMrServer(bad).why, 'userinfo', bad);
   for (const bad of ['http://dgx:8765/?a=1', 'http://dgx:8765/#x', 'http://dg x:8765', 'http://dgx:99999', 'http://dgx\\evil']) assert.equal(C.normalizeMrServer(bad).ok, false, bad);
 });
 
+test('MR 만들기 서버 주소 (CR-231): 이 기기 → 허브 → 없음 · 허브 값 검사 · 이 기기에 채우기 · 안내 글', () => {
+  const DEV = 'http://mr.example.test:8765', HUB = 'https://mr-hub.example.test:8443/mr';
+  assert.equal(C.MR_HUB_NAME, 'mr_server');
+  // ① 이 기기 ② 허브 ③ 없음. 모양이 틀린 값은 건너뛴다
+  same(C.mrServerPick(DEV, HUB), { url: DEV, from: 'device' });
+  same(C.mrServerPick(DEV + '/', ''), { url: DEV, from: 'device' });
+  same(C.mrServerPick(null, HUB), { url: HUB, from: 'hub' });
+  same(C.mrServerPick('', HUB + '/'), { url: HUB, from: 'hub' });
+  same(C.mrServerPick('mr.example.test:8765', HUB), { url: HUB, from: 'hub' });     // 이 기기 값이 틀리면 허브 값
+  same(C.mrServerPick(null, null), { url: '', from: '' });
+  same(C.mrServerPick('', 'javascript:alert(1)'), { url: '', from: '' });
+  same(C.mrServerPick(undefined, 'http://me:pw@mr.example.test'), { url: '', from: '' });
+  // 허브에서 온 값: 글자 1~512자·제어 문자 없음·주소 모양만
+  assert.equal(C.mrHubValueOk(DEV), DEV);
+  assert.equal(C.mrHubValueOk('  ' + DEV + '/  '), DEV);
+  for (const bad of [null, undefined, 42, {}, '', '   ', 'mr.example.test:8765', 'ftp://x', 'http://a@b', 'http://x\nevil.test', DEV + '?a=1', 'http://' + 'a'.repeat(520) + '.test'])
+    assert.equal(C.mrHubValueOk(bad), null, String(bad).slice(0, 40));
+  // 이 기기(nb-mrserver)에 채우기: 이 기기 값이 없거나 틀릴 때만, 허브 값이 맞을 때만
+  assert.equal(C.mrHubFill(null, DEV), DEV);
+  assert.equal(C.mrHubFill('', DEV + '/'), DEV);
+  assert.equal(C.mrHubFill('mr.example.test:8765', DEV), DEV);
+  assert.equal(C.mrHubFill(HUB, DEV), null);                 // 이 기기 설정이 이김
+  assert.equal(C.mrHubFill(null, 'mr.example.test'), null);  // 틀린 허브 값은 버림
+  assert.equal(C.mrHubFill(null, null), null);
+  // 안내 글: 글에 주소가 없다. [저장] 결과 넷, [이 기기에서 지우기] 둘, 주소 없음 (MR 만들기·자동 싱크가 같은 글)
+  assert.deepEqual(Object.keys(C.MR_SAVE_TEXT).sort(), ['device', 'hub', 'hubfail', 'saving']);
+  assert.match(C.MR_SAVE_TEXT.hub, /허브에도 넣어서 내 다른 기기도 이 주소를 써요/);
+  assert.match(C.MR_SAVE_TEXT.device, /이 기기에만/);
+  assert.match(C.MR_SAVE_TEXT.hubfail, /^이 기기에는 저장했어요 · 허브에는 못 넣었어요/);
+  assert.notEqual(C.mrClearText(true), C.mrClearText(false));
+  assert.match(C.mrClearText(true), /허브에 있는 주소/);
+  assert.equal(C.MR_NOSERVER_TEXT, 'MR 만들기 서버 주소가 아직 없어요 · 설정 → 더 보기 (고급) → MR 만들기 (집 AI 서버)에 한 번 넣어 주세요');
+  assert.equal(C.alignErrText('noserver'), C.MR_NOSERVER_TEXT);
+  for (const t of [...Object.values(C.MR_SAVE_TEXT), C.mrClearText(true), C.mrClearText(false), C.MR_NOSERVER_TEXT])
+    assert.doesNotMatch(t, /https?:|:8765|dgx|ts\.net|100\.\d/i, t);
+});
+
 test('MR 만들기: 받은 메시지 — 내가 연 창 + 서버 주소 + {app,v}일 때만, 파일은 30개·120MB·MR 파일만', () => {
-  const want = 'http://dgxspark-yena:8765', from = { origin: want, mine: true };
+  const want = 'http://mr.example.test:8765', from = { origin: want, mine: true };
   const mp3 = (name = '밤편지 - 아이유 (MR).mp3', size = 9e6, type = 'audio/mpeg') => ({ name, size, type });
   same(C.mrMessageOk({ app: 'yena-mr', v: 1, type: 'hello', base: want, https: null }, from, want), { type: 'hello' });
   // 무시: 다른 주소, 내가 열지 않은 창, 서버 주소를 모름, 약속 밖 모양

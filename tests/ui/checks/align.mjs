@@ -199,6 +199,15 @@ export default async function align(ctx) {
     if (pop) await pop.detach();
     await closePopups(ctx, FAKE);
     await selectById(p, A.id);
+    // CR-231: 서버 주소가 없으면 창을 열지 않고 MR 만들기와 같은 안내 ([직접 맞추기] 없음)
+    await p.eval(`localStorage.removeItem('nb-mrserver')`);
+    const pages = async () => (await ctx.browser.send('Target.getTargets')).targetInfos.filter(x => x.type === 'page').length;
+    const pg0 = await pages();
+    await p.click('#alignBtn'); await sleep(300);
+    const nos = await lineOf(p), pg1 = await pages(), nosWant = await p.eval('MR_NOSERVER_TEXT');
+    await p.eval(`localStorage.setItem('nb-mrserver', ${q(FAKE)}); syncLineClear(state.song)`);
+    ok('W8', nos.shown && nos.text === nosWant && nos.state === 'none' && !nos.btn && pg1 === pg0,
+      `주소 없음 → 창 ${pg1 - pg0}개 열림 · "${nos.text}" (단추 ${nos.btn || '없음'})`);
     await p.click('#alignBtn');
     const busy = await lineOf(p);
     const dis = await p.eval(`document.querySelector('#alignBtn').disabled`);

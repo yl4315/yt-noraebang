@@ -5,7 +5,7 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import { PC, PHONE, READY_DEMO, openPage, seedSong, selectById, txt, visible, isHidden, marks, sawToast, sleep, q } from './_lib.mjs';
+import { PC, PHONE, READY_DEMO, openPage, seedSong, selectById, txt, visible, isHidden, marks, sawToast, sleep, q, clipShot } from './_lib.mjs';
 import { wav, LRC_SHORT, PLAIN } from '../fixtures.mjs';
 import { FAKE_HUB_HOST, FAKE_HUB_URL, FAKE_HUB_KEY, hubCode, fakeMail } from '../fakehub.mjs';
 export const areas = ['W'];
@@ -60,6 +60,16 @@ export default async function hub(ctx) {
     await p.until(`!$('#hubLoginBtn').disabled && !/로그인 중|맞추는 중/.test($('#hubMsg').textContent)`, 20000);
     return { msg: await txt(p, '#hubMsg'), pwLeft: await p.eval(`$('#hubPw').value`), state: await p.eval('Hub.state') };
   };
+  // CR-231: MR 만들기 서버 주소 (가짜 이름만, 열지 않음). 허브 열쇠 칸 = 계정 id|noraebang|mr_server
+  const MRA = 'http://mr.example.test:8765', MRB = 'http://mr-b.example.test:8765', mrKey = [uid, 'noraebang', 'mr_server'].join('|');
+  const mrSt = p => p.eval(`({ls:localStorage.getItem('nb-mrserver'), val:$('#mrServer').value, msg:$('#mrSetMsg').hidden?'':$('#mrSetMsg').textContent, err:$('#mrSetMsg').classList.contains('err'),
+    hub:Hub.mrServer===undefined?'(안 읽음)':Hub.mrServer, cur:mrServer(), state:Hub.state})`);
+  const mrSaveAs = async (p, v) => {
+    await p.eval(`(()=>{const i=$('#mrServer'); i.value=${q(v)}; i.dispatchEvent(new Event('input',{bubbles:true}))})()`);
+    await p.click('#mrSave');
+    await p.until(`!/넣는 중/.test($('#mrSetMsg').textContent)`, 8000); await sleep(100);
+    return mrSt(p);
+  };
   const song = (p, id) => p.eval(`(()=>{const s=songById(${q(id)}); return s ? {lyrics:s.lyrics||'', off:+s.lyricOffset||0, base:s.baseKey|0, chk:!!s.syncChk, hubK:s.hubK||null, mrHash:s.mrHash||null, at:s.settingsAt||0} : null})()`);
   let pa = null, pb = null;
   try {
@@ -104,6 +114,36 @@ export default async function hub(ctx) {
       await closeSettings(pa);
     });
 
+    /* ---------------- U3 MR 만들기 서버 주소: 허브 열쇠 칸 mr_server (CR-231) ---------------- */
+    await step('기기 1(로그인): MR 만들기 서버 주소 [저장] → 이 기기 + 허브 열쇠 칸 mr_server · 허브만 실패하면 이 기기는 저장·허브만 못 넣었다고 · [이 기기에서 지우기] → 허브 값', ['U3'], async () => {
+      const first = await pa.until(`Hub.mrServer !== undefined`, 5000);
+      const s0 = await pa.eval(`({hub:Hub.mrServer, ls:localStorage.getItem('nb-mrserver'), cur:mrServer()})`);
+      ok('U3', first && s0.hub === null && s0.ls === null && s0.cur === '', `로그인 뒤 허브 열쇠 칸 mr_server를 한 번 읽음 → 없음 (이 기기 값 ${s0.ls === null ? '없음' : '있음'}, 쓰는 주소 "${s0.cur}")`);
+      await openSettings(pa);
+      await pa.eval(`$('#mrAddr').open=true`);
+      const T = await pa.eval(`({hub:MR_SAVE_TEXT.hub, fail:MR_SAVE_TEXT.hubfail, clr:mrClearText(true)})`);
+      const n0 = H.secretSets.length;
+      const a = await mrSaveAs(pa, MRA + '/');
+      const set1 = H.secretSets.slice(n0);
+      ok('U3', a.ls === MRA && a.val === MRA && !a.err && a.msg === T.hub && H.secrets.get(mrKey) === MRA && a.hub === MRA && set1.length === 1 && set1[0].app === 'noraebang' && set1[0].name === 'mr_server',
+        `[저장] → 이 기기 nb-mrserver + 허브 열쇠 칸 mr_server (부름 ${set1.length}번) · "${a.msg}"`);
+      await pa.scrollTo('#mrSec');
+      const sh = await clipShot(pa, ['#mrSec'], path.join(shotDir, 'U3-MR-주소칸-저장후-1280.png')).catch(e => { ctx.log('  (사진 실패: ' + e.message + ')'); return null; });
+      if (sh) ctx.log('  사진 U3-MR-주소칸-저장후-1280.png');
+      // 허브만 실패 (hub_secret_set만 503): 이 기기는 새 값, 허브는 그대로, 허브 연결 상태도 그대로
+      H.failRpc.add('hub_secret_set');
+      let b;
+      try { b = await mrSaveAs(pa, MRB); } finally { H.failRpc.delete('hub_secret_set'); }
+      ok('U3', b.ls === MRB && b.err && b.msg === T.fail && H.secrets.get(mrKey) === MRA && b.hub === MRA && b.state === 'ok',
+        `허브만 실패 → 이 기기 ${b.ls === MRB ? '새 주소' : '그대로!'} · 허브는 ${H.secrets.get(mrKey) === MRA ? '그대로' : '바뀜!'} · "${b.msg}" · 허브 상태 ${b.state}`);
+      await pa.click('#mrReset'); await sleep(150);
+      const c = await mrSt(pa);
+      const btns = await pa.eval(`[...$('#mrSec').querySelectorAll('button')].map(b=>b.textContent.trim())`);
+      ok('U3', c.ls === null && c.val === MRA && c.msg === T.clr && c.cur === MRA && H.secrets.get(mrKey) === MRA && !btns.some(t => /허브/.test(t)),
+        `[이 기기에서 지우기] → 이 기기 값만 지움 · 칸에 허브 값 · "${c.msg}" · 쓰는 주소 = 허브 값 · 단추 [${btns.join('] [')}] (허브 값 지우는 단추 없음)`);
+      await closeSettings(pa);
+    });
+
     /* ---------------- W2 곡 설정 저장 ---------------- */
     let s1 = null;
     await step('기기 1: 곡 넣고 가사 타이밍 +0.2 · 키 +2 → 3초 뒤 허브 줄 (열쇠 = MR 파일 해시, 소리 파일 안 감)', ['W2'], async () => {
@@ -144,6 +184,13 @@ export default async function hub(ctx) {
       ok('W3', y.lyrics === LRC_SHORT && y.off === 0.2 && y.base === 2, '로그인 뒤에 넣은 곡도 [지금 맞추기]에서 채워짐');
       ok('W3', /곡 설정 1곡 맞춤/.test(await txt(pb, '#hubState')), await txt(pb, '#hubState'));
       await closeSettings(pb);
+    });
+    // CR-231: 기기 1이 허브에 넣은 MR 만들기 주소가 기기 2에도 (이 기기에 값이 없으니 이 기기에도 저장 = 허브가 끊겨도 씀)
+    await step('기기 2(로그인): 허브 열쇠 칸의 MR 만들기 서버 주소를 받음 → 이 기기에 값이 없어서 이 기기에도 저장', ['U3'], async () => {
+      await pb.until(`Hub.mrServer !== undefined`, 5000);
+      const s = await pb.eval(`({hub:Hub.mrServer, ls:localStorage.getItem('nb-mrserver'), cur:mrServer()})`);
+      ok('U3', s.hub === MRA && s.ls === MRA && s.cur === MRA,
+        `기기 2: 허브 값 ${s.hub === MRA ? '받음' : '없음'} · 이 기기 nb-mrserver ${s.ls === MRA ? '채움' : s.ls === null ? '없음' : '다른 값'} · 쓰는 주소 ${s.cur === MRA ? '= 허브 값' : '"' + s.cur + '"'}`);
     });
 
     /* ---------------- W4 오프라인 쌓았다 보내기 ---------------- */
@@ -318,6 +365,7 @@ export default async function hub(ctx) {
       const auth = await pa.eval(`(()=>{const k=Object.keys(localStorage).find(k=>k.startsWith('nb-hub-auth')); try { const o=JSON.parse(localStorage.getItem(k)); return {a:o.access_token, r:o.refresh_token}; } catch { return {}; }})()`);
       const needles = [FAKE_HUB_HOST, 'qafakehub', FAKE_HUB_KEY, 'nbhub1', 'nb-hub', uid, email, pw, ytKey, auth.a, auth.r].filter(Boolean);
       const found = text => needles.filter(n => text.includes(n)).map(n => n === FAKE_HUB_HOST || n === 'qafakehub' ? '허브 주소' : n === FAKE_HUB_KEY ? '공개 키' : n === uid ? '계정 id' : n === email ? '메일' : n === pw ? '비밀번호' : n === ytKey ? 'YouTube 열쇠' : n === auth.a || n === auth.r ? '토큰' : n);
+      await pa.eval(`localStorage.setItem('nb-mrserver', ${q(MRA)})`);     // CR-231: 이 기기에 MR 주소가 있을 때도 백업·Drive·기록에 안 들어감
       const out = await pa.eval(`(async()=>{
         const orig = window.download; let got = null; window.download = (f) => { got = f; };
         try { await exportBackup(); } finally { window.download = orig; }
@@ -333,6 +381,11 @@ export default async function hub(ctx) {
       ok('W11', found(out.screen).length === 0, `화면 글·입력 칸: ${found(out.screen).join(', ') || '0'}`);
       const consB = await pb.eval(`(window.__cons||[]).join('\\n')`);
       ok('W11', found(out.cons + consB).length === 0, `콘솔 글 (기기 1·2): ${found(out.cons + consB).join(', ') || '0'}`);
+      // CR-231: MR 만들기 서버 주소는 설정 칸에만 (백업 파일·library.json·기기 기록·콘솔·허브 곡 기록 0)
+      const mrHost = 'example.test:8765', rows = JSON.stringify(H.rowsOf(uid));
+      const mrIn = { 백업: out.backup, 'library.json': out.lib, '기기 기록': out.stats, 콘솔: out.cons + consB, '허브 곡 기록': rows };
+      const mrHit = Object.entries(mrIn).filter(([, t]) => t.includes(mrHost) || t.includes('mrserver') || t.includes('mr_server')).map(([k]) => k);
+      ok('U3', mrHit.length === 0 && rows.length > 2, `MR 만들기 주소: ${mrHit.join(', ') || '백업·library.json·기기 기록·콘솔·허브 곡 기록 모두 0'}`);
     });
 
     /* ---------------- W1 로그아웃 · 다른 계정 · 연결 끊기 · #hub= 주소 ---------------- */
@@ -342,6 +395,8 @@ export default async function hub(ctx) {
       await pa.until(`/로그아웃했어요/.test($('#hubMsg').textContent)`, 5000);
       const k1 = await hubKeys(pa);
       ok('W1', !k1.some(k => k.startsWith('nb-hub-auth')) && k1.includes('nb-hub') && (await pa.eval('Hub.ytKey')) === undefined && await visible(pa, '#hubLogin'), `로그아웃: 남은 칸 ${k1.join(', ')} · YouTube 열쇠 메모리에서도 지움`);
+      const mo = await pa.eval(`({hub:Hub.mrServer===undefined?'(안 읽음)':Hub.mrServer, ls:localStorage.getItem('nb-mrserver')})`);
+      ok('U3', mo.hub === '(안 읽음)' && mo.ls === MRA, `로그아웃: 허브 MR 주소는 메모리에서 지움 · 이 기기 nb-mrserver는 ${mo.ls === MRA ? '그대로' : '없어짐!'}`);
       const o = await login(pa, email2, pw2);
       ok('W1', /처음 연결한 계정과 달라요/.test(o.msg) && !(await hubKeys(pa)).some(k => k.startsWith('nb-hub-auth')), `다른 계정: "${o.msg}"`);
       const before = await pa.eval(`state.songs.filter(s=>!s.demo).map(s=>s.id+'|'+(s.lyrics||'').length).join(',')`);
@@ -359,10 +414,12 @@ export default async function hub(ctx) {
       ok('W12', extra.length === 0, `끊은 뒤 기기 1의 허브 요청 ${extra.length}개${extra.length ? ' (' + extra.slice(0, 4).map(e => (e.origin || '출처 없음') + ' ' + e.m + ' ' + e.path).join(', ') + ')' : ''} · 아직 연결된 기기 2 요청 ${other}개는 셈에서 뺌`);
       await closeSettings(pa);
     });
-    await step('주소 #hub=… 로 열기: 틀린 값은 저장 안 함 · 맞는 값은 저장 · 둘 다 주소에서 # 지움', ['W1'], async () => {
+    await step('주소 #hub=… 로 열기: 틀린 값은 저장 안 함 · 맞는 값은 저장 · 둘 다 주소에서 # 지움', ['W1', 'U3'], async () => {
       await openSettings(pb);
       await pb.click('#hubForget'); await pb.click('#hubForget');
       await pb.until(`Hub.conf===null`, 5000);
+      const mf = await pb.eval(`({hub:Hub.mrServer===undefined?'(안 읽음)':Hub.mrServer, ls:localStorage.getItem('nb-mrserver')})`);
+      ok('U3', mf.hub === '(안 읽음)' && mf.ls === MRA, `기기 2 [연결 끊기]: 허브 MR 주소는 메모리에서 지움 · 이 기기 nb-mrserver는 ${mf.ls === MRA ? '그대로' : '없어짐!'}`);
       // 열기 실패 글에 주소가 그대로 나오므로 # 뒤(가짜 코드)는 가린다
       const gotoHub = async url => { try { await pb.goto(url, READY_DEMO, 150000); } catch (e) { throw new Error(String(e?.message || e).replace(/#hub=\S*/g, '#hub=(가림)')); } };
       await gotoHub(ctx.localBase + '/index.html?qa=1#hub=nbhub1.qa-bad');

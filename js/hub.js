@@ -17,6 +17,8 @@ const Hub = {
   lastAt: 0, out: [], mirror: null, fromHash: '', forgetArm: 0,
   needClear: false,      // 다른 허브로 바꿈: 곡의 "맞춘 표시"를 다음 맞추기 전에 지운다 (켤 때는 곡을 아직 안 불러왔을 수 있어서)
   ytKey: undefined,      // YouTube 검색 열쇠 (허브 열쇠 칸, 메모리에만). undefined = 아직 안 읽음, null = 없음
+  mrServer: undefined,   // MR 만들기 서버 주소 (허브 열쇠 칸 mr_server, CR-231). undefined = 아직 안 읽음, null = 없음
+  mrGen: 0,              // 로그아웃·끊기마다 하나 올림 (그 전에 보낸 읽기의 답은 버린다)
 };
 
 /* ---------------- 연결 값 (nb-hub) ---------------- */
@@ -47,7 +49,7 @@ function hubDropClient() {
 async function hubSaveConf(u, k) {
   const cur = Hub.conf;
   if (cur && cur.u !== u) {
-    hubDropClient(); hubWipeLocal(); Hub.out = []; Hub.mirror = null; hubForgetYtKey();
+    hubDropClient(); hubWipeLocal(); Hub.out = []; Hub.mirror = null; hubForgetYtKey(); hubForgetMrServer();
     Hub.needClear = true;
     try { await DB.del('cache', HUB_MIRROR_ID); } catch {}
   } else hubDropClient();
@@ -255,6 +257,7 @@ async function hubSync({ force = false } = {}) {
     Hub.lastAt = Date.now(); Hub.failUntil = 0;
     hubSetState('ok');
     if (Hub.ytKey === undefined) hubYoutubeKey();     // 로그인한 뒤 한 번 (기다리지 않음)
+    if (Hub.mrServer === undefined) hubMrServer();     // MR 만들기 서버 주소도 (CR-231)
   } catch (e) {
     const auth = e && (e.code === '28000' || e.status === 401 || e.code === 'PGRST301');
     Hub.failUntil = Date.now() + HUB_BACKOFF_MS;
@@ -291,6 +294,46 @@ function hubForgetYtKey() {
   if (had && typeof ytSetKey === 'function') { try { ytSetKey(null); } catch {} }
 }
 
+/* ---------------- MR 만들기 서버 주소 (CR-231, 허브 0008 열쇠 칸 mr_server) ----------------
+   읽기: 로그인한 뒤 한 번 → Hub.mrServer(메모리). 이 기기에 nb-mrserver가 없으면 모양이 맞을 때만 이 기기에도 저장한다
+   (허브가 느리거나 끊겨도 되게. 이 기기에 값이 있으면 그대로 = 이 기기 설정이 이김, core.js mrHubFill).
+   쓰기: 설정 창 [저장](mr.js mrSave)이 hubMrServerSet을 부른다 (로그인해 있을 때만). 허브 값을 지우는 길은 없다.
+   주소는 설정 칸(#mrServer)에만 보이고 콘솔·백업 파일·Drive·허브 곡 기록에는 안 들어간다. 손님 화면(guest.html)은 이 파일을 안 불러온다. */
+async function hubMrServer() {
+  if (!hubOn()) return null;
+  if (Hub.mrServer !== undefined) return Hub.mrServer;
+  const sb = hubClient(); if (!sb) return null;
+  const gen = Hub.mrGen;
+  let res = null;
+  try { res = await sb.rpc('hub_secret', { p_app: HUB_APP, p_name: MR_HUB_NAME }); } catch { return null; }   // 못 닿음: 다음 맞추기 때 다시
+  if (gen !== Hub.mrGen || Hub.sb !== sb) return null;      // 읽는 사이 로그아웃·끊기·다른 허브
+  const { data, error } = res || {};
+  if (error) {
+    if (error.code === '42883' || error.code === 'PGRST202') Hub.mrServer = null;    // 0008 전(함수 없음)
+    return null;
+  }
+  Hub.mrServer = mrHubValueOk(data);       // 모양이 틀린 값은 버린다 (null)
+  const fill = mrHubFill(lsGet('nb-mrserver'), Hub.mrServer);
+  if (fill) lsSet('nb-mrserver', fill);
+  if (typeof mrHubArrived === 'function') { try { mrHubArrived(); } catch {} }
+  return Hub.mrServer;
+}
+// 설정 창 [저장] → 'ok'(허브에도 넣음) | 'off'(허브 안 씀·로그인 안 됨: 이 기기만) | 'fail'(허브만 실패)
+async function hubMrServerSet(url) {
+  if (!hubOn()) return 'off';
+  const session = await hubSession(); if (!session) return 'off';
+  const sb = hubClient(); if (!sb) return 'off';
+  if (navigator.onLine === false) return 'fail';
+  const gen = Hub.mrGen;
+  let res = null;
+  try { res = await sb.rpc('hub_secret_set', { p_app: HUB_APP, p_name: MR_HUB_NAME, p_value: url }); } catch { return 'fail'; }
+  if (!res || res.error) return 'fail';
+  if (gen === Hub.mrGen && Hub.sb === sb) Hub.mrServer = mrHubValueOk(url);
+  return 'ok';
+}
+// 로그아웃·끊기: 메모리의 허브 값만 지운다 (이 기기 nb-mrserver는 이 기기 설정이라 둔다)
+function hubForgetMrServer() { Hub.mrServer = undefined; Hub.mrGen++; }
+
 /* ---------------- 로그인·로그아웃·연결 끊기 (W1) ---------------- */
 async function hubLogin(email, password) {
   const sb = hubClient(); if (!sb) { hubMsg('허브에 못 닿았어요 · 새로고침한 뒤 다시 해 주세요', true); return false; }
@@ -318,14 +361,14 @@ async function hubLogout() {
   const sb = hubClient();
   if (sb) { try { await sb.auth.signOut({ scope: 'local' }); } catch {} }
   try { for (const k of Object.keys(localStorage)) if (k.startsWith(HUB_AUTH)) lsSet(k, null); } catch {}   // 서버에 못 닿아도 이 기기 세션은 지움
-  hubForgetYtKey();
+  hubForgetYtKey(); hubForgetMrServer();
   hubSetState('login'); hubMsg('로그아웃했어요 · 곡과 가사는 이 기기에 그대로예요');
 }
 async function hubDisconnect() {
   const sb = Hub.sb;
   if (sb) { try { await sb.auth.signOut({ scope: 'local' }); } catch {} }
   hubDropClient(); clearTimeout(Hub.timer); clearInterval(Hub.every); Hub.every = 0;
-  hubWipeLocal(); hubForgetYtKey(); Hub.needClear = false;
+  hubWipeLocal(); hubForgetYtKey(); hubForgetMrServer(); Hub.needClear = false;
   Hub.conf = null; Hub.out = []; Hub.mirror = null; Hub.lastAt = 0; Hub.failUntil = 0;
   try { await DB.del('cache', HUB_MIRROR_ID); } catch {}
   await hubClearMarks();

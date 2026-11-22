@@ -521,8 +521,44 @@ function storeSummary(local, cloudOnly, freeTxt) {
 }
 
 /* MR 만들기 (CR-089): 집 AI 서버의 "MR 만들기 창"을 새 탭으로 열고, 다 만든 MR을 창끼리(postMessage) 받는다.
-   노래방은 서버에 직접 요청하지 않는다 (https 노래방 → http 서버는 막힘). 주소는 짧은 기계 이름만 (tailnet 뒷부분·IP 없음) */
-const MR_DEFAULT_SERVER = 'http://dgxspark-yena:8765';
+   노래방은 서버에 직접 요청하지 않는다 (https 노래방 → http 서버는 막힘).
+   서버 주소 (CR-231): 코드에는 주소가 없다 (공개 저장소). ① 이 기기 nb-mrserver ② 허브 열쇠 칸 mr_server(hub.js, 메모리) ③ 없음 '' */
+const MR_DEFAULT_SERVER = '';
+const MR_HUB_NAME = 'mr_server';        // 허브 0008 열쇠 칸 이름 (hub_secret / hub_secret_set, 앱 noraebang)
+// 지금 쓸 주소 → { url, from: 'device'|'hub'|'' }. 모양이 틀린 값은 건너뛴다
+function mrServerPick(local, hub) {
+  for (const [v, from] of [[local, 'device'], [hub, 'hub']]) {
+    if (!v) continue;
+    const r = normalizeMrServer(v);
+    if (r.ok) return { url: r.url, from };
+  }
+  return { url: '', from: '' };
+}
+// 허브 열쇠 칸에서 온 값 → 쓸 수 있는 주소 | null (글자 1~512자·제어 문자 없음·주소 모양)
+function mrHubValueOk(v) {
+  if (typeof v !== 'string') return null;
+  const s = v.trim();
+  if (!s || s.length > 512 || /[\u0000-\u001f\u007f]/.test(s)) return null;
+  const r = normalizeMrServer(s);
+  return r.ok ? r.url : null;
+}
+// 허브 값을 이 기기(nb-mrserver)에도 저장할까 → 저장할 주소 | null
+// 이 기기에 쓸 수 있는 값이 이미 있으면 그대로 둔다 (이 기기 설정이 이김). 허브 값 모양이 틀리면 버린다
+function mrHubFill(local, hub) {
+  if (local && normalizeMrServer(local).ok) return null;
+  return mrHubValueOk(hub);
+}
+// 설정 창 [저장] 결과 안내: hub = 허브에도 넣음 · device = 로그인 안 됨(이 기기만) · hubfail = 이 기기만 되고 허브는 실패 · saving = 허브에 넣는 중
+const MR_SAVE_TEXT = {
+  hub: '저장했어요 · 허브에도 넣어서 내 다른 기기도 이 주소를 써요',
+  device: '저장했어요 · 이 기기에만 저장했어요 (허브에 로그인한 뒤 저장하면 다른 기기도 같이 써요)',
+  hubfail: '이 기기에는 저장했어요 · 허브에는 못 넣었어요 (다른 기기는 그대로예요). 인터넷을 확인하고 다시 [저장]을 눌러 주세요',
+  saving: '저장했어요 · 허브에도 넣는 중…',
+};
+// [이 기기에서 지우기] 안내: 허브 값이 있으면 그것을 쓴다
+const mrClearText = hasHub => hasHub ? '이 기기 주소를 지웠어요 · 허브에 있는 주소를 써요' : '이 기기 주소를 지웠어요 · 주소를 넣어야 MR 만들기를 쓸 수 있어요';
+// 주소가 없을 때 ([MR 만들기]·[원곡 파일로 자동 싱크])
+const MR_NOSERVER_TEXT = 'MR 만들기 서버 주소가 아직 없어요 · 설정 → 더 보기 (고급) → MR 만들기 (집 AI 서버)에 한 번 넣어 주세요';
 const MR_MAX_FILES = 30, MR_MAX_BYTES = 120 * 1024 * 1024;
 // 서버 주소 다듬기·검사 → { ok:true, url, origin } | { ok:false, why:'empty'|'scheme'|'userinfo'|'bad' }
 // http:// 또는 https://로 시작, 사용자·비밀번호(@) 없음, ?·# 없음, 끝 / 는 뗀다 (창은 url + '/'로 연다)
@@ -634,6 +670,7 @@ const ALIGN_ERR_TEXT = {
   closed: 'MR 만들기 창이 닫혔어요 · 다시 누르면 이어서 해요',
   blocked: '새 창이 막혔어요. 주소창 오른쪽에서 이 사이트의 팝업을 허용해 주세요',
   changed: '맞추는 사이에 가사를 고쳐서 넣지 않았어요 · 다시 눌러 주세요',
+  noserver: MR_NOSERVER_TEXT,      // CR-231: MR 만들기 서버 주소가 없음 (창을 열지 않음)
 };
 const alignErrText = code => (Object.prototype.hasOwnProperty.call(ALIGN_ERR_TEXT, code) && ALIGN_ERR_TEXT[code]) || '가사 시각을 못 맞췄어요 · 잠시 뒤 다시 해 주세요';
 

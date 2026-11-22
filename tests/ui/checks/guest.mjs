@@ -97,7 +97,10 @@ export default async function guest(ctx) {
 
   // 허브 코드 저장 + 가짜 계정 로그인 (방장은 로그인해 있어도 손님 방은 공개 broadcast만)
   const email = fakeMail('qa-guest-' + crypto.randomBytes(3).toString('hex')), pw = 'qa-' + crypto.randomBytes(9).toString('hex');
-  H.addUser(email, pw);
+  const gUid = H.addUser(email, pw);
+  // CR-231: 방장 계정 허브 열쇠 칸에 MR 만들기 주소(가짜 이름, 열지 않음)가 있어도 손님 폰에는 안 감 (X7에서 봄)
+  const MR_GUEST = 'http://mr-guest.example.test:8765';
+  H.secrets.set([gUid, 'noraebang', 'mr_server'].join('|'), MR_GUEST);
   await step('방장: 허브 코드 저장 · 가짜 계정 로그인 → TV 대기 카드에 [손님 QR 켜기]', ['X3'], async () => {
     await openSettings(); await host.scrollTo('#hubSec');
     await typeInto(host, '#hubCode', hubCode()); await host.click('#hubCodeSave'); await sleep(300);
@@ -301,7 +304,14 @@ export default async function guest(ctx) {
       ok('X4', leaks(d.text) + leaks(d.html) + leaks(d.cons) === 0, `손님 ${n} 화면·HTML·콘솔에 방 이름·코드·허브 주소·키 ${leaks(d.text) + leaks(d.html) + leaks(d.cons)}개`);
       const store = await g.p.eval(`(async()=>({ls:localStorage.length, ss:sessionStorage.length, idb:(await indexedDB.databases()).length, ck:document.cookie.length, caches:(await caches.keys()).length, sw:(await navigator.serviceWorker.getRegistrations()).length}))()`);
       ok('X7', Object.values(store).every(v => v === 0), `손님 ${n} 폰 저장: localStorage ${store.ls} · sessionStorage ${store.ss} · IndexedDB ${store.idb} · 쿠키 ${store.ck} · 캐시 ${store.caches} · 서비스 워커 ${store.sw}`);
+      // CR-231: 손님 화면은 허브 열쇠 칸을 읽는 코드도, MR 만들기 주소도 없음
+      const mrCode = await g.p.eval(`({hub:typeof hubMrServer, mr:typeof mrServer, hubObj:typeof Hub})`);
+      const mrHit = (d.text + d.html + d.cons).includes('mr-guest.example.test');
+      ok('X7', !mrHit && mrCode.hub === 'undefined' && mrCode.mr === 'undefined' && mrCode.hubObj === 'undefined',
+        `손님 ${n}: MR 만들기 주소 ${mrHit ? '있음!' : '0'} · 허브 열쇠 칸 읽는 코드 ${mrCode.hub === 'undefined' && mrCode.mr === 'undefined' ? '없음' : '있음!'}`);
     }
+    const hostMr = await host.eval(`({hub:Hub.mrServer===undefined?'(안 읽음)':Hub.mrServer})`);
+    ok('X7', hostMr.hub === MR_GUEST, `(대조) 방장 기기는 허브 열쇠 칸에서 MR 주소를 ${hostMr.hub === MR_GUEST ? '받음' : '못 받음'} → 손님 쪽 0이 우연이 아님`);
     const csp = await A.p.eval(`(document.querySelector('meta[http-equiv="Content-Security-Policy"]')||{}).content||''`);
     const conn = (csp.match(/connect-src ([^;]+)/) || [, ''])[1].trim();
     ok('X4', conn === 'https://*.supabase.co wss://*.supabase.co' && /default-src 'none'/.test(csp) && /script-src 'self'/.test(csp), '손님 화면 보안 규칙 connect-src: ' + conn);

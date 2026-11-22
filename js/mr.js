@@ -8,24 +8,36 @@
 //   창 → 노래방 hello{caps} · lyrics_req{items} · files{files, lrc} · aligned{songId, lrc|error}
 //   노래방 → 창 welcome{caps} · lyrics{items} · align_req{songId,title,artist,lyrics} · align_stop{songId} · ack{n,songId} · nack{reason,songId}
 // 받는 규칙: 보낸 창이 내가 연 창(Mr.win)이고 보낸 주소가 설정한 서버 주소의 origin일 때만 (core.js mrMessageOk).
-// 서버 주소는 이 기기만 (nb-mrserver, 기본값과 같으면 지움). Drive·백업 파일에는 안 들어간다.
+// 서버 주소 (CR-231, 코드에는 주소 없음): ① 이 기기 nb-mrserver ② 허브 열쇠 칸 mr_server (hub.js Hub.mrServer, 메모리) ③ 없음.
+// 없으면 창을 열지 않고 "주소가 아직 없어요" 안내. Drive·백업 파일·허브 곡 기록·콘솔에는 안 들어간다.
 'use strict';
 
 const MR_HELLO_MS = 10000;     // 창이 이 안에 인사(hello)를 안 하면 "못 닿았어요"
 const Mr = { win: null, origin: '', linked: false, timer: 0, helloMs: MR_HELLO_MS, caps: [] };
 
-// 지금 쓸 서버 주소 (설정 값이 틀렸으면 기본값)
-function mrServer() {
-  const v = lsGet('nb-mrserver'), r = v ? normalizeMrServer(v) : null;
-  return r && r.ok ? r.url : MR_DEFAULT_SERVER;
-}
+// 허브에서 읽은 주소 (hub.js가 로그인 뒤 한 번 읽어 메모리에 둔다. 허브를 안 쓰면 '')
+const mrHubValue = () => (typeof Hub !== 'undefined' && Hub && typeof Hub.mrServer === 'string' ? Hub.mrServer : '');
+// 지금 쓸 서버 주소: 이 기기 값 → 허브 값 → '' (core.js mrServerPick, 모양이 틀린 값은 건너뜀)
+function mrServer() { return mrServerPick(lsGet('nb-mrserver'), mrHubValue()).url; }
 
 /* ---------------- 곡 목록: 창 열기 ---------------- */
-function mrShowMsg(text, retry) {
+function mrShowMsg(text, retry, go = false) {
   const box = $('#mrMsg'); if (!box) return;
   $('#mrMsgTxt').textContent = text;
   $('#mrRetry').hidden = !retry;
+  const g = $('#mrGo'); if (g) g.hidden = !go;
   box.hidden = false;
+}
+// [주소 넣기]: 설정 창 → 더 보기 (고급) → MR 만들기 주소 칸을 펴고 초점 (사람이 누르는 길과 같다: 고급은 이 기기에 켜짐으로 남음)
+function mrGoSettings() {
+  haptic(); mrHideMsg();
+  if (typeof openCloudDialog !== 'function') return;
+  if (!$('#cloudDialog').open) openCloudDialog();
+  if (!document.documentElement.classList.contains('adv')) $('#advBtn')?.click();
+  const d = $('#mrAddr'); if (d) d.open = true;
+  const i = $('#mrServer'); if (!i) return;
+  try { i.scrollIntoView({ block: 'center' }); } catch {}
+  i.focus();
 }
 function mrHideMsg() { const box = $('#mrMsg'); if (box) box.hidden = true; }
 
@@ -39,8 +51,9 @@ function openMr() {
     toast('MR 만들기 창이 이미 열려 있어요 · 브라우저 탭에서 "MR 만들기"를 눌러 주세요', 4500);
     return;
   }
-  if (navigator.onLine === false) { mrShowMsg('⟳ 인터넷이 끊겨 있어서 집 AI 서버에 닿을 수 없어요 · 연결되면 다시 눌러 주세요', true); return; }
   const base = mrServer();
+  if (!base) { mrShowMsg(MR_NOSERVER_TEXT, false, true); return; }     // 주소가 없음 (CR-231): 창을 열지 않는다
+  if (navigator.onLine === false) { mrShowMsg('⟳ 인터넷이 끊겨 있어서 집 AI 서버에 닿을 수 없어요 · 연결되면 다시 눌러 주세요', true); return; }
   let w = null;
   try { w = window.open(base + '/', 'yena-mr'); } catch {}
   clearTimeout(Mr.timer);
@@ -113,6 +126,7 @@ function alignStart(s) {
   haptic();
   if (!s || !state.songs.includes(s) || !canAlignSong(s)) return;
   if (typeof syncLineShow !== 'function') return;
+  if (!mrServer()) { syncLineShow('alignfail', s, 'noserver'); return; }     // 주소가 없음 (CR-231): 창을 열지 않는다
   if (navigator.onLine === false) { syncLineShow('alignfail', s, 'unreachable'); return; }
   const req = { type: 'align_req', songId: s.id, title: String(s.title || '').slice(0, 200), artist: String(s.artist || '').slice(0, 200), lyrics: alignLyricsText(s) };
   Align.want.set(s.id, { req, sent: false });
@@ -189,31 +203,49 @@ function alignGot(m, reply) {
   if (typeof alignApply === 'function') alignApply(s, m);
 }
 
-/* ---------------- 설정 창: 서버 주소 (이 기기만) ---------------- */
+/* ---------------- 설정 창: 서버 주소 (이 기기 + 로그인했으면 허브) ---------------- */
+// 예시 주소는 자리 표시만 (실제 주소를 코드·화면에 쓰지 않는다)
 const MR_WHY = {
-  scheme: '주소는 http:// 또는 https://로 시작해야 해요 (예: http://dgxspark-yena:8765)',
-  userinfo: '주소에 @(사용자 이름·비밀번호)는 넣지 않아요 (예: http://dgxspark-yena:8765)',
-  bad: '주소 모양이 맞지 않아요 (예: http://dgxspark-yena:8765)',
+  scheme: '주소는 http:// 또는 https://로 시작해야 해요 (예: http://(집 AI 이름):8765)',
+  userinfo: '주소에 @(사용자 이름·비밀번호)는 넣지 않아요 (예: http://(집 AI 이름):8765)',
+  bad: '주소 모양이 맞지 않아요 (예: http://(집 AI 이름):8765)',
 };
+let mrSaveSeq = 0;      // [저장]을 빨리 두 번 누르면 나중 것의 안내만
 function mrSetMsg(text, err) {
   const m = $('#mrSetMsg'); if (!m) return;
   m.textContent = text || ''; m.hidden = !text; m.classList.toggle('err', !!err);
 }
 function mrFill() { const i = $('#mrServer'); if (i) i.value = mrServer(); mrSetMsg(''); }
-function mrSave() {
+// [저장]: 이 기기에 저장 → 허브에 로그인해 있으면 허브 열쇠 칸에도 (hub.js hubMrServerSet). 허브가 실패해도 이 기기 값은 그대로
+async function mrSave() {
   const i = $('#mrServer'); if (!i) return;
   const v = i.value.trim();
-  if (!v) { mrReset(); return; }          // 비우고 저장하면 기본값
+  if (!v) { mrClearLocal(); return; }          // 비우고 저장하면 [이 기기에서 지우기]와 같다
   const r = normalizeMrServer(v);
   if (!r.ok) { haptic('warning'); mrSetMsg(MR_WHY[r.why] || MR_WHY.bad, true); return; }
-  lsSet('nb-mrserver', r.url === MR_DEFAULT_SERVER ? null : r.url);
+  lsSet('nb-mrserver', r.url);
   i.value = r.url; haptic('success');
-  mrSetMsg('저장했어요. [MR 만들기]를 누르면 이 주소로 열어요');
+  const seq = ++mrSaveSeq;
+  if (typeof hubMrServerSet !== 'function' || typeof hubOn !== 'function' || !hubOn()) { mrSetMsg(MR_SAVE_TEXT.device); return; }
+  mrSetMsg(MR_SAVE_TEXT.saving);
+  let res = 'fail';
+  try { res = await hubMrServerSet(r.url); } catch { res = 'fail'; }
+  if (seq !== mrSaveSeq) return;
+  mrSetMsg(res === 'ok' ? MR_SAVE_TEXT.hub : res === 'off' ? MR_SAVE_TEXT.device : MR_SAVE_TEXT.hubfail, res === 'fail');
 }
-function mrReset() {
+// [이 기기에서 지우기]: 이 기기 nb-mrserver만 지운다 (허브 값은 그대로). 칸에는 허브 값이 있으면 그것, 없으면 빈 칸
+function mrClearLocal() {
+  ++mrSaveSeq;
   lsSet('nb-mrserver', null); haptic();
-  const i = $('#mrServer'); if (i) i.value = MR_DEFAULT_SERVER;
-  mrSetMsg('기본값으로 돌렸어요');
+  const hub = mrServerPick('', mrHubValue()).url;
+  const i = $('#mrServer'); if (i) i.value = hub;
+  mrSetMsg(mrClearText(!!hub));
+}
+// 허브에서 주소가 왔을 때 (hub.js가 부름): 설정 창이 열려 있고 칸이 비어 있으면(고치는 중이 아니면) 채운다
+function mrHubArrived() {
+  const i = $('#mrServer'); if (!i) return;
+  if ($('#cloudDialog')?.open && (document.activeElement === i || i.value.trim())) return;
+  i.value = mrServer();
 }
 
 // 버튼·칸 연결. 배포 직후 캐시로 화면(index.html)이 예전 것이면 요소가 없을 수 있어서, 없으면 건너뛴다
@@ -221,8 +253,9 @@ function mrReset() {
   const on = (sel, ev, fn) => $(sel)?.addEventListener(ev, fn);
   on('#mrBtn', 'click', openMr);
   on('#mrRetry', 'click', () => { Mr.linked = false; openMr(); });
+  on('#mrGo', 'click', mrGoSettings);
   on('#mrSave', 'click', mrSave);
-  on('#mrReset', 'click', mrReset);
+  on('#mrReset', 'click', mrClearLocal);
   on('#mrServer', 'keydown', e => { if (e.key === 'Enter') { e.preventDefault(); mrSave(); } });
   on('#cloudDialog', 'close', mrFill);     // 저장하지 않고 닫으면 다음에 열 때 저장된 주소로
   mrFill();

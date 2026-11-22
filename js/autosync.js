@@ -62,7 +62,7 @@ async function syncFixByHand(s) {
   if (parseLyrics(s.lyrics || '').lines.some(l => l.text)) enterSync(); else openSongDialog(s);
 }
 // 원곡 파일로 자동 싱크 한 줄: 맞추는 중(점 3개 + [그만두기]) · 오류(code → 노래방 말, 집 밖은 와이파이 끊김 아이콘·단추 없음)
-const ALIGN_NO_FIX = ['unreachable', 'canceled', 'closed', 'blocked', 'no_align'];
+const ALIGN_NO_FIX = ['unreachable', 'canceled', 'closed', 'blocked', 'no_align', 'noserver'];
 function alignInfo(kind, code) {
   if (kind === 'aligning') return { kind: 'busy', text: SYNC_TEXT.aligning, stop: true };
   if (kind === 'aligned') return { kind: 'found', text: SYNC_TEXT.aligned };
