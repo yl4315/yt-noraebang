@@ -52,7 +52,7 @@ function openMr() {
     return;
   }
   const base = mrServer();
-  if (!base) { mrShowMsg(MR_NOSERVER_TEXT, false, true); return; }     // 주소가 없음 (CR-231): 창을 열지 않는다
+  if (!base) { mrShowMsg(MR_NOSERVER_SHORT, false, true); return; }     // 주소가 없음 (CR-231): 창을 열지 않는다
   if (navigator.onLine === false) { mrShowMsg('⟳ 인터넷이 끊겨 있어서 집 AI 서버에 닿을 수 없어요 · 연결되면 다시 눌러 주세요', true); return; }
   let w = null;
   try { w = window.open(base + '/', 'yena-mr'); } catch {}

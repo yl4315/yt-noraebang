@@ -168,7 +168,7 @@ npm run test:ui                  # 화면 자동 점검: 헤드리스 Edge가 �
   - 다른 창이 열려 있거나 TV·싱크 편집 중이면 `nack busy` + 알림 (열린 창·입력은 그대로).
 - 받은 파일은 `openBulk(files, note)` 그대로 (둘째 인자 = 안내 줄 "MR 만들기로 만든 곡 N개예요…", 없으면 예전과 같다). 곡 저장 구조·`SONG_FIELDS`는 안 바꾼다.
 - 서버 주소 (CR-231): **코드·문서·테스트에 집 AI 주소를 적지 않는다** (짧은 기계 이름·tailnet 이름·IP 모두. 공개 저장소). `MR_DEFAULT_SERVER`는 `''`. 예시는 `http://(집 AI 이름):8765`, 테스트는 `*.example.test` 같은 가짜 이름만.
-  - 쓰는 차례 (`core.js mrServerPick`): ① 이 기기 `nb-mrserver` ② 허브 열쇠 칸 `hub_secret('noraebang','mr_server')` (로그인한 뒤 한 번 읽어 메모리 `Hub.mrServer`, `hub.js hubMrServer`) ③ 없음 → [MR 만들기]·[원곡 파일로 자동 싱크]가 창을 열지 않고 `MR_NOSERVER_TEXT` + [주소 넣기](`#mrGo`, 설정 창 주소 칸으로).
+  - 쓰는 차례 (`core.js mrServerPick`): ① 이 기기 `nb-mrserver` ② 허브 열쇠 칸 `hub_secret('noraebang','mr_server')` (로그인한 뒤 한 번 읽어 메모리 `Hub.mrServer`, `hub.js hubMrServer`) ③ 없음 → [MR 만들기]·[원곡 파일로 자동 싱크]가 창을 열지 않는다. 곡 목록 안내는 짧은 `MR_NOSERVER_SHORT` + [주소 넣기](`#mrGo`, 설정 창 주소 칸으로), 자동 싱크 줄은 단추가 없어 길이 든 `MR_NOSERVER_TEXT`.
   - 허브 값이 왔는데 이 기기에 값이 없으면 `mrHubValueOk`(=`normalizeMrServer`)가 맞을 때만 이 기기에도 저장 (`mrHubFill`). 틀린 값은 버린다.
   - 설정 창 [저장]: 언제나 이 기기에 저장 + 허브에 로그인해 있으면 `hub_secret_set`도 (`hubMrServerSet` → ok·off·fail, 안내 `MR_SAVE_TEXT`). 허브만 실패하면 이 기기 값은 그대로 두고 허브만 못 넣었다고. 빈 칸 저장 = [이 기기에서 지우기] = 이 기기 값만 지움 (허브 값을 지우는 단추는 없다).
   - 로그아웃·연결 끊기·허브 바꾸기는 메모리 값만 지운다 (`hubForgetMrServer`, 이 기기 `nb-mrserver`는 그대로). 손님 화면(guest.html)은 hub.js·mr.js를 안 불러온다.

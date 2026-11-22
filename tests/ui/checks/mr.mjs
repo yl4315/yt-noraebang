@@ -4,7 +4,7 @@
 // 가짜 창은 노래방이 window.open으로 연 진짜 탭이고, 점검은 CDP로 그 탭에 붙어 파일을 보내게 하고 받은 답(__got)을 읽는다.
 import fs from 'node:fs';
 import path from 'node:path';
-import { txt, visible, marks, sawToast, sleep, q, stopAll, clipShot } from './_lib.mjs';
+import { txt, visible, marks, sawToast, sleep, q, stopAll, clipShot, PC, PHONE } from './_lib.mjs';
 import { waitDownload } from './record.mjs';
 import { cand } from '../fixtures.mjs';
 export const areas = ['U'];
@@ -74,10 +74,21 @@ export default async function mr(ctx) {
     const pages = async () => (await ctx.browser.send('Target.getTargets')).targetInfos.filter(x => x.type === 'page').length;
     const n0 = await pages();
     await p.click('#mrBtn'); await sleep(500);
-    const m = await p.eval(`({cur:mrServer(), shown:!$('#mrMsg').hidden, text:$('#mrMsgTxt').textContent, want:MR_NOSERVER_TEXT, retry:!$('#mrRetry').hidden, go:!$('#mrGo').hidden, goTxt:$('#mrGo').textContent, win:!!Mr.win})`);
+    // 곡 목록 안내는 짧은 글 (옆 [주소 넣기]가 길을 대신함, 디자인실 R1)
+    const m = await p.eval(`({cur:mrServer(), shown:!$('#mrMsg').hidden, text:$('#mrMsgTxt').textContent, want:MR_NOSERVER_SHORT, retry:!$('#mrRetry').hidden, go:!$('#mrGo').hidden, goTxt:$('#mrGo').textContent, win:!!Mr.win})`);
     const n1 = await pages();
     const sh = await clipShot(p, ['#mrBtn', '#mrMsg'], path.join(ctx.shotsDir, 'U1-MR-주소없음-안내-1280.png')).catch(e => { ctx.log('  (사진 실패: ' + e.message + ')'); return null; });
     if (sh) ctx.log('  사진 U1-MR-주소없음-안내-1280.png');
+    // 폰 폭 412 다크 사진 한 장 + 글 줄 수·단추 높이 기록 (디자인실 R1 뒤 볼 것)
+    const size0 = p.size || PC;
+    try {
+      await p.emulate(PHONE);
+      await p.media([{ name: 'prefers-color-scheme', value: 'dark' }]); await sleep(300);
+      await p.eval(`$('#mrMsg').scrollIntoView({block:'center'})`);   // 폰에서는 안내가 화면 아래로 밀려 있다 → 화면 안에 들어와야 찍힌다
+      const lay = await p.eval(`(()=>{const t=$('#mrMsgTxt'), g=$('#mrGo'); const lh=parseFloat(getComputedStyle(t).lineHeight)||1; return {lines:Math.round(t.getBoundingClientRect().height/lh), goH:Math.round(g.getBoundingClientRect().height), sw:document.documentElement.scrollWidth}})()`);
+      const sp = await clipShot(p, ['#mrBtn', '#mrMsg'], path.join(ctx.shotsDir, 'U1-MR-주소없음-안내-폰412-다크.png')).catch(e => { ctx.log('  (사진 실패: ' + e.message + ')'); return null; });
+      if (sp) ctx.log(`  사진 U1-MR-주소없음-안내-폰412-다크.png (글 ${lay.lines}줄 · [주소 넣기] 높이 ${lay.goH} · 화면 폭 ${lay.sw})`);
+    } finally { await p.media([]); await p.emulate(size0); await sleep(250); }
     ok('U1', m.cur === '' && m.shown && m.text === m.want && !m.retry && m.go && m.goTxt === '주소 넣기' && !m.win && n1 === n0,
       `주소 없음 → 창 ${n1 - n0}개 열림 · "${m.text}" + [${m.goTxt}] ([다시 해보기] ${m.retry ? '보임' : '숨김'})`);
     // [주소 넣기]: 고급이 꺼진 화면에서 눌러도 → 설정 창 + 고급 켬 + 주소 칸 펴고 초점 (사람이 누르는 길과 같음)
@@ -87,7 +98,7 @@ export default async function mr(ctx) {
     ok('U1', g.dlg && g.adv && g.ls === '1' && g.addr && g.focus && g.val === '' && !g.msg,
       `[주소 넣기] → 설정 창 ${g.dlg ? '열림' : '안 열림'} · 고급 ${g.adv ? '켬' : '꺼짐'} · 주소 칸 ${g.addr ? '펴짐' : '접힘'} · 초점 ${g.focus ? '칸' : '다른 곳'} · 빈 칸`);
     await p.click('#cloudClose');
-    // 자동 싱크(정렬) 길도 같은 글 (주소 없음 = 창을 열지 않음), [직접 맞추기] 없음. 단추로 여는 것은 align.mjs(W8)가 본다
+    // 자동 싱크(정렬) 길: 창을 열지 않고, 단추가 없으니 길이 든 글(MR_NOSERVER_TEXT), [직접 맞추기] 없음. 단추로 여는 것은 align.mjs(W8)가 본다
     const al = await p.eval(`(()=>{ const info=alignInfo('alignfail','noserver'); return {text:info.text, fix:info.fix, want:MR_NOSERVER_TEXT}; })()`);
     ok('U1', al.text === al.want && al.fix === false, `자동 싱크 이유 noserver → "${al.text}" ([직접 맞추기] ${al.fix ? '있음' : '없음'})`);
   });

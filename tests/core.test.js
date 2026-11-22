@@ -693,13 +693,15 @@ test('MR 만들기 서버 주소 (CR-231): 이 기기 → 허브 → 없음 · �
   // 안내 글: 글에 주소가 없다. [저장] 결과 넷, [이 기기에서 지우기] 둘, 주소 없음 (MR 만들기·자동 싱크가 같은 글)
   assert.deepEqual(Object.keys(C.MR_SAVE_TEXT).sort(), ['device', 'hub', 'hubfail', 'saving']);
   assert.match(C.MR_SAVE_TEXT.hub, /허브에도 넣어서 내 다른 기기도 이 주소를 써요/);
-  assert.match(C.MR_SAVE_TEXT.device, /이 기기에만/);
+  assert.equal(C.MR_SAVE_TEXT.device, '이 기기에만 저장했어요 · 허브에 로그인한 뒤 다시 저장하면 내 다른 기기도 같이 써요');
   assert.match(C.MR_SAVE_TEXT.hubfail, /^이 기기에는 저장했어요 · 허브에는 못 넣었어요/);
   assert.notEqual(C.mrClearText(true), C.mrClearText(false));
   assert.match(C.mrClearText(true), /허브에 있는 주소/);
+  // 곡 목록 [MR 만들기] 안내는 짧은 글 (옆 [주소 넣기]), 자동 싱크 줄은 단추가 없어 길이 든 글
+  assert.equal(C.MR_NOSERVER_SHORT, 'MR 만들기 서버 주소가 아직 없어요 · 한 번만 넣어 주세요');
   assert.equal(C.MR_NOSERVER_TEXT, 'MR 만들기 서버 주소가 아직 없어요 · 설정 → 더 보기 (고급) → MR 만들기 (집 AI 서버)에 한 번 넣어 주세요');
   assert.equal(C.alignErrText('noserver'), C.MR_NOSERVER_TEXT);
-  for (const t of [...Object.values(C.MR_SAVE_TEXT), C.mrClearText(true), C.mrClearText(false), C.MR_NOSERVER_TEXT])
+  for (const t of [...Object.values(C.MR_SAVE_TEXT), C.mrClearText(true), C.mrClearText(false), C.MR_NOSERVER_TEXT, C.MR_NOSERVER_SHORT])
     assert.doesNotMatch(t, /https?:|:8765|dgx|ts\.net|100\.\d/i, t);
 });
 
