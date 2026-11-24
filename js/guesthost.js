@@ -17,6 +17,9 @@ const Guest = {
 const GUEST_ROOM_PER_SEC = 30;     // 방 전체 1초 30개까지 (손님이 아닌 표가 보내는 hello도 셈)
 const GUEST_SEEN_MS = 60000;       // 손님 폰은 20초마다 hello. 60초 소식이 없으면 나간 것으로 셈
 const GUEST_EVERY_MS = 20000;      // 상태가 안 바뀌어도 20초마다 한 번 (손님 폰은 60초 동안 소식이 없으면 끊김으로 봄)
+// 손님 QR 바탕 주소 (CR-251 YT-06): 이 화면을 localhost·사설 IP·http로 열었으면 손님 폰이 못 들어오니 공개 Pages 주소로 (core.js guestUrl).
+// 화면 점검(tests/ui/checks/guest.mjs)은 가짜 서버로 열려고 이 값을 바꾼다
+let GUEST_PUBLIC_BASE = 'https://yl4315.github.io/yt-noraebang/';
 const guestYtOn = () => typeof ytReserve === 'function';   // 유튜브 곡 예약 (CR-030 yt.js가 있을 때만)
 
 /* ---------------- QR 그림 (js/vendor/toqr-0.1.1.mjs, 이 저장소 안 사본) ---------------- */
@@ -67,7 +70,7 @@ async function guestOpen() {
     return false;
   }
   Object.assign(Guest, { on: true, busy: false, sb, ch, room, qr: null, qrPx: 0, guests: new Map(), res: [], all: [], last: '', lastAt: 0,
-    url: guestUrl(location.href, room, hubCodeMake(Hub.conf.u, Hub.conf.k)) });
+    url: guestUrl(location.href, room, hubCodeMake(Hub.conf.u, Hub.conf.k), GUEST_PUBLIC_BASE) });
   clearInterval(Guest.tick); Guest.tick = setInterval(guestTick, 1000);
   guestRender(); guestSendState(true);
   const url = Guest.url;

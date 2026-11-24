@@ -839,9 +839,20 @@ const guestRoomName = rng => 'nbr-' + guestRand(32, rng);
 // 손님 표(손님 폰이 만듦)·예약 표(방장이 만듦): 16바이트 난수 22자. 이름·기기 정보가 아님
 const guestId = rng => guestRand(16, rng);
 // QR 주소: <노래방 폴더>/guest.html#r=<방 이름>&c=<연결 코드>. 값은 # 뒤에만 (서버 기록·Referer에 안 남게), ? 없음
-function guestUrl(base, room, code) {
-  const b = String(base || '').replace(/[?#].*$/, '').replace(/[^/]*$/, '');
+// pub (CR-251 YT-06): 방장 화면을 PC 바로가기(localhost·사설 IP·이름만 있는 주소·http)로 열었으면 손님 폰은 그 주소에 못 들어온다
+// → 공개 주소 pub(https만)을 바탕으로 쓴다. 손님 화면은 허브에만 붙으므로 어느 주소에서 열어도 같은 방. pub가 없으면 예전 그대로
+function guestUrl(base, room, code, pub) {
+  let b = String(base || '').replace(/[?#].*$/, '').replace(/[^/]*$/, '');
   if (!/^https?:\/\/[^/?#]+\//.test(b) || !GUEST_ROOM_RE.test(String(room)) || !hubCodeParse(code).ok) return null;
+  const p = String(pub || '').replace(/[?#].*$/, '').replace(/[^/]*$/, '');
+  if (/^https:\/\/[^/?#]+\//.test(p)) {
+    const host = b.replace(/^https?:\/\/(?:[^@/]*@)?([^/]+)\/.*$/, '$1').replace(/:\d+$/, '').replace(/^\[|\]$/g, '').toLowerCase();
+    const local = /^http:/.test(b) || !host.includes('.') && !host.includes(':')
+      || /(^|\.)(localhost|local|lan|home|internal)$/.test(host)
+      || /^(127|10)\.\d+\.\d+\.\d+$|^192\.168\.\d+\.\d+$|^172\.(1[6-9]|2\d|3[01])\.\d+\.\d+$|^169\.254\.\d+\.\d+$|^0\.0\.0\.0$/.test(host)
+      || /^(::1?|f[cd][0-9a-f]{0,2}:.*|fe[89ab][0-9a-f]?:.*)$/.test(host);
+    if (local) b = p;
+  }
   return b + 'guest.html#r=' + room + '&c=' + code;
 }
 // 손님 폰: 주소의 # 읽기. 맞으면 { ok:true, room, u, k }, 아니면 { ok:false } (틀린 값은 돌려주지 않는다)

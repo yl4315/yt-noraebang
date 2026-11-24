@@ -77,3 +77,26 @@ test('손님 차례 알림 (YT-r14): 이름이 있으면 "OO님 차례예요", �
   assert.equal(guestTurnText(''), '');
   assert.equal(guestTurnText(null), '');
 });
+
+test('손님 QR 바탕 주소 (YT-06): localhost·사설 IP·http 방장 → QR 주소는 공개 https 주소, 공개 https는 그대로, pub가 없으면 예전 그대로', () => {
+  const { guestUrl, hubCodeMake, guestRoomName } = load(['guestUrl', 'hubCodeMake', 'guestRoomName']);
+  const code = hubCodeMake('https://' + 'qafakehub' + '0'.repeat(11) + '.supabase.co', 'sb_publishable_' + 'qa'.repeat(12));
+  const room = guestRoomName(), tail = 'guest.html#r=' + room + '&c=' + code;
+  const PUB = 'https://yl4315.github.io/yt-noraebang/';
+  for (const local of ['http://localhost:5173/', 'http://127.0.0.1:5173/index.html?tv=1', 'http://192.168.0.5:5173/', 'https://192.168.0.5/',
+    'https://10.1.2.3/nb/', 'https://172.20.1.1/', 'https://169.254.3.4/', 'https://mypc:8443/', 'https://nb.local/', 'https://[::1]:8443/', 'https://[fd12::3]/',
+    'http://example.test/yt-noraebang/']) {
+    const u = guestUrl(local, room, code, PUB);
+    assert.equal(u, PUB + tail, local);
+    assert.equal(new URL(u).protocol, 'https:', local);
+  }
+  // 공개 https 주소는 그대로 (Pages·다른 https 사이트)
+  assert.equal(guestUrl('https://yl4315.github.io/yt-noraebang/index.html', room, code, PUB), PUB + tail);
+  assert.equal(guestUrl('https://example.test/nb/index.html#x', room, code, PUB), 'https://example.test/nb/' + tail);
+  assert.equal(guestUrl('https://172.32.0.1/', room, code, PUB), 'https://172.32.0.1/' + tail);   // 172.16~31만 사설
+  // pub가 없거나 https가 아니면 예전 그대로 · 틀린 값은 그대로 null
+  assert.equal(guestUrl('http://127.0.0.1:5173/', room, code), 'http://127.0.0.1:5173/' + tail);
+  assert.equal(guestUrl('http://127.0.0.1:5173/', room, code, 'http://127.0.0.1:9/'), 'http://127.0.0.1:5173/' + tail);
+  assert.equal(guestUrl('file:///C:/x/index.html', room, code, PUB), null);
+  assert.equal(guestUrl('http://localhost:5173/', 'nbr-짧음', code, PUB), null);
+});

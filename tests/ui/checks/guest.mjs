@@ -46,6 +46,8 @@ export default async function guest(ctx) {
   await R.attach(host, hb);
   await host.s('Page.addScriptToEvaluateOnNewDocument', { source: CONS });
   await host.goto(ctx.base + '/index.html', READY_DEMO, 150000);
+  // CR-251 YT-06: 127.0.0.1(http)로 연 방장은 QR 바탕을 공개 Pages 주소로 바꾼다 → 점검은 손님 폰을 가짜 서버로 열려고 바탕을 비워 둔다 (공개 주소로는 안 감, X4에서 모양만 봄)
+  await host.eval(`window.__pub = GUEST_PUBLIC_BASE; GUEST_PUBLIC_BASE = ''`);
   const openGuest = async (b, url, ready = JOIN_READY, ms = 15000) => {
     const p = await openPage({ ...ctx, adv: false }, PHONE, null, null, b);   // 손님 폰에는 점검 도구의 고급 켜기(nb-advanced·__ui-adv)를 넣지 않는다 — X7 "손님 폰 저장 0"을 그대로 재려고
     await R.attach(p, b);
@@ -128,6 +130,9 @@ export default async function guest(ctx) {
     const shape = await host.eval(`(()=>{const u=new URL(Guest.url);return {path:u.pathname, same:u.origin===location.origin, q:Guest.url.includes('?'), hash:/^#r=nbr-[A-Za-z0-9_-]{43}&c=nbhub1\\.[A-Za-z0-9_-]+$/.test(u.hash), roomBits:(Guest.room.length-4)*6}})()`);
     ok('X4', shape.path.endsWith('/guest.html') && shape.same && !shape.q && shape.hash, `주소 모양: …/guest.html#r=…&c=… · ? ${shape.q ? '있음' : '없음'}`);
     ok('X4', shape.roomBits >= 256, `방 이름 난수 ${shape.roomBits}비트 (base64url 43자)`);
+    // CR-251 YT-06: 이 방장은 http 127.0.0.1 (PC 바로가기와 같음) → 진짜 QR 바탕은 공개 https 주소 (앱에 든 값 그대로 계산만, 그 주소로 가지는 않음)
+    const pub = await host.eval(`(()=>{const u=new URL(guestUrl(location.href, Guest.room, hubCodeMake(Hub.conf.u, Hub.conf.k), window.__pub)); return {proto:u.protocol, host:u.host, path:u.pathname, hash:/^#r=nbr-[A-Za-z0-9_-]{43}&c=nbhub1\\./.test(u.hash), here:location.protocol+'//'+location.hostname}})()`);
+    ok('X4', pub.proto === 'https:' && pub.host === 'yl4315.github.io' && pub.path === '/yt-noraebang/guest.html' && pub.hash, `localhost 방장 → QR 주소 https: ${pub.here} → ${pub.proto}//${pub.host}${pub.path}#r=…&c=…`);
     const j = R.joins[R.joins.length - 1] || {};
     ok('X4', j.private === false && j.self === false && j.presence === false && j.pg === 0, `방장 채널: 공개 broadcast (private ${j.private} · self ${j.self} · presence ${j.presence} · 표 변경 ${j.pg})`);
     ok('X4', R.badKey === 0 && R.badUrl === 0, `Realtime 주소 wss·/realtime/v1/websocket·vsn 2.0.0 · 공개 키만 (틀림 ${R.badUrl}·${R.badKey})`);
