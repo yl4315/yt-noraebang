@@ -197,7 +197,7 @@ export default async function mr(ctx) {
     await p.click('#mrBtn');
     const blocked = await msgState(p);
     await p.eval(`window.open = window.__wo`);
-    ok('U2', blocked.shown && blocked.text === '새 창이 막혔어요. 주소창 오른쪽에서 이 사이트의 팝업을 허용해 주세요' && blocked.retry, `팝업 막힘 → "${blocked.text}" + [다시 해보기]`);
+    ok('U2', blocked.shown && blocked.text === '새 창이 막혔어요 · 주소창 오른쪽에서 이 사이트의 팝업을 허용해 주세요' && blocked.retry, `팝업 막힘 → "${blocked.text}" + [다시 해 보기]`);
 
     // 인사하지 않는 주소 (가짜 서버의 없는 곳 = 404 화면): 10초 동안 기다린 뒤 안내
     await p.eval(`localStorage.setItem('nb-mrserver', ${q(FAKE + '/no-such-place')})`);

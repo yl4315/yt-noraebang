@@ -718,7 +718,7 @@ body:has(#tv.yt-mode:not([hidden])) .toast{left:14px;right:auto;transform:none;b
 .sync-chk{color:var(--color-text,var(--ink))}
 .sync-chk::before{content:'';flex:none;width:6px;height:6px;border-radius:50%;background:var(--color-info)}
 @media (hover:none){.sync-line .sl-act{min-height:48px;margin:-14px 0 -14px auto}#syncLine2{margin-top:8px}}
-@media (hover:none){#syncTools .btn{min-height:48px}}   /* 폰: [자동 맞추기] 줄 손가락 자리 48 (디자인 kar-r1 R2) */
+@media (hover:none){#syncTools{margin-block:9px;row-gap:18px}#syncTools .btn{position:relative}#syncTools .btn::after{content:'';position:absolute;inset:-10px -3px}}   /* 폰: [자동 맞추기] 줄 단추 모양은 30 알약 그대로, 손가락 자리만 48 (디자인 kar-r1 R2 · CR-236 보기 K1) */
 @media (prefers-reduced-motion:reduce){.sync-line[data-state=busy] svg,.sync-line .sl-dots i{animation:none}}
 /* 허브 연결 (설정): 코드·메일·비밀번호 칸은 Drive 클라이언트 ID 칸과 같은 모양 */
 #hubSec .set-row input{flex:1;min-width:180px;background:var(--panel);border:1px solid transparent;border-radius:var(--r-in);padding:8px 10px;font-size:13px;color:var(--ink)}

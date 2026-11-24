@@ -291,7 +291,8 @@ export default async function guest(ctx) {
     const C = await openGuest(gbA, room1.url, `/방이 꽉 찼어요/.test($('#msgBig').textContent)`, 15000);
     ok('X7', C.ready && await visible(C.p, '#retryBtn'), '손님 C: ' + await txt(C.p, '#msgBig'));
     const meta = await C.p.eval(`$('#retryMeta').textContent`);
-    ok('X7', meta === '자리가 나면 다시 찍어 주세요', `꽉 참 아래 글 "${meta}" (CR-228 L7)`);
+    const body = await C.p.eval(`$('#msgBody').textContent`);
+    ok('X7', meta === '자리가 나면 다시 찍어 주세요' && body === '손님은 6명까지 들어올 수 있어요.', `꽉 참 본문 "${body}" · 아래 글 "${meta}" (CR-228 L7 · CR-236 보기 N4)`);
     await shot(C.p, 'x-guest-full.png');
     for (const g of [f, ...more]) say(g, { t: 'bye' });
     await host.until(`Guest.guests.size===2`, 4000);

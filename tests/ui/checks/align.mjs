@@ -174,13 +174,47 @@ export default async function align(ctx) {
     const pos = await p.eval(`(()=>{const b=document.querySelector('#alignBtn'); return {row:b.parentElement.id, prev:b.previousElementSibling&&b.previousElementSibling.id, last:!b.nextElementSibling, inFold:!!b.closest('#lyrTools')}})()`);
     await p.eval('applyAdv(false)');
     const d0 = { auto: await visible(p, '#autoSyncBtn'), align: await visible(p, '#alignBtn'), row: await visible(p, '#syncTools'), fold: !(await visible(p, '#lyrTools')) };
+    // CR-236 보기 K1: 단추 모양은 30 알약 그대로(아래 "키" 줄 단추와 같은 높이), 손가락 자리만 48 (::after) · 같은 칸 다른 단추와 안 겹침 · 130% 글에서 두 줄로 꺾여도 안 겹침
+    const HIT = `(()=>{const row=document.querySelector('#syncTools'), card=row.closest('.meter')||document.body;
+      const shown=e=>{if(!e||e.hidden) return false; const r=e.getBoundingClientRect(); return r.width>0&&r.height>0&&getComputedStyle(e).visibility!=='hidden'};
+      const px=v=>parseFloat(v)||0, bs=[...row.querySelectorAll('.btn')].filter(shown);
+      const hit=b=>{const r=b.getBoundingClientRect(), c=getComputedStyle(b), a=getComputedStyle(b,'::after');
+        if(a.content==='none'||a.position!=='absolute') return {l:r.left,t:r.top,r:r.right,b:r.bottom,after:false};
+        return {l:r.left+px(c.borderLeftWidth)+px(a.left), t:r.top+px(c.borderTopWidth)+px(a.top), r:r.right-px(c.borderRightWidth)-px(a.right), b:r.bottom-px(c.borderBottomWidth)-px(a.bottom), after:true}};
+      const ov=(x,y)=>Math.max(0,Math.min(x.r,y.r)-Math.max(x.l,y.l))*Math.max(0,Math.min(x.b,y.b)-Math.max(x.t,y.t));
+      const hs=bs.map(hit); let self=0, other=0;
+      for(let i=0;i<hs.length;i++) for(let j=i+1;j<hs.length;j++) self+=ov(hs[i],hs[j]);
+      const os=[...card.querySelectorAll('button,input,select,a[href],[role=button]')].filter(e=>!row.contains(e)&&shown(e)).map(e=>{const r=e.getBoundingClientRect(); return {l:r.left,t:r.top,r:r.right,b:r.bottom}});
+      for(const h of hs) for(const o of os) other+=ov(h,o);
+      const key=row.nextElementSibling&&row.nextElementSibling.querySelector('.btn');
+      return {n:bs.length, rows:new Set(bs.map(b=>Math.round(b.getBoundingClientRect().top))).size, after:hs.length>0&&hs.every(h=>h.after),
+        hitH:hs.length?Math.round(Math.min(...hs.map(h=>h.b-h.t))):0, h:bs.length?Math.round(Math.max(...bs.map(b=>b.getBoundingClientRect().height))):0,
+        keyH:key?Math.round(key.getBoundingClientRect().height):0, self:Math.round(self), other:Math.round(other), hs:row.scrollWidth<=row.clientWidth+1}})()`;
+    // 모양 높이: 100%는 30 알약(32 아래), 130%는 글이 커진 만큼 — 둘 다 아래 "키" 줄 단추와 같은 높이
+    const hitOk = (x, maxH = 32) => !!x && x.n >= 2 && x.after && x.hitH >= 47 && x.h <= maxH && Math.abs(x.h - x.keyH) <= 1 && x.self === 0 && x.other === 0 && x.hs;
+    const hitSay = x => x ? `단추 ${x.n}개 ${x.rows}줄 · 모양 높이 ${x.h}px (키 줄 ${x.keyH}px) · 손가락 자리 ${x.hitH}px · 겹침 단추끼리 ${x.self} · 다른 단추 ${x.other}` : '못 잼';
+    let hit1 = null, hit130 = null;
     let ph = null;
     try {
       await p.emulate(PHONE); await sleep(250);
       await p.eval(`document.querySelector('#syncTools').scrollIntoView({block:'center'})`);
       ph = { auto: await visible(p, '#autoSyncBtn'), align: await visible(p, '#alignBtn') };
       await shot('W8-syncTools-기본화면-412.png');
-    } finally { await p.emulate(PC); await sleep(200); await p.eval('applyAdv(true)'); }
+      hit1 = await p.eval(HIT);
+      // 130% 글: 이 칸(.meter) 글 크기만 1.3배 (여백·손가락 자리는 그대로) · [자동 맞춤 · 확인해 주세요] + [원곡 파일로 자동 맞추기]로 두 줄로 꺾이게
+      await p.eval(`(()=>{const card=document.querySelector('#syncTools').closest('.meter'), els=[card,...card.querySelectorAll('*')], fs=els.map(e=>parseFloat(getComputedStyle(e).fontSize));
+        window.__f130=els.map((e,i)=>[e,e.style.fontSize]); els.forEach((e,i)=>{e.style.fontSize=(fs[i]*1.3)+'px'});
+        window.__h130=['autoSyncBtn','syncChkBtn'].map(id=>[id,document.getElementById(id).hidden]); document.getElementById('autoSyncBtn').hidden=true; document.getElementById('syncChkBtn').hidden=false;
+        document.querySelector('#syncTools').scrollIntoView({block:'center'})})()`);
+      await sleep(200);
+      hit130 = await p.eval(HIT);
+      await shot('W8-syncTools-130-412.png');
+    } finally {
+      await p.eval(`(()=>{(window.__f130||[]).forEach(([e,v])=>{e.style.fontSize=v}); (window.__h130||[]).forEach(([id,h])=>{document.getElementById(id).hidden=h}); delete window.__f130; delete window.__h130})()`);
+      await p.emulate(PC); await sleep(200); await p.eval('applyAdv(true)');
+    }
+    ok('W8', hitOk(hit1), `폰 412 [자동 맞추기] 줄: ${hitSay(hit1)} (CR-236 보기 K1)`);
+    ok('W8', hitOk(hit130, 40) && hit130.rows >= 2, `폰 412 글 130% [확인해 주세요]+[원곡 파일로…]: ${hitSay(hit130)} (두 줄로 꺾여도 안 겹침)`);
     ok('W8', pos.row === 'syncTools' && pos.prev === 'syncChkBtn' && pos.last && !pos.inFold && d0.auto && d0.align && d0.row && d0.fold && ph && ph.auto && ph.align,
       `무대 단추 자리 #${pos.row} 끝(앞 #${pos.prev}, "가사 맞추기 ›" ${pos.inFold ? '안' : '밖'}) · 고급 꺼짐: [자동 맞추기] ${d0.auto ? '보임' : '숨음'} · [원곡 파일로 자동 맞추기] ${d0.align ? '보임' : '숨음'} · "가사 맞추기 ›" 안 칸 ${d0.fold ? '접힌 채' : '펴짐'} · 폰 412 둘 다 ${ph && ph.auto && ph.align ? '보임' : '안 보임'}`);
     await selectById(p, B.id); const b = await vis();

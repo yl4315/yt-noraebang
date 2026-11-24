@@ -57,7 +57,7 @@ function openMr() {
   let w = null;
   try { w = window.open(base + '/', 'yena-mr'); } catch {}
   clearTimeout(Mr.timer);
-  if (!w) { mrShowMsg('새 창이 막혔어요. 주소창 오른쪽에서 이 사이트의 팝업을 허용해 주세요', true); return; }
+  if (!w) { mrShowMsg('새 창이 막혔어요 · 주소창 오른쪽에서 이 사이트의 팝업을 허용해 주세요', true); return; }
   Mr.win = w; Mr.origin = new URL(base).origin; Mr.linked = false;
   mrHideMsg();
   Mr.timer = setTimeout(() => { if (!Mr.linked) mrShowMsg('⟳ 집 AI 서버에 못 닿았어요 · Tailscale이 켜져 있는지 확인해 주세요', true); }, Mr.helloMs);

@@ -39,7 +39,7 @@
     noqr: { icon: 'qr', big: 'QR을 다시 찍어 주세요', body: '이 주소로는 방에 들어갈 수 없어요.', meta: 'TV나 방장 화면에 나온 QR을 폰 카메라로 찍어 주세요', conn: '연결 안 됨' },
     closed: { big: '방이 닫혔어요', body: '방장이 노래방을 끝냈어요.\n다시 하려면 TV에 나온 새 QR을 찍어 주세요.', meta: '이 폰에 남은 기록은 없어요', conn: '연결 끊김' },
     lost: { big: '방에 붙지 못했어요', body: '인터넷이 끊겼거나 QR이 오래됐어요.', retry: true, conn: '연결 안 됨' },
-    full: { big: '방이 꽉 찼어요', body: '손님은 6명까지 들어올 수 있어요.\n누가 나가면 다시 해 보세요.', retry: true, retryMeta: '자리가 나면 다시 찍어 주세요', conn: '연결 안 됨' },   // retryMeta: CR-228 L7
+    full: { big: '방이 꽉 찼어요', body: '손님은 6명까지 들어올 수 있어요.', retry: true, retryMeta: '자리가 나면 다시 찍어 주세요', conn: '연결 안 됨' },   // retryMeta: CR-228 L7 · 본문은 한 줄 (CR-236 보기 N4: 아래 줄과 같은 말 빼기)
   };
   function setConn(on, text) {
     $('#conn').classList.toggle('off', !on);
