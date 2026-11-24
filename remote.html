@@ -3,6 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<!-- 허브 길(예나 폰 리모컨, CR-228 ③)은 로그인 세션을 쓴다: 주고받는 곳은 이 주소(server.py 옛 길)와 회사 허브(*.supabase.co)만 -->
+<meta http-equiv="Content-Security-Policy" content="connect-src 'self' https://*.supabase.co wss://*.supabase.co; object-src 'none'; base-uri 'self'">
 <title>예태 노래방 리모컨</title>
 <meta name="theme-color" content="#121316">
 <meta name="mobile-web-app-capable" content="yes">
@@ -104,6 +106,7 @@ nav .cnt{font-size:10px;background:var(--color-danger);color:#fff;border-radius:
 .pin input{text-align:center;font:var(--font-display);letter-spacing:.3em;max-width:220px;font-variant-numeric:tabular-nums}
 .pin .go{background:var(--amber);border:0;border-radius:var(--radius-lg);padding:12px 30px;min-height:48px;font-weight:700;color:var(--color-accent-on)}
 .err{color:var(--rec);font-size:14px;min-height:1.4em;word-break:keep-all}
+.pin a.go{text-decoration:none;display:inline-flex;align-items:center;justify-content:center}   /* 허브 길 안내의 [노래방 열기] (CR-228 ③) */
 .a2hs{display:flex;align-items:center;gap:8px;background:var(--panel);border-radius:var(--radius-sm);padding:6px 6px 6px 10px;margin-bottom:8px;font-size:12px;color:var(--muted)}
 .a2hs span{flex:1;min-width:0}
 .a2hs b{color:var(--ink);font-weight:700}
@@ -125,6 +128,14 @@ nav .cnt{font-size:10px;background:var(--color-danger);color:#fff;border-radius:
   <form id="pinForm"><input type="text" inputmode="numeric" maxlength="4" id="pinIn" autocomplete="off" aria-label="노래방 코드"></form>
   <button class="go" id="pinGo" type="button">연결</button>
   <div class="err" id="pinErr"></div>
+</section>
+
+<!-- 예나 폰 리모컨 (CR-228 ③): server.py 없이 열었을 때 허브 길 안내 (붙는 중·로그인 필요·노래방에서 꺼짐·못 닿음·폰 많음). 글은 아래 HUB_VIEW -->
+<section class="pin" id="hubView" hidden>
+  <h1 id="hubH"></h1>
+  <p id="hubP"></p>
+  <a class="go" id="hubOpen" href="./" hidden>노래방 열기</a>
+  <button class="go" id="hubRetry" type="button" hidden>다시 해 보기</button>
 </section>
 
 <div id="app" hidden style="display:contents">
@@ -187,6 +198,9 @@ nav .cnt{font-size:10px;background:var(--color-danger);color:#fff;border-radius:
 <div class="toast" id="toast" hidden></div>
 
 <script src="js/haptics.js"></script>
+<script src="js/core.js"></script>
+<script src="js/vendor/supabase-2.117.1.js"></script>
+<script src="js/myphone.js"></script>
 <script>
 'use strict';
 const $ = s => document.querySelector(s);
@@ -210,8 +224,10 @@ function toast(m) { const t = $('#toast'); t.textContent = m; t.hidden = false; 
 const HAPTIC = { reserve: 'success', reserveMany: 'success', unreserve: 'warning', cancel: 'warning' };
 const buzz = (kind = 'tap') => { try { window.YenaHaptics?.play(kind); } catch {} };
 
+let viaHub = null;   // 허브 길(CR-228 ③)일 때만: 명령을 js/myphone.js로
 async function send(cmd, args = {}, msg) {
   buzz(HAPTIC[cmd] || 'tap');
+  if (viaHub) return viaHub(cmd, args, msg);
   try {
     const r = await fetch('/api/remote/cmd', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pin, cmd, args }) });
     if (r.status === 403) { forgetPin(); return showPin('코드가 바뀌었어요. 다시 넣어 주세요'); }
@@ -382,8 +398,40 @@ $('#a2hsAdd').onclick = async () => {
 };
 addEventListener('appinstalled', closeA2hs);
 
-if (pin) { $('#pinIn').value = pin; poll(); } else showPin();
-setInterval(poll, 1000);
+/* ---- 예나 폰 리모컨 (CR-228 ③): 허브 길 ---- */
+const HUB_VIEW = {
+  wait: ['노래방에 연결하는 중…', '잠깐만 기다려 주세요'],
+  login: ['허브 로그인이 필요해요', '노래방 앱에서 허브에 먼저 로그인해 주세요. 로그인한 뒤 이 화면으로 돌아오면 바로 이어져요.', 'open'],
+  off: ['노래방 리모컨이 꺼져 있어요', '노래방에서 [예나 폰 리모컨]을 켜 주세요 (설정 › 더 보기 (고급)). 켜면 여기가 저절로 이어져요.', 'retry'],
+  err: ['허브에 못 닿았어요', '인터넷을 확인하고 다시 해 주세요.', 'retry'],
+  full: ['이어진 폰이 너무 많아요', '노래방에는 폰 4대까지 이어져요. 다른 폰의 리모컨을 닫고 다시 해 주세요.', 'retry'],
+};
+function hubShow(kind) {
+  if (kind === 'app') { $('#hubView').hidden = true; $('#pinView').hidden = true; $('#app').hidden = false; showA2hs(); return; }
+  const v = HUB_VIEW[kind] || HUB_VIEW.err;
+  $('#app').hidden = true; $('#pinView').hidden = true; $('#who').hidden = true; $('#hubView').hidden = false;
+  $('#hubH').textContent = v[0]; $('#hubP').textContent = v[1];
+  $('#hubOpen').hidden = v[2] !== 'open'; $('#hubRetry').hidden = v[2] !== 'retry';
+}
+function gotState(obj) { S = obj; render(); }
+$('#hubRetry').onclick = () => { buzz(); typeof MyPhone === 'object' && MyPhone.retry(); };
+// server.py가 답하면(이 PC·같은 와이파이 휴대폰) 옛 길(코드) 그대로. 답이 없으면(GitHub Pages) 허브 길
+async function remoteMode() {
+  if (typeof remoteModePick !== 'function' || typeof MyPhone !== 'object') return 'server';
+  try {
+    const r = await fetch('/api/remote/info', { cache: 'no-store' });
+    let body = null; try { body = await r.json(); } catch {}
+    return remoteModePick({ status: r.status, body });
+  } catch { return 'hub'; }
+}
+remoteMode().then(mode => {
+  if (mode === 'hub') {
+    viaHub = (cmd, args, msg) => MyPhone.send(cmd, args, msg);
+    return MyPhone.start({ view: hubShow, state: gotState, conn: setConn, toast, buzz });
+  }
+  if (pin) { $('#pinIn').value = pin; poll(); } else showPin();
+  setInterval(poll, 1000);
+});
 </script>
 </body>
 </html>

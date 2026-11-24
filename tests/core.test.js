@@ -1228,3 +1228,116 @@ test('QR 크기: 1칸 = 정수 px가 되게 내린다 (CR-228 L2)', () => {
   assert.equal(C.qrFitPx(220, 0), 0);
   for (const t of [96, 150, 220, 333]) assert.equal(C.qrFitPx(t, 37) % 37, 0);
 });
+
+/* ---------------- 예나 폰 리모컨 (CR-228 ③) ---------------- */
+const PID = 'p'.repeat(22);
+test('예나 방 이름: nbm- + 43자(256비트) · 켤 때마다 새 이름 · 손님 방 이름(nbr-)과 다른 모양', () => {
+  const a = C.myRoomName(), b = C.myRoomName();
+  assert.match(a, C.MY_ROOM_RE); assert.match(a, /^nbm-[A-Za-z0-9_-]{43}$/);
+  assert.notEqual(a, b);
+  assert.equal(new Set(Array.from({ length: 200 }, () => C.myRoomName())).size, 200);
+  assert.notEqual(C.myRoomName(seqRng(1)), C.myRoomName(seqRng(2)));
+  // 서로 섞이지 않는다: 예나 방 이름은 손님 QR 주소가 안 되고, 손님 방 이름은 예나 방 모양이 아니다
+  assert.equal(C.guestUrl('https://example.test/', a, HCODE), null);
+  assert.equal(C.MY_ROOM_RE.test(C.guestRoomName()), false);
+  assert.equal(C.guestUrlParse('#r=' + a + '&c=' + HCODE).ok, false);
+  assert.equal(C.MY_HUB_NAME, 'remote_room');
+  assert.match(C.MY_HUB_NAME, /^[a-z][a-z0-9_]{0,39}$/);   // 0008 hub_secret_set 이름 규칙 안 (새 SQL 없음)
+});
+
+test('예나 폰 메시지 모양: 명령 16가지만 · 칸 모양 · 4KB 넘으면 버림', () => {
+  assert.equal(C.MY_CMDS.length, 16);
+  const cmd = (c, args, more) => ({ v: 1, t: 'cmd', pid: PID, seq: 1, cmd: c, ...(args === undefined ? {} : { args }), ...more });
+  const good = [
+    cmd('start'), cmd('pause', {}), cmd('cancel'), cmd('jump'), cmd('keyReset'), cmd('tv'), cmd('rec'),
+    cmd('reserve', { id: 'a1' }), cmd('reserve', { id: 'a1', priority: true }), cmd('reserveMany', { ids: ['a1', 'b2'], label: '♥ 좋아요' }),
+    cmd('unreserve', { id: 'a1' }), cmd('top', { id: 'a1' }), cmd('now', { id: 'a1' }), cmd('profile', { id: 'p1' }), cmd('fav', { id: 'a1' }),
+    cmd('mr', { delta: -5 }), cmd('key', { delta: 1 }),
+    { v: 1, t: 'hello', pid: PID }, { v: 1, t: 'hello', pid: PID, have: C.mySig([]) }, { v: 1, t: 'bye', pid: PID },
+  ];
+  for (const m of good) assert.equal(C.myMsgOk(m), true, JSON.stringify(m));
+  assert.equal(new Set(good.filter(m => m.t === 'cmd').map(m => m.cmd)).size, 16);
+  const bad = [
+    null, [], 'x', { ...cmd('start'), v: 2 }, { ...cmd('start'), t: 'search' }, cmd('eval'), cmd('hello'), cmd('__proto__'),
+    { ...cmd('start'), pid: 'short' }, { ...cmd('start'), pid: undefined }, { ...cmd('start'), seq: undefined }, { ...cmd('start'), seq: -1 },
+    cmd('start', { x: 1 }), cmd('start', []), cmd('reserve', {}), cmd('reserve', { id: '' }), cmd('reserve', { id: 'a' + String.fromCharCode(10) }), cmd('reserve', { id: 'a', priority: 'yes' }),
+    cmd('reserve', { id: 'a', extra: 1 }), cmd('reserve', { id: 'x'.repeat(101) }), cmd('reserveMany', { ids: [] }), cmd('reserveMany', { ids: 'a1' }),
+    cmd('reserveMany', { ids: Array.from({ length: 101 }, (_, i) => 's' + i) }), cmd('reserveMany', { ids: ['a', 3] }),
+    cmd('mr', { delta: 21 }), cmd('mr', { delta: '5' }), cmd('mr', { delta: NaN }), cmd('key', { delta: 3 }), cmd('key', {}), cmd('profile', { id: 'p', name: 'x' }),
+    { v: 1, t: 'hello', pid: PID, have: 'BAD!' }, { v: 1, t: 'hello', gid: PID },
+    // 손님 방 메시지 모양은 예나 방에서 안 통한다 (그 반대도)
+    { v: 1, t: 'reserve', gid: GID, no: 1 }, { v: 1, t: 'search', gid: GID, q: 'a' },
+  ];
+  for (const m of bad) assert.equal(C.myMsgOk(m), false, JSON.stringify(m));
+  assert.equal(C.guestMsgOk(cmd('start')), false);
+  assert.equal(C.guestMsgOk({ v: 1, t: 'cmd', gid: GID, cmd: 'start' }), false);
+  // 4KB: 작은 이름 100개는 되고, 긴 이름으로 4KB를 넘기면 버림
+  assert.equal(C.myMsgOk(cmd('reserveMany', { ids: Array.from({ length: 100 }, (_, i) => 's' + i) })), true);
+  const big = cmd('reserveMany', { ids: Array.from({ length: 60 }, (_, i) => String(i).padEnd(90, 'x')) });
+  assert.equal(C.myMsgOk(big), false);
+  assert.equal(C.myMsgOk(cmd('reserveMany', { ids: ['a'], label: '가'.repeat(201) })), false);
+});
+
+test('예나 폰이 받는 메시지: 내 표의 답만 · 아는 종류만', () => {
+  const sig = C.mySig([]);
+  assert.equal(C.myInOk({ v: 1, t: 'welcome', to: PID }, PID), true);
+  assert.equal(C.myInOk({ v: 1, t: 'welcome', to: GID }, PID), false);
+  assert.equal(C.myInOk({ v: 1, t: 'ok' }, PID), false);
+  assert.equal(C.myInOk({ v: 1, t: 'no', to: PID, seq: 3, why: 'nosong' }, PID), true);
+  assert.equal(C.myInOk({ v: 1, t: 'closed' }, PID), true);
+  assert.equal(C.myInOk({ v: 1, t: 'state', sig, st: {} }, PID), true);
+  assert.equal(C.myInOk({ v: 1, t: 'state', sig, st: [] }, PID), false);
+  assert.equal(C.myInOk({ v: 1, t: 'songs', sig, i: 0, n: 1, songs: [] }, PID), true);
+  assert.equal(C.myInOk({ v: 1, t: 'songs', sig, i: 1, n: 1, songs: [] }, PID), false);
+  assert.equal(C.myInOk({ v: 1, t: 'found', to: PID }, PID), false);     // 손님 방 답 모양
+  assert.equal(C.myInOk({ v: 1, t: 'state', q: [], n: 0 }, PID), false); // 손님 방 상태 모양
+  assert.equal(C.myInOk({ v: 2, t: 'closed' }, PID), false);
+});
+
+test('곡 목록 조각·표시: 조각마다 크기 안 · 합치면 그대로 · 같은 목록 = 같은 표시', () => {
+  const songs = Array.from({ length: 500 }, (_, i) => ({ id: 'id-' + i, no: 1000 + i, title: '노래 제목 ' + i, artist: '가수 ' + i, video: i % 7 === 0, local: i % 2 === 0 }));
+  const parts = C.mySongParts(songs, 4096);
+  assert.ok(parts.length > 3);
+  for (const p of parts) assert.ok(Buffer.byteLength(JSON.stringify(p)) <= 4096);
+  same(parts.flat(), songs);
+  same(C.mySongParts([]), [[]]);
+  assert.equal(C.mySongParts(songs).length, 2);    // 기본 32KB
+  assert.equal(C.mySig(songs), C.mySig(JSON.parse(JSON.stringify(songs))));
+  assert.notEqual(C.mySig(songs), C.mySig(songs.slice(1)));
+  assert.match(C.mySig(songs), /^[a-z0-9]{1,16}$/);
+  // 전체 예약: 4KB 안 조각으로
+  const ids = Array.from({ length: 250 }, () => '0b6f1c2e-' + 'a'.repeat(27));
+  const chunks = C.myChunkIds(ids);
+  same(chunks.flat(), ids);
+  for (const c of chunks) {
+    assert.ok(c.length <= C.MY_IDS_MAX);
+    assert.equal(C.myMsgOk({ v: 1, t: 'cmd', pid: PID, seq: 9, cmd: 'reserveMany', args: { ids: c, label: '재생목록 이름' } }), true);
+  }
+  same(C.myChunkIds([]), []);
+});
+
+test('폰이 그리는 상태: 모르는 칸은 버리고 글·색만 (remoteState 모양 그대로)', () => {
+  const st = C.myCleanState({
+    now: { id: 's1', no: 1001, title: '첫 곡', artist: '가수', playing: true, t: 12, dur: 200, key: -1, extra: 'x' },
+    queue: ['s2', 3, 's3'], profiles: [{ id: 'p1', name: '예나', color: '#ff4fa3' }, { id: 'p2', name: '손님', color: 'url(https://example.test/x)' }],
+    me: 'p1', favorites: ['s1'], playlists: [{ id: 'l1', name: '목록', songs: ['s1', null] }], tv: false, rec: true, mrVol: 80, songs: 'no',
+  });
+  same(st, {
+    now: { id: 's1', no: 1001, title: '첫 곡', artist: '가수', playing: true, t: 12, dur: 200, key: -1 },
+    queue: ['s2', 's3'], profiles: [{ id: 'p1', name: '예나', color: '#ff4fa3' }, { id: 'p2', name: '손님', color: '' }],
+    me: 'p1', favorites: ['s1'], playlists: [{ id: 'l1', name: '목록', songs: ['s1'] }], tv: false, rec: true, mrVol: 80,
+  });
+  assert.equal(C.myCleanState(null), null);
+  assert.equal(C.myCleanState({ now: null }).mrVol, null);
+  same(C.myCleanSongs([{ id: 'a', no: 1, title: 't', artist: 'r', video: 1, local: 0, file: 'x' }, { no: 2 }, null]), [{ id: 'a', no: 1, title: 't', artist: 'r', video: true, local: false }]);
+});
+
+test('리모컨 길 고르기: server.py 답이면 옛 길(코드), 아니면 허브 길', () => {
+  assert.equal(C.remoteModePick({ status: 200, body: { url: 'http://192.0.2.1:5173/remote.html', pin: '1234' } }), 'server');   // 이 PC
+  assert.equal(C.remoteModePick({ status: 403, body: { error: 'local only' } }), 'server');   // 같은 와이파이 휴대폰
+  assert.equal(C.remoteModePick({ status: 404, body: null }), 'hub');                          // GitHub Pages·정적 서버
+  assert.equal(C.remoteModePick({ status: 403, body: null }), 'hub');
+  assert.equal(C.remoteModePick({ status: 200, body: null }), 'hub');                           // JSON이 아닌 200 (다른 서버)
+  assert.equal(C.remoteModePick({ status: 0 }), 'hub');                                         // 못 닿음
+  assert.equal(C.remoteModePick(), 'hub');
+});

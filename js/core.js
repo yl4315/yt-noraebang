@@ -911,3 +911,121 @@ function qrFitPx(target, px, min = 0) {
   if (k * px < min) k = Math.ceil(min / px);
   return k * px;
 }
+
+/* ---------------- 예나 폰 리모컨 (CR-228 ③): 예나 계정만 아는 허브 Realtime 방 ----------------
+   손님 방과 따로: 방 이름 'nbm-' + 256비트 난수 (손님 방은 'nbr-'), 폰 → PC 이벤트 'p', PC → 폰 이벤트 'm' (손님 방은 'g'·'h').
+   방 이름은 QR·주소·화면·콘솔에 쓰지 않고 허브 열쇠 칸(0008 hub_secret, 이름 remote_room)으로만 건넨다 = 예나 계정으로 로그인한 기기만 읽음.
+   명령은 옛 휴대폰 리모컨(N13)과 같은 16가지. PC(js/myremote.js)가 확인한 뒤 remote.js remoteRun이 그대로 실행한다.
+   상태는 remoteState() 그대로 (곡 목록은 바뀔 때만 조각으로, 나머지는 바뀔 때·10초마다). 폰 화면은 remote.html + js/myphone.js. */
+const MY_V = 1;
+const MY_HUB_NAME = 'remote_room';
+const MY_ROOM_RE = /^nbm-[A-Za-z0-9_-]{43}$/;
+const MY_MAX = 4, MY_PER_SEC = 8, MY_ROOM_PER_SEC = 20, MY_MAX_BYTES = 4096, MY_IDS_MAX = 100, MY_PART_BYTES = 32 * 1024, MY_LABEL_MAX = 200;
+const MY_TYPES = ['hello', 'cmd', 'bye'];
+const MY_CMDS = ['start', 'pause', 'cancel', 'jump', 'reserve', 'reserveMany', 'unreserve', 'top', 'now', 'mr', 'key', 'keyReset', 'profile', 'fav', 'tv', 'rec'];
+const MY_SIG_RE = /^[a-z0-9]{1,16}$/;
+// 방 이름: 켤 때마다 새 32바이트(256비트) 난수 → 'nbm-' + base64url 43자 (손님 방 이름과 모양이 달라 서로 못 섞인다)
+const myRoomName = rng => 'nbm-' + guestRand(32, rng);
+const myTextOk = (v, n) => typeof v === 'string' && v.length >= 1 && v.length <= n && !/[\u0000-\u001f\u007f]/.test(v);
+const myNumOk = (v, max) => typeof v === 'number' && Number.isFinite(v) && Math.abs(v) <= max;
+// 명령 칸 모양 (실제로 있는 곡·사용자인지는 PC가 다시 본다)
+function myArgsOk(cmd, a) {
+  if (a !== undefined && (!a || typeof a !== 'object' || Array.isArray(a))) return false;
+  const keys = a ? Object.keys(a) : [], only = (...ks) => keys.every(k => ks.includes(k));
+  switch (cmd) {
+    case 'start': case 'pause': case 'cancel': case 'jump': case 'keyReset': case 'tv': case 'rec': return !keys.length;
+    case 'reserve': return !!a && myTextOk(a.id, 100) && (a.priority === undefined || typeof a.priority === 'boolean') && only('id', 'priority');
+    case 'unreserve': case 'top': case 'now': case 'profile': case 'fav': return !!a && myTextOk(a.id, 100) && only('id');
+    case 'reserveMany': return !!a && Array.isArray(a.ids) && a.ids.length >= 1 && a.ids.length <= MY_IDS_MAX && a.ids.every(x => myTextOk(x, 100))
+      && (a.label === undefined || (typeof a.label === 'string' && a.label.length <= MY_LABEL_MAX)) && only('ids', 'label');
+    case 'mr': return !!a && myNumOk(a.delta, 20) && only('delta');
+    case 'key': return !!a && myNumOk(a.delta, 2) && only('delta');
+  }
+  return false;
+}
+// 폰 메시지 모양 확인 (PC가 처리하기 전에). 모르는 종류·모르는 명령·4KB 넘음·칸 모양이 틀리면 false → PC는 그냥 버린다
+function myMsgOk(m) {
+  if (!m || typeof m !== 'object' || Array.isArray(m)) return false;
+  if (guestBytes(m) > MY_MAX_BYTES) return false;
+  if (m.v !== MY_V || !MY_TYPES.includes(m.t) || typeof m.pid !== 'string' || !GUEST_ID_RE.test(m.pid)) return false;
+  if (m.seq !== undefined && !(Number.isInteger(m.seq) && m.seq >= 0 && m.seq < 1e9)) return false;
+  switch (m.t) {
+    case 'hello': return m.have === undefined || (typeof m.have === 'string' && MY_SIG_RE.test(m.have));
+    case 'bye': return true;
+    case 'cmd': return Number.isInteger(m.seq) && MY_CMDS.includes(m.cmd) && myArgsOk(m.cmd, m.args);
+  }
+  return false;
+}
+// 폰이 받은 PC 메시지 확인: v:1 · 아는 종류 · 답(welcome·ok·no·full)은 내 폰 표(to)가 맞을 때만
+const MY_IN_TYPES = ['welcome', 'songs', 'state', 'ok', 'no', 'full', 'closed'];
+function myInOk(m, pid) {
+  if (!m || typeof m !== 'object' || Array.isArray(m) || m.v !== MY_V || !MY_IN_TYPES.includes(m.t)) return false;
+  if (m.to !== undefined && m.to !== pid) return false;
+  if (['welcome', 'ok', 'no', 'full'].includes(m.t) && m.to !== pid) return false;
+  if (m.t === 'songs') return typeof m.sig === 'string' && MY_SIG_RE.test(m.sig) && Number.isInteger(m.n) && m.n >= 1 && m.n <= 500
+    && Number.isInteger(m.i) && m.i >= 0 && m.i < m.n && Array.isArray(m.songs);
+  if (m.t === 'state') return typeof m.sig === 'string' && MY_SIG_RE.test(m.sig) && !!m.st && typeof m.st === 'object' && !Array.isArray(m.st);
+  return true;
+}
+// 곡 목록 표시 (같은 목록인지만 보면 된다): FNV-1a 32비트 → 36진수
+function mySig(v) {
+  const s = typeof v === 'string' ? v : JSON.stringify(v ?? null);
+  let x = 0x811c9dc5;
+  for (let i = 0; i < s.length; i++) { x ^= s.charCodeAt(i); x = Math.imul(x, 0x01000193) >>> 0; }
+  return x.toString(36);
+}
+// 곡 목록을 조각으로 (한 조각 JSON이 maxBytes 안). 곡이 없어도 빈 조각 하나
+function mySongParts(songs, maxBytes = MY_PART_BYTES) {
+  const parts = [[]]; let size = 2;
+  for (const s of songs || []) {
+    const n = guestBytes(s) + 1;
+    if (parts[parts.length - 1].length && size + n > maxBytes) { parts.push([]); size = 2; }
+    parts[parts.length - 1].push(s); size += n;
+  }
+  return parts;
+}
+// "전체 예약" 곡이 많으면 4KB 안에 들게 나눠 보낸다 (조각마다 reserveMany 한 번)
+function myChunkIds(ids, maxBytes = 3000) {
+  const out = []; let cur = [], size = 2;
+  for (const id of ids || []) {
+    const n = guestBytes(id) + 1;
+    if (cur.length && (size + n > maxBytes || cur.length >= MY_IDS_MAX)) { out.push(cur); cur = []; size = 2; }
+    cur.push(id); size += n;
+  }
+  if (cur.length) out.push(cur);
+  return out;
+}
+// 폰: 받은 곡·상태를 화면이 읽는 모양으로 다시 만든다 (모르는 칸은 버리고, 글은 글로·색은 #색만)
+const myStr = (v, n) => typeof v === 'string' ? v.slice(0, n) : '';
+const myColor = v => typeof v === 'string' && /^#[0-9a-fA-F]{3,8}$/.test(v) ? v : '';
+function myCleanSongs(list) {
+  const out = [];
+  for (const s of Array.isArray(list) ? list : []) {
+    if (!s || typeof s !== 'object' || !myTextOk(s.id, 100)) continue;
+    out.push({ id: s.id, no: Number.isInteger(s.no) ? s.no : 0, title: myStr(s.title, 200), artist: myStr(s.artist, 200), video: !!s.video, local: !!s.local });
+  }
+  return out;
+}
+function myCleanState(st) {
+  if (!st || typeof st !== 'object' || Array.isArray(st)) return null;
+  const ids = v => Array.isArray(v) ? v.filter(x => myTextOk(x, 100)) : [];
+  const n = st.now && typeof st.now === 'object' && !Array.isArray(st.now) ? st.now : null;
+  const num = v => typeof v === 'number' && Number.isFinite(v) ? v : 0;
+  return {
+    now: n && myTextOk(n.id, 100) ? { id: n.id, no: Number.isInteger(n.no) ? n.no : 0, title: myStr(n.title, 200), artist: myStr(n.artist, 200), playing: !!n.playing, t: Math.max(0, num(n.t)), dur: Math.max(0, num(n.dur)), key: num(n.key) } : null,
+    queue: ids(st.queue),
+    profiles: (Array.isArray(st.profiles) ? st.profiles : []).filter(p => p && myTextOk(p.id, 100)).map(p => ({ id: p.id, name: myStr(p.name, 40) || '?', color: myColor(p.color) })),
+    me: myTextOk(st.me, 100) ? st.me : '',
+    favorites: ids(st.favorites),
+    playlists: (Array.isArray(st.playlists) ? st.playlists : []).filter(p => p && myTextOk(p.id, 100)).map(p => ({ id: p.id, name: myStr(p.name, 80), songs: ids(p.songs) })),
+    tv: !!st.tv, rec: !!st.rec, mrVol: typeof st.mrVol === 'number' && Number.isFinite(st.mrVol) ? st.mrVol : null,
+  };
+}
+// remote.html: 어느 길로 이을까. /api/remote/info가 server.py 답이면(이 PC 200 · 휴대폰 403 'local only') 옛 길(코드) 그대로,
+// 아니면(GitHub Pages·정적 서버 404, 못 닿음) 허브 길
+function remoteModePick({ status, body } = {}) {
+  const obj = !!body && typeof body === 'object' && !Array.isArray(body);
+  if (status === 200 && obj) return 'server';
+  if (status === 403 && obj && body.error === 'local only') return 'server';
+  return 'hub';
+}

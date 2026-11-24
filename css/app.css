@@ -756,6 +756,9 @@ body:has(#tv.yt-mode:not([hidden])) .toast{left:14px;right:auto;transform:none;b
 .guest-count{margin:0;font:var(--font-body-small);color:var(--muted);border-top:1px solid var(--line);padding-top:12px}
 #guestOnBox .set-row .btn{min-height:44px}
 @media (prefers-reduced-motion:reduce){.guest-sw input,.guest-sw input::after{transition:none}}
+/* 예나 폰 리모컨 (CR-228 ③, 설정 › 더 보기 (고급)): 켜기 칸은 손님 칸 스위치 그대로 · [이 기기에서 리모컨 열기]는 링크지만 단추 모양 */
+#myRemoteSec a.btn{color:inherit;text-decoration:none;min-height:44px}
+.guest-sw input:disabled{opacity:.6;cursor:progress}
 .guest-card{position:absolute;right:0;bottom:0;max-width:42%;display:flex;align-items:center;gap:.8em;padding:.7em .9em;border-radius:.6em;background:var(--panel);border:1px solid var(--line);overflow:hidden}   /* 바탕은 무대 패널 색 하나 (C1, CR-228 L8) */
 .guest-card-qr{width:var(--qr-px,max(96px,16cqw));height:var(--qr-px,max(96px,16cqw));image-rendering:pixelated;border-radius:.3em;background:#fff;flex:none}
 .guest-card-txt{display:flex;flex-direction:column;gap:.25em;min-width:0;font-size:.8em;line-height:1.35}

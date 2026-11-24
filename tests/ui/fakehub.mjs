@@ -243,6 +243,9 @@ export function makeFakeRealtime({ onNet } = {}) {
       entry.t = typeof payload.t === 'string' ? payload.t.slice(0, 20) : undefined;
       if (typeof payload.to === 'string') entry.toGid = payload.to;
       if (typeof payload.gid === 'string') entry.gid = payload.gid;
+      if (typeof payload.pid === 'string') entry.pid = payload.pid;                       // 예나 폰 표 (CR-228 ③)
+      if (typeof payload.cmd === 'string') entry.cmd = payload.cmd.slice(0, 20);
+      if (typeof payload.seq === 'number') entry.seq = payload.seq;
       if (typeof payload.why === 'string') entry.why = payload.why.slice(0, 20);
       if (typeof payload.pos === 'number') entry.pos = payload.pos;
       if (payload.gone === true) entry.gone = true;
@@ -318,6 +321,12 @@ export function makeFakeRealtime({ onNet } = {}) {
     const topics = new Set([...R.conns.values()].filter(c => c.page === page).flatMap(c => [...c.topics]));
     for (const t of topics) fanout(null, t, event, payload, Buffer.byteLength(JSON.stringify(payload ?? null)));
     return topics.size;
+  };
+  /** 방 하나에만 (CR-228 ③ 예나 방 점검: 같은 탭이 붙은 손님 방과 섞지 않으려고). 그 방에 붙은 연결 수를 돌려준다 */
+  R.injectRoom = (room, event, payload) => {
+    const t = 'realtime:' + room, n = (R.topics.get(t) || new Set()).size;
+    fanout(null, t, event, payload, Buffer.byteLength(JSON.stringify(payload ?? null)));
+    return n;
   };
   /** REST 보내기 (/realtime/v1/api/broadcast, 채널에 아직 안 붙었을 때 supabase-js가 씀) */
   R.rest = body => {

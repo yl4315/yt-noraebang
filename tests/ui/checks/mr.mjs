@@ -110,7 +110,7 @@ export default async function mr(ctx) {
     await p.click('#settingsBtn'); await openAddr();
     const lay = await p.eval(`(()=>{const secs=[...document.querySelectorAll('#cloudDialog .set-sec')].map(s=>{const h=s.querySelector('h3'); return h?h.textContent:'#'+s.id});   /* 손님 묶음(#guestSec)은 h3 없이 set-group 글만 (CR-228 디자인 확인) */ const i=secs.indexOf('MR 만들기 (집 AI 서버)');
       const inp=document.querySelector('#mrServer');
-      return {i, prev:secs[i-1], next:secs[i+1], val:inp.value, ph:inp.placeholder, sum:document.querySelector('#mrAddr > summary').textContent, reset:document.querySelector('#mrReset').textContent,
+      return {i, prev:secs[i-1], next:secs[i+1], next2:secs[i+2], val:inp.value, ph:inp.placeholder, sum:document.querySelector('#mrAddr > summary').textContent, reset:document.querySelector('#mrReset').textContent,
         hints:[...document.querySelectorAll('#mrSec .hint')].map(h=>h.hidden?'':h.textContent).filter(Boolean), T:{dev:MR_SAVE_TEXT.device, clr:mrClearText(false)}}})()`);
     const st = () => p.eval(`({ls:localStorage.getItem('nb-mrserver'), val:document.querySelector('#mrServer').value, msg:document.querySelector('#mrSetMsg').hidden?'':document.querySelector('#mrSetMsg').textContent, err:document.querySelector('#mrSetMsg').classList.contains('err')})`);
     const save = async v => { await p.eval(`(()=>{const i=document.querySelector('#mrServer'); i.value=${q(v)}; i.dispatchEvent(new Event('input',{bubbles:true}))})()`); await p.click('#mrSave'); await sleep(150); return st(); };
@@ -126,10 +126,10 @@ export default async function mr(ctx) {
     await p.click('#cloudClose'); await p.click('#settingsBtn'); await openAddr();
     const reopened = await p.eval(`({val:document.querySelector('#mrServer').value, msg:document.querySelector('#mrSetMsg').hidden})`);
     await p.click('#cloudClose');
-    ok('U3', lay.i > 0 && lay.prev === '백업 파일' && lay.next === '옛 휴대폰 리모컨 (PC에서 켰을 때만 보여요)' && lay.val === '' && lay.ph === 'http://(집 AI 이름):8765'
+    ok('U3', lay.i > 0 && lay.prev === '백업 파일' && lay.next === '예나 폰 리모컨 (허브)' && lay.next2 === '옛 휴대폰 리모컨 (PC에서 켰을 때만 보여요)' && lay.val === '' && lay.ph === 'http://(집 AI 이름):8765'
       && lay.sum === '서버 주소 넣기·바꾸기' && lay.reset === '이 기기에서 지우기'
       && lay.hints.includes("주소창에 '안전하지 않음'이 보여도 집 Tailscale 안에서만 열리는 창이에요") && lay.hints.includes('이 기기에 저장돼요. 허브에 로그인해 있으면 내 다른 기기도 같이 써요. 집 밖에서는 Tailscale을 켜 주세요.'),
-      `칸 자리 "${lay.prev}" 아래·"${lay.next}" 위, 처음 값 "${lay.val}"(빈 칸) · 예시 "${lay.ph}" · [${lay.reset}] · 안내 ${lay.hints.length}줄`);
+      `칸 자리 "${lay.prev}" 아래·"${lay.next}"(허브 로그인 때만 보임, CR-228 ③)·"${lay.next2}" 위, 처음 값 "${lay.val}"(빈 칸) · 예시 "${lay.ph}" · [${lay.reset}] · 안내 ${lay.hints.length}줄`);
     ok('U3', bad1.ls === null && bad1.err && bad1.msg === '주소는 http:// 또는 https://로 시작해야 해요 (예: http://(집 AI 이름):8765)' && bad2.ls === null && bad2.err && /@/.test(bad2.msg),
       `틀린 주소는 저장 안 함: "${bad1.msg}" · "${bad2.msg}"`);
     ok('U3', good.ls === FAKE && good.val === FAKE && !good.err && good.msg === lay.T.dev && reset.ls === null && reset.val === '' && reset.msg === lay.T.clr

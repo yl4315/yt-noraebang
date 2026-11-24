@@ -358,6 +358,7 @@ async function hubLogin(email, password) {
   return true;
 }
 async function hubLogout() {
+  if (typeof myHubLeaving === 'function') { try { await myHubLeaving(); } catch {} }   // 예나 폰 리모컨 방을 먼저 끄고 열쇠 칸을 비운다 (세션이 있을 때)
   const sb = hubClient();
   if (sb) { try { await sb.auth.signOut({ scope: 'local' }); } catch {} }
   try { for (const k of Object.keys(localStorage)) if (k.startsWith(HUB_AUTH)) lsSet(k, null); } catch {}   // 서버에 못 닿아도 이 기기 세션은 지움
@@ -365,6 +366,7 @@ async function hubLogout() {
   hubSetState('login'); hubMsg('로그아웃했어요 · 곡과 가사는 이 기기에 그대로예요');
 }
 async function hubDisconnect() {
+  if (typeof myHubLeaving === 'function') { try { await myHubLeaving(); } catch {} }
   const sb = Hub.sb;
   if (sb) { try { await sb.auth.signOut({ scope: 'local' }); } catch {} }
   hubDropClient(); clearTimeout(Hub.timer); clearInterval(Hub.every); Hub.every = 0;
@@ -376,7 +378,10 @@ async function hubDisconnect() {
 }
 
 /* ---------------- 설정 창 › 허브 연결 ---------------- */
-function hubSetState(st) { Hub.state = st; if ($('#cloudDialog')?.open) hubRender(); }
+function hubSetState(st) {
+  Hub.state = st; if ($('#cloudDialog')?.open) hubRender();
+  if (typeof myHubChanged === 'function') myHubChanged();   // 예나 폰 리모컨 칸은 로그인해 있을 때만 (myremote.js)
+}
 function hubMsg(text, err = false) {
   const m = $('#hubMsg'); if (!m) return;
   m.textContent = text || ''; m.hidden = !text; m.classList.toggle('err', !!err);
