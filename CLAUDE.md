@@ -59,6 +59,8 @@ npm run test:ui                  # 화면 자동 점검: 헤드리스 Edge가 �
   - 새 코드·고정 설정은 `POST /api/remote/pin`(이 PC에서만).
 - 이 PC 전용 창구 `/api/remote/info`·`/api/remote/pin`·`/api/remote/poll`·`POST /api/remote/state`와 코드 없는 `GET /api/remote/state`는 보낸 곳이 이 PC이고 `Host`가 `localhost`·`127.0.0.1`·`[::1]`(포트는 아무거나)일 때만 답한다 (`local_host()`, DNS 리바인딩 막기). 휴대폰이 쓰는 길(`POST /api/remote/cmd`, 코드를 붙인 `GET /api/remote/state?pin=`)과 앱 파일은 `Host`를 보지 않는다.
 - 휴대폰 `remote.html`은 맞은 코드를 `localStorage['yt-remote-pin']`에 기억한다 (이 키 이름은 바꾸지 않는다). 홈 화면 아이콘용 `remote.webmanifest`가 따로 있다.
+- **서버를 껐다 켜도 이어짐 (CR-251 YT-r12)**: `server.py`가 켤 때마다 새 표 `boot`를 `/api/remote/poll` 답에 같이 준다. 화면(`remote.js`)은 core.js `remotePollNext`로 표가 바뀌었거나 `last`가 `since`보다 작으면 번호를 0으로 돌리고 (그 답의 명령은 실행하지 않고 다음 poll에서 다시 받음) 상태를 바로 다시 올린다. poll은 한 번에 하나만, 상태 올리기에 실패하면 다음에 다시 올린다.
+- **코드 틀림 쉬기 (CR-251 YT-21)**: `pin_ok`는 IP마다 10번 틀리면 1분 쉬기(예전 그대로)에 더해 모든 기기를 합친 틀린 횟수(`fails['*']`)도 센다. 1분에 20번 틀리면 10분 동안 모든 기기가 쉰다 (`FAIL_ALL_MAX`·`FAIL_ALL_SEC`·`FAIL_ALL_REST`). 쉬는 동안은 맞는 코드도 받지 않는다 (붙어 있던 폰도 그동안 명령이 안 됨). 시험은 `tests/test_server.py` `PinLimitTest`.
 
 ## 구조
 
@@ -90,7 +92,7 @@ npm run test:ui                  # 화면 자동 점검: 헤드리스 Edge가 �
 | `js/hub.js` | 허브 연결(CR-227): 설정 창 "허브 연결" 칸(코드·로그인·끊기), 곡 설정 보내기·받기(`hubSync`), 허브 열쇠 칸 읽기(`hubYoutubeKey`) |
 | `js/guesthost.js` | 손님 방 방장 쪽(CR-228): 설정 "손님" 줄·손님 초대 QR 시트·TV 대기 카드, 허브 Realtime 공개 broadcast 방 열기·닫기, 손님 메시지 처리 (`hub.js` 다음) |
 | `js/myremote.js` | 내 폰 리모컨 PC 쪽(CR-228 ③): 설정 고급 "내 폰 리모컨 (허브)" 칸, 켤 때마다 새 방 + 허브 열쇠 칸 `remote_room`, 폰 명령 → `remoteRun`, 상태 → 폰 (`guesthost.js` 다음) |
-| `js/vendor/toqr-0.1.1.mjs` | **남의 라이브러리 그대로** (toqr, MIT, `block-calendar` node_modules 사본). 손님 QR 그림만 `import()`로 씀. 고치지 않는다 |
+| `js/vendor/toqr-0.1.1.mjs` | **남의 라이브러리 그대로** (toqr, MIT, `block-calendar` node_modules 사본). 손님 QR과 리모컨 QR(`remote.js` `qrLoad`, CR-251 YT-r16)이 `import()`로 씀. 고치지 않는다 |
 | `js/autosync.js` | 무대 [자동 맞추기](LRCLIB `/api/get` → 검색), 싱크 한 줄, [자동 맞춤 · 확인해 주세요] (코드 이름·id는 옛 `sync` 그대로) |
 | `js/yt.js` | 유튜브 곡 (CR-030): 공식 IFrame 플레이어, 검색 창 [유튜브 노래방 검색] 탭(링크·열쇠 검색·열어 찾기), 폰 [공유] 받기, 재생 못 함·눌러서 시작 안내, TV 유튜브 띠. `main.js` 바로 앞 |
 | `js/main.js` | 메인 루프, 앱 시작 (항상 마지막) |
@@ -123,6 +125,7 @@ npm run test:ui                  # 화면 자동 점검: 헤드리스 Edge가 �
   - 새 파일의 함수를 다른 파일에서 부를 때는 `typeof 이름 === 'function'`으로 감싼다 (배포 직후 캐시로 옛 `index.html` + 새 JS가 섞이면 그 파일이 없을 수 있다. 예: `backup.js`의 `deviceId`·`saveDevStats`).
 - `js/core.js`에는 DOM 코드를 넣지 않는다 (테스트가 브라우저 없이 돈다). 새 순수 로직은 여기에 두고 `tests/core.test.js`에 테스트를 더한다.
 - 데모곡(반주·멜로디)을 바꾸면 `js/demo.js`의 `DEMO_CACHE_KEY` 숫자를 올린다. 안 올리면 예전 반주가 계속 나온다.
+- **곡 반주 메모리 (CR-251 YT-r1)**: 곡을 고르면(`selectSong`) 지금 곡·다음 예약 곡·녹음 중인 곡·데모를 뺀 곡의 `s.buffer`를 놓는다 (core.js `songBuffersToFree`, 4분 곡 하나에 약 80MB). 다른 곡의 `s.buffer`가 남아 있다고 보지 말고, 필요하면 `songReady(s)`로 보고 `loadSongBuffer(s)`로 다시 푼다 (곡을 다시 고르면 저절로). 녹음 미리듣기 캐시 `recCache`도 최근 2개만 (`REC_CACHE_MAX`, core.js `lruSet`).
 - 곡·녹음 내용이 바뀌면 `persistSong(s)` / `recTouch(r)`로 `updatedAt`을 남긴다. Drive 동기화는 `updatedAt`이 더 나중인 쪽이 이기고, 지운 것은 지움 기록(tombstone)으로 남긴다.
 - **기기 맞추기**:
   - 점수·부른 횟수는 `library.json`·`SONG_FIELDS`에 넣지 않는다 (예전 판이 지운다).
@@ -195,7 +198,7 @@ npm run test:ui                  # 화면 자동 점검: 헤드리스 Edge가 �
 - 키 두 층: 사용자별 키(`me().keys`)가 이기고, 없으면 허브를 쓸 때만 곡 기본 키(`keyOf`).
 - 허브 코드가 없으면(`nb-hub` 없음) 요청·타이머 0, 지금과 똑같이 돈다 (W12). 허브 함수를 다른 파일에서 부를 때는 `typeof … === 'function'`.
 - 허브 열쇠 칸(YouTube 검색 열쇠)은 `hubYoutubeKey()` 읽기 하나: 로그인 뒤 한 번 읽어 **메모리에만**, `ytSetKey`(CR-030 `yt.js`)가 있으면 넘긴다. 로그아웃·끊기에서 지운다.
-- **CSP** (`index.html` `<meta>`): `script-src`·`connect-src`만 정한다. 새 바깥 주소(스크립트·fetch)를 쓰면 여기에 더한다. 지금: Google 로그인·Drive, cdnjs(QR), YouTube, LRCLIB, `*.supabase.co`(허브·손님 방 Realtime `wss`). 손님 화면 `guest.html`은 따로 CSP (아래 "손님 방"). 허브·LRCLIB·사용자 글은 `textContent`로만 넣는다.
+- **CSP** (`index.html` `<meta>`): `script-src`·`connect-src`만 정한다. 새 바깥 주소(스크립트·fetch)를 쓰면 여기에 더한다. 지금: Google 로그인·Drive, cdnjs(QR은 CR-251 YT-r16부터 앱 안 toqr이라 지금은 안 씀 · 허용만 남음. 이 줄은 A 가지도 고칠 수 있어 데스크가 합칠 때 뺀다), YouTube, LRCLIB, `*.supabase.co`(허브·손님 방 Realtime `wss`). 손님 화면 `guest.html`은 따로 CSP (아래 "손님 방"). 허브·LRCLIB·사용자 글은 `textContent`로만 넣는다.
 
 ## 자동 맞추기 (`js/autosync.js`, CR-227 1단계 · 화면 말은 CR-236에서 "싱크" → "맞추기·시각")
 
@@ -218,13 +221,15 @@ npm run test:ui                  # 화면 자동 점검: 헤드리스 Edge가 �
 ## 손님 방 (`js/guesthost.js` · `guest.html`, CR-228)
 
 - 방 = 회사 허브 Realtime **공개 broadcast** 채널 하나 (`private`·presence·표 변경 0). 방 이름은 열 때마다 새 256비트 난수 `nbr-…`(core.js `guestRoomName`). 방장(노래방)이 먼저 붙고, 손님 메시지는 이벤트 `g`, 방장 답은 `h`.
+- **QR 주소 앞부분 (CR-251 YT-06)**: 노래방을 `http:`·localhost·사설 IP(127·10·192.168·172.16~31·169.254)·`.local`·`.lan` 같은 집 안 이름·점 없는 이름으로 열었으면 손님 QR 앞부분을 `GUEST_PUBLIC_BASE`(guesthost.js, GitHub Pages https 주소)로 바꾼다 (core.js `guestUrl`의 4번째 값 `pub`). 공개 https 주소로 연 화면은 그 주소 그대로. 손님 화면은 Pages 판이라 PC 사본과 판이 다를 수 있다. 화면 점검(`guest.mjs`)은 시험 주소로 붙도록 `GUEST_PUBLIC_BASE = ''`로 비운다.
 - QR 주소 = `…/guest.html#r=<방 이름>&c=<허브 연결 코드 nbhub1.…>` (core.js `guestUrl`). **값은 `#` 뒤에만, `?` 없음.** 손님 화면은 열자마자 `history.replaceState`로 `#`을 지우고 값은 메모리에만 둔다 (`guestUrlParse`).
 - **방 이름·연결 코드·허브 주소·키는 콘솔·기록·화면 글에 찍지 않는다** (QR 그림 안에만). 손님은 로그인·허브 표·RPC 0, 저장(localStorage·sessionStorage·IndexedDB·쿠키·서비스 워커) 0.
 - 메시지 모양은 core.js `guestMsgOk`(종류 `hello`·`search`·`reserve`·`unreserve`·`key`·`bye`, 4KB까지, 키 −2~2, 손님 표 16~32자, 이름 10자). 모르는 종류·모양 틀림·안 들어온(hello 안 한) 손님 메시지는 답 없이 버린다. 손님 6명(`GUEST_MAX`), 한 사람 1초 4개(`guestRateOk`), 방 전체 1초 30개.
 - 방장이 대신 처리하고 **결과만** 돌려준다: 찾기 = MR 창고에서 번호·제목·가수·종류만 30개(`guestSearchResult`), 예약 = 곡 번호가 진짜 있는지 다시 확인, 빼기 = 그 손님이 넣은 예약만(`guestQueueMap`), 상태 = 지금 곡·다음·예약 제목 10개(`guestStateMsg`, 바뀔 때와 20초마다).
 - 답: `welcome`·`full`·`found`·`ok{rid,pos}`(pos 0 = 바로 시작)·`ok{gone}`·`no{why: many·nosong·gone·keyoff·nokey·yt}`·`state`·`closed`.
 - 유튜브 곡(`reserve{ytId}`·`search{kind:'yt'}`)은 `typeof ytReserve === 'function'`(CR-030 `yt.js`)일 때만 처리. 없으면 `no{why:'yt'}`, 손님 화면 유튜브 칸은 숨김(`state.yt`).
-- 방을 닫는 때: [방 닫기] · [새 QR 만들기](새 방) · 노래방 화면 닫기(`pagehide`) · 허브 연결 끊기·바꾸기(`guestTick`이 1초마다 `Hub.sb`를 봄). 닫으면 손님에게 `closed`를 보내고 방 이름·손님 이름·예약 표를 메모리에서도 지운다.
+- 방을 닫는 때: [방 닫기](설정 시트, TV 카드 `#guestCardClose` = CR-251 YT-19) · [새 QR 만들기](새 방) · 노래방 화면 닫기(`pagehide`) · 허브 연결 끊기·바꾸기(`guestTick`이 1초마다 `Hub.sb`를 봄) · **손님 0명으로 2시간** (CR-251 YT-19: `GUEST_IDLE_MS`, `Guest.empty` = 손님이 0명이 된 시각, `guestTick`이 core.js `guestIdleStep`으로 셈. 닫으면 `guestNote`와 토스트 6초 "손님이 2시간 동안 없어서 손님 방을 닫았어요…"). 닫으면 손님에게 `closed`를 보내고 방 이름·손님 이름·예약 표를 메모리에서도 지운다.
+- **손님 차례 알림 (CR-251 YT-r14)**: `startNext`가 곡을 꺼내기 전에 `guestNickAt(0)`로 이름을 읽어 두고, 재생이 시작되면 TV에 `flash(guestTurnText(이름))` 4초 ("OO님 차례예요", 이름 없는 손님은 "손님 차례예요"). 방장이 넣은 예약·방이 닫혀 있으면 없음.
 - 예약 목록의 손님 이름은 `guestNickAt(i)`(karaoke.js `renderQueue`·`renderQueueList`가 `typeof`로 부름). 방이 닫혀 있으면 ''.
 - 이 기기 설정: `nb-guest-tv`(`'0'` = TV에 QR 안 보임) · `nb-guest-key`(`'0'` = 손님 키 바꾸기 끔). 기본은 둘 다 켬이라 키를 안 만든다.
 - TV 대기 카드 `#guestCard`: 방이 열려 있으면 QR(`#tvIdle.guest-on`이면 옛 리모컨 안내 `#remoteInfo`는 숨김), 닫혀 있으면 허브가 있을 때만 [손님 QR 켜기]. 카드가 보이면 점수 칸은 시계 옆(`.idle-right>.best` 1행 2열)·팁은 고급이어도 한 줄, QR은 `max(96px,16cqw)` (디자인 확인 CR-228 #1~#3). QR 이미지는 1칸 = 1px로 그리고(`guestQrMake` → `Guest.qrPx`), 보이는 크기는 `guestQrFit`가 그 배수로 내린다 (core.js `qrFitPx`, 카드는 최소 96px라 모자라면 한 배 위로, 창 `#guestQrImg`는 220px 안). 낮은 화면(높이 480px 이하)에서는 카드가 한 줄 `#guestCardMini` "손님 QR: 설정 › 손님"만 (CR-228 L1). 카드 바탕은 `--panel` (L8). `server.py` 휴대폰 리모컨(N1~N21)은 그대로.
@@ -234,11 +239,12 @@ npm run test:ui                  # 화면 자동 점검: 헤드리스 Edge가 �
 ## 내 폰 리모컨 (`js/myremote.js` · `js/myphone.js`, CR-228 ③)
 
 - 옛 폰 리모컨(`server.py` `/api/remote/*`, N1~N21)은 그대로 두고, `server.py` 없이(GitHub Pages) **내 폰이 허브로** 같은 16가지 명령을 보내는 길을 더했다.
-- **기본 길 (④)**: 켜 둔 동안(`My.on`) `server.py` 없이 연 화면(`Remote.info` 없음)의 TV 대기 화면 `#remoteInfo`에 내 폰 리모컨 QR + 글 + 옛 길 안내 2줄 (`myTvRender`, `myRender`가 부름 → 켜기·끄기·방 끝·로그아웃을 새로 고침 없이 따라감). 글은 `myremote.js` 맨 위 `MY_TV_TEXT` 한 곳 (디자인실이 다듬음, 옛 길 안내는 바로가기 이름 안 빈칸이 `\u00a0`). 옛 QR(`remote.js` `renderRemoteInfo`) 이름도 "옛 폰 리모컨" (디자인실 K2). QR 주소는 core.js `myRemoteUrl` = 같은 곳의 `remote.html`(`?`·`#`·계정 없음), 주소 글은 화면에 안 씀. QR 라이브러리는 옛 QR과 같은 `qrLoad`·`qrImage`(remote.js, cdnjs qrcode-generator 1.4.4). `server.py`로 연 화면은 켜도 옛 QR·주소·코드 그대로. 손님 QR이 보이면 둘 다 숨김(`.tv-idle.guest-on .remote-info`). 스위치는 그대로 켜야 켜짐(기본 꺼짐: 폰에서 기본으로 켜면 방을 뺏음).
+- **기본 길 (④)**: 켜 둔 동안(`My.on`) `server.py` 없이 연 화면(`Remote.info` 없음)의 TV 대기 화면 `#remoteInfo`에 내 폰 리모컨 QR + 글 + 옛 길 안내 2줄 (`myTvRender`, `myRender`가 부름 → 켜기·끄기·방 끝·로그아웃을 새로 고침 없이 따라감). 글은 `myremote.js` 맨 위 `MY_TV_TEXT` 한 곳 (디자인실이 다듬음, 옛 길 안내는 바로가기 이름 안 빈칸이 `\u00a0`). 옛 QR(`remote.js` `renderRemoteInfo`) 이름도 "옛 폰 리모컨" (디자인실 K2). QR 주소는 core.js `myRemoteUrl` = 같은 곳의 `remote.html`(`?`·`#`·계정 없음), 주소 글은 화면에 안 씀. QR 라이브러리는 옛 QR과 같은 `qrLoad`·`qrImage`(remote.js, 앱 안 사본 `js/vendor/toqr-0.1.1.mjs` — CR-251 YT-r16 전에는 cdnjs라 인터넷이 안 되면 QR이 안 나왔다). `server.py`로 연 화면은 켜도 옛 QR·주소·코드 그대로. 손님 QR이 보이면 둘 다 숨김(`.tv-idle.guest-on .remote-info`). 스위치는 그대로 켜야 켜짐(기본 꺼짐: 폰에서 기본으로 켜면 방을 뺏음).
 - 방 = 회사 허브 Realtime **공개 broadcast** 채널 하나 (`private`·presence·표 변경 0, 손님 방과 따로). 이름은 켤 때마다 새 256비트 난수 `nbm-…`(core.js `myRoomName`, 손님 방 `nbr-…`과 모양이 달라 섞이지 않음). 폰 → PC 이벤트 `p`(`hello`·`cmd`·`bye`), PC → 폰 `m`(`welcome`·`songs`·`state`·`ok`·`no`·`full`·`closed`).
 - 방 이름 건네기 = 허브 열쇠 칸 `hub_secret_set`/`hub_secret('noraebang','remote_room')` (키트 0008, 새 SQL 없음) = 예나 계정만 읽는다. **방 이름은 주소(`?`·`#`)·QR·화면 글·콘솔·기록에 쓰지 않는다.**
 - PC(`myOpen`): 채널에 먼저 붙고 → 열쇠 칸에 쓰고 → 듣기. 여는 사이 로그아웃·끄기가 오면(`My.gen`) 붙은 채널을 떼고 칸도 되돌린다.
 - 방 끝: 끄기(`myClose`) · 이 화면 닫기·새로 고침(`pagehide` 잡기 단계 → `closed`, supabase가 소켓을 끊기 전. 가짜 점검 다리는 닫히는 페이지의 마지막 메시지를 못 받아 X9는 폰의 30초 끊김 길로 보고, 바로 뜨는지는 기기 확인 X10) · 로그아웃·허브 끊기(`myHubLeaving`, `hub.js`가 부름) · 허브 바뀜(`myTick`이 1초마다 `Hub.sb`). 폰에 `closed`를 보내고, 열쇠 칸이 아직 이 방이면 비운다. 다른 화면이 새로 켜서 칸이 다른 방이 되면 이 화면은 1분 안에 저절로 끈다 (안내 `myNote`).
+- **30초 끊김은 다시 붙음 (CR-251 YT-r4)**: 폰(`myphone.js`)이 30초 소식이 없으면(폰 화면 꺼짐 등) 끝난 방으로 적지 않고 열쇠 칸을 다시 읽어 붙는다 (PC가 그대로면 같은 방, 새로 열었으면 새 방). 다시 붙어도 답이 없을 때만 "꺼져 있어요". PC가 보낸 `closed`만 끝난 방.
 - 화면 이름은 "내 폰 리모컨 (허브)" (디자인실 R3), 코드 안 이름 `myremote`·`nb-myremote`·`nbm-`·열쇠 칸 `remote_room`은 그대로. 칸 글 `켜짐 · 폰 N대`(손님 줄 `켜짐 · 손님 N명`과 같은 모양) / `꺼짐 · 노래방을 띄운 PC에서 켜요`. 켜 둔(받는) 기기에는 [이 기기에서 리모컨 열기]를 숨긴다 (`myRender`, 같은 탭 링크라 누르면 이 화면을 떠나 방이 끝남, 디자인실 K2). 폰(꺼짐)에서는 보임.
 - 켜 둔 것은 이 기기 `nb-myremote`='1' (처음엔 꺼짐) → 다음에 열 때 로그인해 있으면 새 이름으로 다시 켠다 (`myHubChanged`, `hubSetState`가 부름). 로그아웃해도 이 값은 그대로.
 - PC가 지키는 것(`myOnMsg`): 모양 검사 core.js `myMsgOk`(종류 3가지·명령 `MY_CMDS` 16가지·명령마다 칸 모양 `myArgsOk`·4KB까지) · hello 안 한 폰의 명령 버림 · 폰 4대(`MY_MAX`, 5번째는 `full`) · 한 대 1초 8개 · 방 전체 1초 20개 · 곡·예약·사용자 다시 확인(`myCmdWhy` → `no{why: nosong·gone·noprofile}`). 버린 메시지에는 답하지 않는다.
@@ -251,6 +257,8 @@ npm run test:ui                  # 화면 자동 점검: 헤드리스 Edge가 �
 ## 녹음 구조
 
 목소리만 따로(16비트 PCM) 저장하고, 반주는 "녹음 몇 초 지점에 반주 몇 초(어떤 키)"인지(`parts`)만 기록한다. 그래서 녹음 뒤에도 타이밍·볼륨·효과를 바꿔 다시 섞을 수 있다(`buildMix`, `renderMix`).
+
+- **저장 알림·[백업 안 됨] 표 (CR-251 YT-r11 = YT-16)**: 녹음 백업(`nb-recbackup`, 설정 "녹음도 Drive에 백업하기")이 꺼져 있으면(기본) "· 이 기기에만 있어요 · 백업 켜기: 설정 › 곡 창고"를 붙여 6초 (core.js `recSavedText`). 켜져 있으면 예전 글·4.5초. 녹음 목록은 백업이 꺼져 있고 Drive에 안 올라간(`fileId` 없음) 녹음 줄마다 [백업 안 됨] 표(`.rec-tag`, core.js `recBackupMissing`). 누르면 `openRecBackup`이 설정 창을 열고 `#recBackup`으로 내려 초점을 둔다. `#recBackup`을 바꾸면 backup.js `onchange`가 끝난 뒤 `setTimeout(renderRecs, 0)`로 표를 다시 그린다. **백업은 저절로 켜지 않는다** (기본값 그대로).
 
 ### 녹음 나누기 (CR-031)
 - 내 녹음 줄과 싱크·믹스 조절 창(`#mxShare`, [WAV로 내보내기] 앞)에 단추 하나. 손가락 화면(`isTouch`)이고 공유 창에 파일을 실을 수 있으면 [공유], 아니면 작은 파일을 만들 수 있을 때 [작은 파일 저장], 둘 다 아니면 단추 없음 (core `shareChoice`). [WAV로 저장]·[WAV로 내보내기]·예전 녹음 [다운로드]는 그대로.
