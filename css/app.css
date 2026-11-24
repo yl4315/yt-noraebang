@@ -364,7 +364,7 @@ dialog h2{margin:0;font:var(--font-title-sheet)}
 .tv .lyrics{transition:bottom .2s ease-out}
 .tv:not(.hide-ui) .lyrics{bottom:max(7%,calc(var(--bar-h,0px) + 8px - (100vh - min(100vh,100vw * 9 / 16)) / 2))}
 /* TV 화면의 알림은 조작 막대(더 보기 줄 포함) 위에 */
-body:has(#tv:not([hidden])) .toast{bottom:calc(var(--bar-h,80px) + 8px)}
+body:has(#tv:not([hidden])) .toast{bottom:calc(var(--bar-h,80px) + 8px);width:auto}   /* 디자인 보기 CR-241 K1: TV 화면은 예전 폭(화면 반까지). 글 길이만큼 넓히면 좁은 TV 화면에서 아래 가사 줄을 다 가림 (무대 C1) */
 .idle-h{font:400 1.5em var(--display);display:flex;align-items:baseline;gap:.5em;margin-bottom:.5em}
 .idle-h span{font:500 .6em var(--ui);color:var(--muted)}
 .idle-q{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:.35em}

@@ -111,7 +111,7 @@ npm run test:ui                  # 화면 자동 점검: 헤드리스 Edge가 �
 - 진동은 손가락 화면에서만(`haptic()`): 누르기 `tap`, 예약·저장 `success`, 취소 `warning` (한 번 누르면 하나만). 리모컨은 `remote.html` 안 `buzz()`.
 - 조작 막대가 가리는 높이는 `updateBarSpace()`가 문서 `--bar-h`로 둔다 → 대기 화면 아래쪽, 막대가 보이는 동안 가사 두 줄, TV 화면 알림이 그만큼 올라간다.
 - `.btn:hover`·`.btn.primary:hover`는 `@media (hover:hover)` 안에만 둔다 (CR-241): 손가락 화면은 누른 뒤 밝은 테두리가 남지 않고, 마우스 화면은 그대로. 키보드 윤곽 `:focus-visible`은 늘.
-- 아래 알림 `.toast`는 글 길이만큼 넓다 (`width:max-content`, 화면 폭 - 32px까지, 띄어쓰기 없는 긴 이름은 `overflow-wrap`으로 접음, CR-241). 알림 글에 단추 이름을 `[ ]`로 쓸 때는 그 단추가 그 화면에 있는지 본다.
+- 아래 알림 `.toast`는 글 길이만큼 넓다 (`width:max-content`, 화면 폭 - 32px까지, 띄어쓰기 없는 긴 이름은 `overflow-wrap`으로 접음, CR-241). TV 화면이 열려 있으면 예전처럼 화면 반 폭까지 (가사를 덜 가리게, CR-241 K1). 알림 글에 단추 이름을 `[ ]`로 쓸 때는 그 단추가 그 화면에 있는지 본다.
 
 ## 꼭 지킬 것
 

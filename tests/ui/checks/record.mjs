@@ -1,9 +1,10 @@
 // 흐름 11: 녹음 (마이크 없이: 마이크가 꺼져 있으면 목소리 없이 녹음되고 1.5초가 넘으면 저장된다), 내 녹음, 싱크·믹스 조절, WAV,
 // 녹음 나누기 (CR-031: 폰 [공유]·PC [작은 파일 저장], 공유는 흉내 · 디자인 보기 K1~K4: 새 녹음 줄 2줄, 폰 창 단추 2줄, 세는 글 대비)
 // CR-241 디자인 보기 N1~N5: 알림 폭, 손가락 화면은 누른 뒤 hover 테두리 없음(마우스는 그대로), WAV "만드는 중…" 대비, 터치 PC 줄 2줄
+// CR-241 디자인 보기 K1: TV 화면이 열려 있으면 알림은 예전 폭(화면 반까지), TV 밖은 CR-241 그대로
 import fs from 'node:fs';
 import path from 'node:path';
-import { PC, TV, PHONE, READY_DEMO, openPage, clipShot, txt, visible, isHidden, marks, sawToast, sleep, q, stopAll, selectById, seedRec } from './_lib.mjs';
+import { PC, TV, PHONE, PHONE_L, READY_DEMO, openPage, clipShot, txt, visible, isHidden, marks, sawToast, sleep, q, stopAll, selectById, seedRec, enterTVNoFs } from './_lib.mjs';
 export const areas = ['J', 'F'];
 
 export async function waitDownload(ctx, re, since, ms = 15000) {
@@ -608,5 +609,61 @@ export default async function record(ctx) {
   // 만든 시험 녹음 지우기 (PC 탭)
   await p.eval(`(async()=>{ const ids=${q(pcIds)}; for (const id of ids) { try { await DB.del('recs', id); } catch {} } state.recs=state.recs.filter(r=>!ids.includes(r.id)); Share.made=null; renderRecs(); })()`);
   await p.click('#tabSongs');
+  await stopAll(p);
+
+  // CR-241 디자인 보기 K1: TV 화면이 열려 있으면 알림은 예전 폭(화면 반까지) — 좁은 TV 화면에서 아래 가사 줄을 덜 가리게 (무대 C1).
+  // TV 밖(관리 화면·폰)은 CR-241 그대로 (글 길이만큼, 화면 - 32px까지). 사진은 결과 폴더 cr241/k1-*
+  await step('CR-241 K1 알림 폭: TV 화면 안(PC 1280·폰 가로 915·TV 1920)은 화면 반까지, TV 밖(PC 1280·폰 360)은 글 길이만큼', ['J17'], async () => {
+    // 가사 줄을 알림이 덮은 몫 (가사 글자 칸 넓이 중 %)
+    const cover = pg => pg.eval(`(()=>{const t=document.querySelector('#toast').getBoundingClientRect(), o={};
+      for (const [k,id] of [['bot','#lineBottom'],['top','#lineTop']]) { const e=document.querySelector(id+' .base'), r=e&&e.getBoundingClientRect();
+        if(!r||!r.width||!e.textContent.trim()){ o[k]=null; continue; }
+        const w=Math.max(0,Math.min(t.right,r.right)-Math.max(t.left,r.left)), h=Math.max(0,Math.min(t.bottom,r.bottom)-Math.max(t.top,r.top)); o[k]=Math.round(w*h/(r.width*r.height)*100); }
+      return o})()`);
+    const stageOf = pg => pg.eval(`({tv:state.tv, idle:document.querySelector('#stage').classList.contains('idle'), ui:!document.querySelector('#tv').classList.contains('hide-ui'),
+      bot:document.querySelector('#lineBottom .base').textContent.trim(), top:document.querySelector('#lineTop .base').textContent.trim()})`);
+    const half = b => !!b && !b.over && b.w <= Math.ceil(b.vw / 2) + 1;
+    const fmtK = b => b ? `${fmtT(b)}${b.cov ? ` · 가사 아래 ${b.cov.bot ?? '-'}% 위 ${b.cov.top ?? '-'}%` : ''}` : '안 뜸';
+    const pcSize = p.size || PC, inTV = {}, st = {}, outTV = {};
+    await p.eval(`if(state.armed) setArmed(false)`);
+    await selectById(p, 'demo');
+    try {
+      await p.emulate(PC);
+      await enterTVNoFs(p);
+      // 부르는 중 화면: 데모곡을 틀어 16초 자리로 옮긴 뒤 멈춤 (멈춰도 가사 두 줄·조작 막대는 보임)
+      await p.eval('play()'); await p.until('state.playing', 5000);
+      await p.eval('seekTo(16)'); await sleep(500); await p.eval('pause()');
+      await p.until(`!!document.querySelector('#lineBottom .base').textContent.trim() && !!document.querySelector('#lineTop .base').textContent.trim()`, 3000);
+      for (const size of [PC, PHONE_L, TV]) {
+        await p.emulate(size); await sleep(400);
+        const w = size.width, name = w === 915 ? 'phoneL-915' : w === 1280 ? 'pc-1280' : 'tv-1920';
+        st[w] = await stageOf(p);
+        inTV[w] = [];
+        for (const t of [CLICK_LONG, YT_GUIDE, NOSPACE]) {
+          const b = await toastAt(p, t, t === CLICK_LONG ? `k1-${name}-tv-toast-long` : null, true);
+          if (b) b.cov = await cover(p);
+          inTV[w].push(b);
+        }
+      }
+      await toastOff(p);
+      await stopAll(p);
+      // TV 밖: PC 1280 관리 화면 · 폰 360 (CR-241 그대로)
+      await p.emulate(PC); await sleep(300);
+      outTV[1280] = await toastAt(p, CLICK_LONG, 'k1-pc-1280-out-toast-long', true);
+      await p.emulate(PHONE_360); await sleep(400);
+      outTV[360] = await toastAt(p, CLICK_LONG);
+      outTV.fail360 = await toastAt(p, FAIL, 'k1-phone-360-out-toast-fail', true);
+    } finally { await toastOff(p); await stopAll(p); await p.emulate(pcSize); }
+    const W = [1280, 915, 1920];
+    ctx.log(`  K1 TV 안: ${W.map(w => w + ' (TV ' + st[w]?.tv + ' · 막대 ' + st[w]?.ui + ') ' + inTV[w].map(fmtK).join(' / ')).join(' | ')}`);
+    ctx.log(`  K1 TV 밖: PC 1280 ${fmtT(outTV[1280])} · 폰 360 ${fmtT(outTV[360])} · 실패 안내 ${fmtT(outTV.fail360)}`);
+    // TV 안: 앱의 긴 안내 둘은 화면 반 폭 안 (1920은 가장 긴 안내도 한 줄 그대로) · 띄어쓰기 없는 긴 이름은 안 넘침 (예전처럼 넓을 수 있음, 화면 - 32px 안)
+    ok('J17', W.every(w => st[w]?.tv && !st[w].idle && st[w].ui && !!st[w].bot && half(inTV[w][0]) && half(inTV[w][1]) && toastOk(inTV[w][2], 12)) && inTV[1920][0].lines === 1,
+      `디자인 K1 TV 화면 알림은 화면 반 폭까지: ${W.map(w => w + ' 가장 긴 안내 ' + fmtK(inTV[w][0]) + ' · 유튜브 안내 ' + fmtK(inTV[w][1])).join(' | ')} · 긴 이름 ${W.map(w => fmtT(inTV[w][2])).join(' · ')}`);
+    // TV 밖: CR-241 그대로 (PC 1280 가장 긴 안내 1줄, 폰 360 화면 - 32px, 실패 안내 2줄)
+    ok('J17', !!outTV[1280] && outTV[1280].lines === 1 && outTV[1280].w > outTV[1280].vw / 2 && toastOk(outTV[1280], 1)
+      && !!outTV[360] && Math.abs(outTV[360].w - (outTV[360].vw - 32)) <= 1 && toastOk(outTV[360], 6) && toastOk(outTV.fail360, 2),
+      `디자인 K1 TV 밖은 CR-241 그대로: PC 1280 가장 긴 안내 ${fmtT(outTV[1280])} · 폰 360 ${fmtT(outTV[360])} · 실패 안내 ${fmtT(outTV.fail360)}`);
+  });
   await stopAll(p);
 }
