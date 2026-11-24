@@ -19,7 +19,7 @@ npm run test:ui                  # 화면 자동 점검: 헤드리스 Edge가 �
 - **화면을 고친 CR은 끝내기 전에 `npm test`와 `npm run test:ui`를 둘 다 돌린다.**
 - 결과·사진은 PC 임시 폴더 (`--out`으로 바꿈). 저장소 안은 git에서 빠지는 `tests/ui/out/`만. 옵션은 `tests/ui/run.mjs` 맨 위.
 - **화면 점검은 "더 보기 (고급)"을 켠 화면에서 돈다** (CR-229, `openPage`가 `nb-advanced`='1'). 기본(숨긴) 화면은 `checks/hide.mjs`가 `{ ...ctx, adv: false }`로 따로 본다.
-- **기능을 더하거나 바꾸면 `tests/ui/features.json`(기능 번호 → 분류 auto/test/partial/human/device, 조건 P·V·O·M·W·S·L·H)과 그 번호를 보는 `tests/ui/checks/*.mjs`를 같이 고친다.** 결과표에 259줄이 다 나오는지, 자동 줄에 확인 기록이 있는지 점검이 스스로 본다 (기록이 없으면 실패).
+- **기능을 더하거나 바꾸면 `tests/ui/features.json`(기능 번호 → 분류 auto/test/partial/human/device, 조건 P·V·O·M·W·S·L·H)과 그 번호를 보는 `tests/ui/checks/*.mjs`를 같이 고친다.** 결과표에 263줄이 다 나오는지, 자동 줄에 확인 기록이 있는지 점검이 스스로 본다 (기록이 없으면 실패).
 - Drive가 필요한 흐름은 `tests/ui/checks/devsync.mjs`처럼 페이지 안 `Cloud.api`를 가짜 Drive(메모리)로 바꿔 본다 (`getToken`은 가짜 API면 `'test'`).
   - 실제 Google에는 요청하지 않는다.
   - 이 점검은 같이 쓰는 탭에서 맨 마지막에 돌고 넣은 것을 지운다.
@@ -69,7 +69,7 @@ npm run test:ui                  # 화면 자동 점검: 헤드리스 Edge가 �
 | `js/util.js` | 공용 도구 (`$`, `el`, `fmt`, `pick`, `lsGet`, `norm`, `chosung`, 터치 화면 진동 `haptic` …) |
 | `js/haptics.js` | **디자인실 파일 복사본** (`departments/design/tokens/out/karaoke/`), 직접 고치지 않음. 회사 진동 `YenaHaptics.play('tap'·'success'·'warning')`. 앱(`util.js` 다음)과 `remote.html`이 같이 씀 |
 | `css/tokens.css` | **디자인실 파일 복사본**, 직접 고치지 않음. 회사 CSS 변수(`--color-*`·`--radius-*`·`--font-*`). `app.css`·`remote.html`보다 먼저 불러온다 |
-| `js/core.js` | **화면과 상관없는 순수 로직**: 가사(LRC) 읽기, 검색, Drive 동기화 합치기 규칙, 파일 이름 → 제목·가수, 가사 후보 정렬·자동 고르기, 백업 파일 형식, TV로 켜기 판단, 지연 자동 측정 계산, 숫자판 방향키 고르기. Node 테스트가 직접 불러 쓴다 |
+| `js/core.js` | **화면과 상관없는 순수 로직**: 가사(LRC) 읽기, 검색, Drive 동기화 합치기 규칙, 파일 이름 → 제목·가수, 가사 후보 정렬·자동 고르기, 백업 파일 형식, 녹음 나누기 파일 틀(m4a·Ogg Opus)과 단추 규칙, TV로 켜기 판단, 지연 자동 측정 계산, 숫자판 방향키 고르기. Node 테스트가 직접 불러 쓴다 |
 | `js/store.js` | IndexedDB, 설정 |
 | `js/demo.js` | 데모곡 반주 합성 + 기기 저장(캐시) |
 | `js/audio.js` | 오디오 엔진, 목소리 효과, 마이크, 녹음 캡처 워클릿, 지연 측정 |
@@ -77,7 +77,7 @@ npm run test:ui                  # 화면 자동 점검: 헤드리스 Edge가 �
 | `js/bulk.js` | 여러 곡 한 번에 넣기(MR 여러 개 + 가사 자동 찾기), "가사 없음" 곡 모아 찾기, PC 곡 목록에 끌어다 놓기 |
 | `js/mr.js` | MR 만들기: 집 AI 서버의 "MR 만들기 창"을 새 탭으로 열고, 다 만든 MR을 창끼리 받아 `openBulk`로. 설정 창 서버 주소 칸 |
 | `js/playback.js` | 재생, 노래방식 두 줄 가사, 음정·점수 |
-| `js/recording.js` | 녹음 저장, 녹음 믹스, 내 녹음, 싱크·믹스 조절 |
+| `js/recording.js` | 녹음 저장, 녹음 믹스, 내 녹음, 싱크·믹스 조절, 녹음 나누기(폰 [공유]·PC [작은 파일로 저장]) |
 | `js/syncedit.js` | 가사 싱크 편집기 |
 | `js/karaoke.js` | 예약, 번호 입력·화면 숫자판, 검색, TV 화면(터치 막대·화면 켜 두기·가로 고정), 단축키, 간주점프, 인기차트, 동영상 곡 |
 | `js/profiles.js` | 사용자, 좋아요, 재생목록 |
@@ -225,7 +225,7 @@ npm run test:ui                  # 화면 자동 점검: 헤드리스 Edge가 �
 - 예약 목록의 손님 이름은 `guestNickAt(i)`(karaoke.js `renderQueue`·`renderQueueList`가 `typeof`로 부름). 방이 닫혀 있으면 ''.
 - 이 기기 설정: `nb-guest-tv`(`'0'` = TV에 QR 안 보임) · `nb-guest-key`(`'0'` = 손님 키 바꾸기 끔). 기본은 둘 다 켬이라 키를 안 만든다.
 - TV 대기 카드 `#guestCard`: 방이 열려 있으면 QR(`#tvIdle.guest-on`이면 옛 리모컨 안내 `#remoteInfo`는 숨김), 닫혀 있으면 허브가 있을 때만 [손님 QR 켜기]. 카드가 보이면 점수 칸은 시계 옆(`.idle-right>.best` 1행 2열)·팁은 고급이어도 한 줄, QR은 `max(96px,16cqw)` (디자인 확인 CR-228 #1~#3). QR 이미지는 1칸 = 1px로 그리고(`guestQrMake` → `Guest.qrPx`), 보이는 크기는 `guestQrFit`가 그 배수로 내린다 (core.js `qrFitPx`, 카드는 최소 96px라 모자라면 한 배 위로, 창 `#guestQrImg`는 220px 안). 낮은 화면(높이 480px 이하)에서는 카드가 한 줄 `#guestCardMini` "손님 QR: 설정 › 손님"만 (CR-228 L1). 카드 바탕은 `--panel` (L8). `server.py` 휴대폰 리모컨(N1~N21)은 그대로.
-- 손님 화면 CSP는 `guest.html` `<meta>`에 따로: `default-src 'none'`, 스크립트·스타일은 `'self'`, 바깥은 `https://*.supabase.co`·`wss://*.supabase.co`만. `sw.js`는 손님 파일도 저장하지만 허브 요청은 저장하지 않는다 (`SHELL` 지금 v15).
+- 손님 화면 CSP는 `guest.html` `<meta>`에 따로: `default-src 'none'`, 스크립트·스타일은 `'self'`, 바깥은 `https://*.supabase.co`·`wss://*.supabase.co`만. `sw.js`는 손님 파일도 저장하지만 허브 요청은 저장하지 않는다 (`SHELL` 지금 v16).
 - 알려진 한계: 공개 broadcast라 방 이름을 아는 손님은 방장 답(`h`)을 흉내 낼 수 있다 (다른 손님 화면에 가짜 `closed`·목록). 손님 화면은 `textContent`로만 넣어서 스크립트는 못 넣는다.
 
 ## 내 폰 리모컨 (`js/myremote.js` · `js/myphone.js`, CR-228 ③)
@@ -248,6 +248,14 @@ npm run test:ui                  # 화면 자동 점검: 헤드리스 Edge가 �
 ## 녹음 구조
 
 목소리만 따로(16비트 PCM) 저장하고, 반주는 "녹음 몇 초 지점에 반주 몇 초(어떤 키)"인지(`parts`)만 기록한다. 그래서 녹음 뒤에도 타이밍·볼륨·효과를 바꿔 다시 섞을 수 있다(`buildMix`, `renderMix`).
+
+### 녹음 나누기 (CR-031)
+- 내 녹음 줄과 싱크·믹스 조절 창(`#mxShare`, [WAV로 내보내기] 앞)에 단추 하나. 손가락 화면(`isTouch`)이고 공유 창에 파일을 실을 수 있으면 [공유], 아니면 작은 파일을 만들 수 있을 때 [작은 파일로 저장], 둘 다 아니면 단추 없음 (core `shareChoice`). [WAV로 저장]·[WAV로 내보내기]·예전 녹음 [다운로드]는 그대로.
+- 작은 파일 형식은 기기에서 고른다 (`AudioEncoder.isConfigSupported`, core `smallFormatPick`): AAC → m4a(`m4aParts`) · 안 되고 Opus → Ogg Opus(`oggOpusParts`) · 둘 다 안 되면 WAV + `WAV_NOTE` 안내. 128kbps(`SMALL_BITRATE`). 예전 방식 녹음은 파일 그대로.
+- 공유 종류는 m4a면 `audio/x-m4a` 먼저, 안 되면 `audio/mp4` (`canShare`로 확인). `navigator.share`에는 `files`·`title`만.
+- 공유 창은 누른 지 5초쯤 안에만 열린다: 만드는 데 4.5초가 넘으면(`shareNeedsTap`) 단추가 [보내기]로 바뀌고 한 번 더 누르면 다시 만들지 않고 바로 연다. 만드는 동안 단추는 "만드는 중… N초"(눌림 막음).
+- 만든 파일은 **메모리에 하나만** (`Share.made`, 열쇠 = 녹음·종류·믹스 값 `shareKey`). 디스크·IndexedDB·Drive·허브에 저장하지 않고, `nb-` 키·IDB 칸·`library.json` 칸을 더하지 않는다. 공유 창을 닫으면(AbortError) 안내 없음.
+- 파일 이름은 하나의 규칙 `recFileName` (`곡이름_YYYYMMDD-HHMM.확장자`)을 WAV·작은 파일·공유·다운로드가 같이 쓴다.
 
 ## Claude의 내장 브라우저로 확인할 때
 

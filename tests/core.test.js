@@ -1477,3 +1477,132 @@ test('녹음 나누기: m4a 틀 — 프레임 0개여도 깨지지 않는다', (
   const b = joinParts(C.m4aParts({ frames: [], asc: C.aacConfig(48000, 2), sampleRate: 48000, channels: 2 }));
   same(boxes(b).map(x => x.type), ['ftyp', 'moov', 'mdat']);
 });
+
+test('녹음 나누기: 형식 고르기 — AAC 되면 m4a, 안 되고 Opus 되면 ogg, 둘 다 안 되면 wav · 인코더 설정', () => {
+  assert.equal(C.smallFormatPick({ aac: true, opus: true }), 'm4a');
+  assert.equal(C.smallFormatPick({ aac: true, opus: false }), 'm4a');
+  assert.equal(C.smallFormatPick({ aac: false, opus: true }), 'ogg');
+  assert.equal(C.smallFormatPick({ aac: false, opus: false }), 'wav');
+  assert.equal(C.smallFormatPick(), 'wav');
+  same(C.smallEncoderConfig('m4a', 48000, 2), { codec: 'mp4a.40.2', sampleRate: 48000, numberOfChannels: 2, bitrate: 128000, aac: { format: 'aac' } });
+  same(C.smallEncoderConfig('ogg', 44100, 2), { codec: 'opus', sampleRate: 44100, numberOfChannels: 2, bitrate: 128000, opus: { format: 'opus', frameDuration: 20000 } });
+  assert.equal(C.smallEncoderConfig('wav', 48000, 2), null);
+  same(['m4a', 'ogg', 'wav', 'webm'].map(k => C.SMALL_FORMATS[k].ext), ['m4a', 'ogg', 'wav', 'webm']);
+  assert.equal(C.SMALL_FORMATS.m4a.share[0], 'audio/x-m4a');       // 안드로이드 크롬 공유 허용 이름 먼저
+  assert.ok(C.SMALL_FORMATS.m4a.share.includes('audio/mp4'));
+  assert.equal(C.recBlobExt('audio/ogg;codecs=opus'), 'ogg');
+  assert.equal(C.recBlobExt('audio/mp4'), 'm4a');
+  assert.equal(C.recBlobExt('audio/webm;codecs=opus'), 'webm');
+  assert.equal(C.recBlobExt(''), 'webm');
+  // 녹음 파일 이름은 core 규칙 그대로 (형식마다 확장자만 다름)
+  const at = new Date(2026, 10, 5, 21, 30).getTime();
+  same(['m4a', 'ogg', 'wav'].map(f => C.recFileName('밤편지', at, C.SMALL_FORMATS[f].ext)), ['밤편지_20261105-2130.m4a', '밤편지_20261105-2130.ogg', '밤편지_20261105-2130.wav']);
+});
+
+test('녹음 나누기: [보내기] 5초 규칙 · 단추 글 · 만든 파일 열쇠 (믹스가 바뀌면 다른 열쇠)', () => {
+  assert.equal(C.shareNeedsTap(0), false);
+  assert.equal(C.shareNeedsTap(4499), false);                 // 다 만든 게 4.5초 안 → 바로 공유 창
+  assert.equal(C.shareNeedsTap(4500), true);                  // 그 뒤 → [보내기]를 한 번 더
+  assert.equal(C.shareNeedsTap(8000), true);
+  assert.equal(C.SHARE_MARGIN_MS, 500);
+  assert.equal(C.shareBtnText({ act: 'share' }), '공유');
+  assert.equal(C.shareBtnText({ act: 'save' }), '작은 파일로 저장');
+  assert.equal(C.shareBtnText({ act: 'share', ready: true }), '보내기');
+  assert.equal(C.shareBtnText({ act: 'share', busyMs: 300 }), '만드는 중…');
+  assert.equal(C.shareBtnText({ act: 'share', busyMs: 3999 }), '만드는 중… 3초');      // 경과 초만 (남은 시간 X)
+  assert.equal(C.shareBtnText({ act: 'save', busyMs: 12000, ready: true }), '만드는 중… 12초');  // 만드는 중이 먼저
+  const mix = { offset: 120, vocal: 80, mr: 80, echo: 25, reverb: 35 };
+  const k = C.shareKey('r1', mix, 'small');
+  assert.equal(k, C.shareKey('r1', { ...mix }, 'small'));
+  assert.notEqual(k, C.shareKey('r1', { ...mix, offset: 130 }, 'small'));
+  assert.notEqual(k, C.shareKey('r1', { ...mix, mrStart: 2.5 }, 'small'));
+  assert.notEqual(k, C.shareKey('r1', mix, 'wav'));
+  assert.notEqual(k, C.shareKey('r2', mix, 'small'));
+  assert.equal(C.shareKey('r1', null, 'orig'), C.shareKey('r1', undefined, 'orig'));
+});
+
+test('녹음 나누기: ADTS 머리 떼기 — 머리 있으면 7(검사 있으면 9)바이트 떼고, 날 프레임은 그대로', () => {
+  const raw = Uint8Array.from([0x21, 0x10, 5, 6, 7, 8, 9, 10, 11, 12, 13]);
+  assert.equal(C.aacRawFrame(raw), raw);
+  const adts = Uint8Array.from([0xff, 0xf1, 0x50, 0x80, 0x02, 0x1f, 0xfc, ...raw]);       // protection_absent=1 → 7
+  same([...C.aacRawFrame(adts)], [...raw]);
+  const adtsCrc = Uint8Array.from([0xff, 0xf0, 0x50, 0x80, 0x02, 0x1f, 0xfc, 0xaa, 0xbb, ...raw]);   // 검사 2바이트 → 9
+  same([...C.aacRawFrame(adtsCrc)], [...raw]);
+});
+
+// Ogg 쪽 읽기 (시험용): 머리·조각표·패킷을 꺼내고 CRC를 다시 계산해 본다
+function oggPages(b) {
+  const out = [], dv = new DataView(b.buffer, b.byteOffset, b.byteLength);
+  for (let at = 0; at < b.length;) {
+    assert.equal(String.fromCharCode(...b.subarray(at, at + 4)), 'OggS', `쪽 시작 (자리 ${at})`);
+    assert.equal(b[at + 4], 0, '판 0');
+    const nSeg = b[at + 26], lace = [...b.subarray(at + 27, at + 27 + nSeg)], body = lace.reduce((a, x) => a + x, 0);
+    const len = 27 + nSeg + body, page = Uint8Array.from(b.subarray(at, at + len));
+    const crc = new DataView(page.buffer).getUint32(22, true); page.fill(0, 22, 26);
+    const packets = []; let cur = [], o = at + 27 + nSeg;
+    for (const l of lace) { cur.push(...b.subarray(o, o + l)); o += l; if (l < 255) { packets.push(Uint8Array.from(cur)); cur = []; } }
+    assert.equal(cur.length, 0, '패킷이 쪽을 넘기지 않음');
+    out.push({ type: b[at + 5], granule: dv.getUint32(at + 6, true) + dv.getUint32(at + 10, true) * 0x100000000, serial: dv.getUint32(at + 14, true), seq: dv.getUint32(at + 18, true), crc, crcOk: crc === C.oggCrc(page), nSeg, packets });
+    at += len;
+  }
+  return out;
+}
+
+test('녹음 나누기: Ogg CRC — 다항식 04C11DB7 (반사 없음) 표준 값', () => {
+  assert.equal(C.oggCrc(new TextEncoder().encode('123456789')), 0x89a1897f);
+  assert.equal(C.oggCrc(new Uint8Array(0)), 0);
+});
+
+test('녹음 나누기: Ogg Opus 틀 — 첫 쪽 OpusHead(처음 표시)·둘째 쪽 OpusTags·소리 쪽 CRC·순번·위치, 마지막 쪽 끝 표시와 길이', () => {
+  for (const [sr, sec, plen] of [[48000, 3.3, 160], [44100, 1.01, 300], [48000, 0.02, 3], [48000, 2, 600]]) {
+    const samples = Math.round(sr * sec), n = Math.ceil(samples * 48000 / sr / 960) + 2;   // 인코더는 앞 건너뛰기만큼 더 낸다
+    const packets = Array.from({ length: n }, (_, i) => Uint8Array.from({ length: plen + (i % 7) }, (_, k) => (i * 3 + k) & 255));
+    const encHead = C.opusHead(2, 312, sr);
+    const pages = oggPages(joinParts(C.oggOpusParts({ packets, head: encHead, channels: 2, sampleRate: sr, samples })));
+    assert.ok(pages.length >= 3);
+    assert.ok(pages.every(p => p.crcOk), 'CRC 모두 맞음');
+    assert.ok(pages.every(p => p.serial === pages[0].serial), '같은 흐름 번호');
+    same(pages.map(p => p.seq), pages.map((_, i) => i));
+    same(pages.map(p => p.type), [2, ...Array(pages.length - 2).fill(0), 4]);
+    // 첫 쪽: OpusHead 하나만, 위치 0
+    assert.equal(pages[0].packets.length, 1); assert.equal(pages[0].granule, 0);
+    const h = pages[0].packets[0], hv = new DataView(h.buffer);
+    assert.equal(String.fromCharCode(...h.subarray(0, 8)), 'OpusHead');
+    assert.equal(h.length, 19); assert.equal(h[8], 1); assert.equal(h[9], 2);
+    assert.equal(hv.getUint16(10, true), 312); assert.equal(hv.getUint32(12, true), sr);
+    // 둘째 쪽: OpusTags 하나만, 위치 0
+    assert.equal(pages[1].packets.length, 1); assert.equal(pages[1].granule, 0);
+    const t = pages[1].packets[0], tv = new DataView(t.buffer);
+    assert.equal(String.fromCharCode(...t.subarray(0, 8)), 'OpusTags');
+    const vlen = tv.getUint32(8, true);
+    assert.equal(tv.getUint32(12 + vlen, true), 0, '댓글 0개');
+    assert.equal(t.length, 16 + vlen);
+    // 소리 쪽: 패킷이 차례대로 다 들어 있고, 위치는 쌓인 960 × 개수 (마지막만 실제 길이로 자름)
+    const got = pages.slice(2).flatMap(p => p.packets);
+    assert.equal(got.length, n);
+    got.forEach((p, i) => same([...p], [...packets[i]]));
+    let acc = 0;
+    for (const p of pages.slice(2, -1)) { acc += p.packets.length * 960; assert.equal(p.granule, acc); assert.ok(p.packets.length <= 50 && p.nSeg <= 255); }
+    const last = pages[pages.length - 1], end = 312 + Math.round(samples * 48000 / sr);
+    assert.equal(last.granule, Math.max(acc, Math.min(n * 960, end)));
+    assert.ok(last.granule <= n * 960);
+  }
+});
+
+test('녹음 나누기: Ogg Opus 틀 — 인코더 머리가 없거나 틀리면 만들어 넣고, 큰 패킷(255바이트 넘음) 조각표', () => {
+  const big = Uint8Array.from({ length: 700 }, (_, i) => i & 255);
+  for (const head of [undefined, new Uint8Array(4), Uint8Array.from([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19])]) {
+    const pages = oggPages(joinParts(C.oggOpusParts({ packets: [big, big], head, channels: 1, sampleRate: 48000, samples: 960 })));
+    const h = pages[0].packets[0];
+    assert.equal(String.fromCharCode(...h.subarray(0, 8)), 'OpusHead');
+    assert.equal(h[9], 1, '모노');
+    assert.ok(pages.every(p => p.crcOk));
+    same([...pages[2].packets[1]], [...big]);
+    assert.equal(pages[2].nSeg, 6, '700 = 255 + 255 + 190 → 3칸씩 2개');
+    assert.equal(pages[2].type, 4);
+    assert.equal(pages[2].granule, 312 + 960);
+  }
+  // 패킷 0개: 머리 두 쪽 + 빈 끝 쪽
+  const empty = oggPages(joinParts(C.oggOpusParts({ packets: [], channels: 2, sampleRate: 48000, samples: 0 })));
+  same(empty.map(p => p.type), [2, 0, 4]);
+});

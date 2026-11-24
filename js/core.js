@@ -1120,3 +1120,92 @@ function m4aParts({ frames, asc, sampleRate, channels, frameSamples = 1024 }) {
   for (let i = 0; i < n; i++) { if (i % per === 0) offsets.push(at); at += frames[i].length; }
   return [Uint8Array.from([...ftyp, ...moov(offsets), ...u32(8 + bytes), ...str('mdat')]), ...frames];
 }
+// 인코더가 ADTS 머리(7바이트, 검사 바이트가 있으면 9)를 붙여 줬으면 떼고 날 프레임만 (설정 바이트를 안 줬을 때만 쓴다)
+function aacRawFrame(f) {
+  if (f.length > 9 && f[0] === 0xff && (f[1] & 0xf6) === 0xf0) return f.subarray((f[1] & 1) ? 7 : 9);
+  return f;
+}
+
+/* 작은 파일 형식은 기기에서 그때그때 고른다 (CR-031 데스크 결정 2026-11-24, 기획안 R3 대신):
+   AAC 됨 → m4a · AAC 안 되고 Opus 됨 → Ogg Opus(.ogg) · 둘 다 안 됨 → WAV (안내 한 줄).
+   share = 공유 창에 실을 파일 종류 후보 (앞에서부터 canShare가 통하는 것. 안드로이드 크롬 허용 목록의 m4a 이름은 audio/x-m4a) */
+const SMALL_FORMATS = {
+  m4a: { ext: 'm4a', mime: 'audio/mp4', share: ['audio/x-m4a', 'audio/mp4'] },
+  ogg: { ext: 'ogg', mime: 'audio/ogg', share: ['audio/ogg'] },
+  wav: { ext: 'wav', mime: 'audio/wav', share: ['audio/wav'] },
+  webm: { ext: 'webm', mime: 'audio/webm', share: ['audio/webm'] },     // 예전 방식(v1) 녹음
+};
+const OPUS_FRAME_US = 20000;       // Opus 한 프레임 20ms (= 48kHz 960샘플)
+function smallFormatPick({ aac, opus } = {}) { return aac ? 'm4a' : opus ? 'ogg' : 'wav'; }
+// AudioEncoder 설정 (isConfigSupported와 configure가 같은 것을 쓴다). WAV는 인코더가 없다 → null
+function smallEncoderConfig(fmt, sampleRate, numberOfChannels) {
+  if (fmt === 'm4a') return { codec: 'mp4a.40.2', sampleRate, numberOfChannels, bitrate: SMALL_BITRATE, aac: { format: 'aac' } };
+  if (fmt === 'ogg') return { codec: 'opus', sampleRate, numberOfChannels, bitrate: SMALL_BITRATE, opus: { format: 'opus', frameDuration: OPUS_FRAME_US } };
+  return null;
+}
+// 예전 방식 녹음 파일의 확장자 (녹음할 때의 mime 그대로)
+const recBlobExt = mime => (mime || '').includes('ogg') ? 'ogg' : (mime || '').includes('mp4') ? 'm4a' : 'webm';
+// 만든 파일 기억 열쇠: 같은 녹음 · 같은 종류(small·wav·orig) · 같은 믹스 값일 때만 다시 쓴다 (믹스를 바꾸면 새로 만든다)
+const MIX_KEYS = ['offset', 'vocal', 'mr', 'echo', 'reverb', 'mrStart'];
+function shareKey(id, mix, file) { return `${id}|${file}|${MIX_KEYS.map(k => mix?.[k] ?? '').join(',')}`; }
+// 다 만든 뒤 공유 창을 바로 열 수 있나: 누른 지 5초가 넘으면 브라우저가 막는다 → [보내기]로 한 번 더 (0.5초는 여유)
+const SHARE_MARGIN_MS = 500;
+const shareNeedsTap = elapsedMs => elapsedMs >= SHARE_GESTURE_MS - SHARE_MARGIN_MS;
+// 단추 글: 평소 [공유]·[작은 파일로 저장] / 만드는 중 "만드는 중… N초"(경과 초만) / 다 만들고 기다림 [보내기]
+function shareBtnText({ act, busyMs = null, ready = false }) {
+  if (busyMs != null) return busyMs < 1000 ? '만드는 중…' : `만드는 중… ${Math.floor(busyMs / 1000)}초`;
+  if (ready) return '보내기';
+  return act === 'share' ? '공유' : '작은 파일로 저장';
+}
+
+/* Ogg Opus 틀 (RFC 7845): 첫 쪽 OpusHead · 둘째 쪽 OpusTags · 그다음 소리 쪽들. 쪽마다 CRC.
+   위치(granule)는 늘 48kHz 샘플 수이고 앞 건너뛰기(pre-skip)를 포함한다. 마지막 쪽은 실제 길이에 맞춰 끝을 자른다 */
+const OGG_CRC = (() => {
+  const t = new Uint32Array(256);
+  for (let i = 0; i < 256; i++) { let r = i << 24; for (let k = 0; k < 8; k++) r = (r & 0x80000000) ? (r << 1) ^ 0x04c11db7 : r << 1; t[i] = r >>> 0; }
+  return t;
+})();
+function oggCrc(b) { let c = 0; for (let i = 0; i < b.length; i++) c = ((c << 8) ^ OGG_CRC[((c >>> 24) ^ b[i]) & 255]) >>> 0; return c; }
+const oggLacing = n => { const l = []; for (; n >= 255; n -= 255) l.push(255); l.push(n); return l; };
+// 한 쪽 (패킷은 쪽을 넘기지 않게 통째로만 담는다). type: 2 = 처음, 4 = 마지막
+function oggPage(type, granule, serial, seq, packets) {
+  const lace = packets.flatMap(p => oggLacing(p.length)), body = packets.reduce((a, p) => a + p.length, 0);
+  const page = new Uint8Array(27 + lace.length + body), dv = new DataView(page.buffer);
+  page.set([0x4f, 0x67, 0x67, 0x53], 0); page[5] = type;
+  dv.setUint32(6, granule % 0x100000000, true); dv.setUint32(10, Math.floor(granule / 0x100000000), true);
+  dv.setUint32(14, serial >>> 0, true); dv.setUint32(18, seq, true);
+  page[26] = lace.length; page.set(lace, 27);
+  let o = 27 + lace.length; for (const p of packets) { page.set(p, o); o += p.length; }
+  dv.setUint32(22, oggCrc(page), true);
+  return page;
+}
+function opusHead(channels, preSkip, sampleRate) {
+  const h = new Uint8Array(19), dv = new DataView(h.buffer);
+  h.set([...'OpusHead'].map(c => c.charCodeAt(0))); h[8] = 1; h[9] = channels;
+  dv.setUint16(10, preSkip, true); dv.setUint32(12, sampleRate, true);
+  return h;
+}
+function opusTags(vendor) {
+  const v = new TextEncoder().encode(vendor), t = new Uint8Array(16 + v.length), dv = new DataView(t.buffer);
+  t.set([...'OpusTags'].map(c => c.charCodeAt(0))); dv.setUint32(8, v.length, true); t.set(v, 12);
+  return t;
+}
+// packets = 인코더가 준 Opus 패킷, head = 인코더가 준 설정(OpusHead 19바이트, 없으면 만듦), samples = 실제 소리 길이(입력 샘플레이트)
+function oggOpusParts({ packets, head, channels, sampleRate, samples, serial = 0x4e425243, frameSamples48 = 960 }) {
+  const okHead = head && head.length >= 19 && String.fromCharCode(...head.subarray(0, 8)) === 'OpusHead';
+  const h = okHead ? Uint8Array.from(head) : opusHead(channels, 312, sampleRate);
+  const preSkip = h[10] | (h[11] << 8), end = preSkip + Math.round(samples * 48000 / sampleRate);
+  const pages = [oggPage(2, 0, serial, 0, [h]), oggPage(0, 0, serial, 1, [opusTags('YT noraebang')])];
+  let cur = [], segs = 0, g = 0, prev = 0;
+  const put = last => {
+    const granule = last ? Math.max(prev, Math.min(g, end)) : g;
+    pages.push(oggPage(last ? 4 : 0, granule, serial, pages.length, cur)); prev = granule; cur = []; segs = 0;
+  };
+  for (const p of packets) {
+    const n = oggLacing(p.length).length;
+    if (cur.length && (segs + n > 255 || cur.length >= 50)) put(false);    // 한 쪽에 1초(50개)쯤
+    cur.push(p); segs += n; g += frameSamples48;
+  }
+  put(true);
+  return pages;
+}
