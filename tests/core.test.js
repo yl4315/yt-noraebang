@@ -699,8 +699,8 @@ test('MR 만들기 서버 주소 (CR-231): 이 기기 → 허브 → 없음 · �
   assert.match(C.mrClearText(true), /허브에 있는 주소/);
   // 곡 목록 [MR 만들기] 안내는 짧은 글 (옆 [주소 넣기]), 자동 싱크 줄은 단추가 없어 길이 든 글
   assert.equal(C.MR_NOSERVER_SHORT, 'MR 만들기 서버 주소가 아직 없어요 · 한 번만 넣어 주세요');
-  assert.equal(C.MR_NOSERVER_TEXT, 'MR 만들기 서버 주소가 아직 없어요 · 설정 → 더 보기 (고급) → MR 만들기 (집 AI 서버)에 한 번 넣어 주세요');
-  assert.equal(C.alignErrText('noserver'), C.MR_NOSERVER_TEXT);
+  assert.equal(C.MR_NOSERVER_TEXT, 'MR 만들기 서버 주소가 아직 없어요 · 설정 › 더 보기 (고급) › MR 만들기 (집 AI 서버)에 한 번 넣어 주세요');
+  assert.equal(C.alignErrText('noserver'), C.MR_NOSERVER_SHORT);   // CR-236 W7 R6: 싱크 줄도 짧은 글 + [주소 넣기]
   for (const t of [...Object.values(C.MR_SAVE_TEXT), C.mrClearText(true), C.mrClearText(false), C.MR_NOSERVER_TEXT, C.MR_NOSERVER_SHORT])
     assert.doesNotMatch(t, /https?:|:8765|dgx|ts\.net|100\.\d/i, t);
 });
@@ -943,10 +943,13 @@ test('가사 정렬 (CR-227 W7·W8): 창에 보낼 가사 · LRCLIB 답 · 단�
   same(C.alignAsk({ lyrics: PLAIN }, 'low'), { low: true, overwrite: false });
   same(C.alignAsk({ lyrics: LRC, syncChk: 1 }, 'mid'), { low: false, overwrite: true });
   same(C.alignAsk({ lyrics: LRC }, 'low'), { low: true, overwrite: true });
-  // 오류 안내: app/errors.py와 같은 뜻 + W10 목소리 없는 파일
-  assert.equal(C.alignErrText('no_match'), '가사와 노래 소리가 맞지 않아 시각을 못 붙였어요');
-  assert.equal(C.alignErrText('no_vocals'), '목소리가 없는 파일이에요(MR). 원곡 파일을 골라 주세요');
-  assert.match(C.alignErrText('bad_lyrics'), /^가사를 읽지 못했어요/);
+  // 오류 안내: app/errors.py와 같은 뜻 + W10 목소리 없는 파일 (CR-236 W7 R2: 단추와 한 줄에 들어가게 짧게)
+  assert.equal(C.alignErrText('no_match'), '가사와 노래 소리가 맞지 않아요');
+  assert.equal(C.alignErrText('no_vocals'), '목소리가 없는 파일이에요 (MR)');
+  assert.equal(C.alignErrText('bad_lyrics'), '가사 글을 읽지 못했어요');
+  assert.equal(C.alignErrText('not_audio'), '소리 파일이 아니거나 못 읽었어요');
+  assert.equal(C.alignErrText('blocked'), '새 창이 막혔어요 · 주소창에서 팝업을 허용해 주세요');
+  for (const t of Object.values(C.ALIGN_ERR_TEXT)) assert.ok(t.length <= 34, t);   // 412 폰에서 단추 옆 한 줄 (진짜 폭은 checks/align.mjs가 잰다)
   assert.equal(C.alignErrText('unreachable'), '집 AI에 닿지 않아요 · 집에 가면 다시 해요');
   assert.equal(C.alignErrText('worker_failed'), '가사 시각을 못 맞췄어요 · 잠시 뒤 다시 해 주세요');
   assert.equal(C.alignErrText('__proto__'), '가사 시각을 못 맞췄어요 · 잠시 뒤 다시 해 주세요');
@@ -1214,4 +1217,14 @@ test('손님 예약 짝짓기·상태: 예약 표만, 누가 넣었는지는 안
   const m12 = C.guestQueueMap(q12, [{ rid: R2, gid: GID, id: 'b', nick: '' }]);
   const s12 = C.guestStateMsg({ now: null, queue: q12, songOf: id => songs[id], map: m12, keyOn: false, yt: true });
   assert.equal(s12.q.length, 10); same(s12.rest, [R2]); assert.equal(s12.now, null); assert.equal(s12.n, 12); assert.equal(s12.yt, true);
+});
+
+test('QR 크기: 1칸 = 정수 px가 되게 내린다 (CR-228 L2)', () => {
+  assert.equal(C.qrFitPx(220, 69), 207);        // 3배
+  assert.equal(C.qrFitPx(307, 69), 276);        // 4배
+  assert.equal(C.qrFitPx(128, 69, 96), 138);    // 최소 96px → 한 배 위로
+  assert.equal(C.qrFitPx(60, 69), 69);          // 1배보다 작으면 1배
+  assert.equal(C.qrFitPx(0, 69), 0);
+  assert.equal(C.qrFitPx(220, 0), 0);
+  for (const t of [96, 150, 220, 333]) assert.equal(C.qrFitPx(t, 37) % 37, 0);
 });

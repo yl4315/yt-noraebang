@@ -81,7 +81,7 @@ async function exitSync(save) {
     if (typeof clearSyncCheck === 'function') clearSyncCheck(s);   // 자동 싱크 "확인해 주세요"는 저장하면 사라짐 (CR-227)
     if (typeof hubTouch === 'function') hubTouch(s);
     await persistSong(s);
-    toast('가사 싱크를 저장했어요');
+    toast('가사 시각을 저장했어요');
   }
   computeLines(); updateLyrOffUI(); updateTransportUI(); updateTimeUI(0);
 }

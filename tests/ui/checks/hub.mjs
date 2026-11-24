@@ -239,17 +239,17 @@ export default async function hub(ctx) {
 
     /* ---------------- W6 자동 싱크 (가짜 LRCLIB) ---------------- */
     let s2 = null;
-    await step('무대 [자동 싱크]: 가짜 LRCLIB /api/get 시각 가사 → 곡에 들어감 · 보낸 값은 제목·가수·길이뿐', ['W6', 'W9'], async () => {
+    await step('무대 [자동 맞추기]: 가짜 LRCLIB /api/get 시각 가사 → 곡에 들어감 · 보낸 값은 제목·가수·길이뿐', ['W6', 'W9'], async () => {
       s2 = (await seedSong(pa, { title: 'QA 시험 자동싱크 곡', artist: 'QA가수 (feat. QA둘)', lyrics: PLAIN, wav: fx.plain })).id;
       await selectById(pa, s2);
-      ok('W6', await visible(pa, '#autoSyncBtn') && await isHidden(pa, '#syncChkBtn'), '시각 없는 가사 곡: [자동 싱크] 보임');
+      ok('W6', await visible(pa, '#autoSyncBtn') && await isHidden(pa, '#syncChkBtn'), '시각 없는 가사 곡: [자동 맞추기] 보임');
       // 고급 꺼짐(기본 화면)에서도 보임: 접힌 "가사 맞추기 ›"(#lyrFold) 밖 #syncTools 한 줄 (1차 판 kar-r1)
       await pa.eval('applyAdv(false)');
       const d0 = { auto: await visible(pa, '#autoSyncBtn'), row: await visible(pa, '#syncTools'), fold: await isHidden(pa, '#lyrTools') };
       await pa.eval(`document.querySelector('#syncTools').scrollIntoView({block:'center'})`);
       await shot(pa, 'W6-자동싱크-기본화면-1280.png');
       await pa.eval('applyAdv(true)');
-      ok('W6', d0.auto && d0.row && d0.fold, `고급 꺼짐: [자동 싱크] ${d0.auto ? '보임' : '숨음'} · "가사 맞추기 ›" 안 칸 ${d0.fold ? '접힌 채' : '펴짐'}`);
+      ok('W6', d0.auto && d0.row && d0.fold, `고급 꺼짐: [자동 맞추기] ${d0.auto ? '보임' : '숨음'} · "가사 맞추기 ›" 안 칸 ${d0.fold ? '접힌 채' : '펴짐'}`);
       const lrc = '[00:00.50]QA 시험 자동 첫 줄\n[00:02.00]QA 시험 자동 둘째 줄\n[00:03.50]QA 시험 자동 셋째 줄';
       ctx.lrcGetRules.push({ track: '^QA 시험 자동싱크 곡$', status: 200, times: 1, body: { id: 9001, trackName: 'QA 시험 자동싱크 곡', artistName: 'QA가수', albumName: 'QA 시험 앨범', duration: 5, instrumental: false, plainLyrics: 'QA 시험 자동 첫 줄', syncedLyrics: lrc } });
       const nGet = ctx.lrcGetLog.length, nSearch = ctx.lrcLog.length;
@@ -262,8 +262,8 @@ export default async function hub(ctx) {
       ok('W6', g.length === 1 && g[0].params.slice().sort().join(',') === 'artist_name,duration,track_name' && g[0].track === 'QA 시험 자동싱크 곡' && g[0].artist === 'QA가수' && g[0].duration === '5',
         `보낸 값: ${g.map(e => e.params.join('·') + ` (${e.track} / ${e.artist} / ${e.duration})`).join(' ; ')}`);
       ok('W6', ctx.lrcLog.length === nSearch, '정확히 찾아서 검색(/api/search)은 안 함');
-      ok('W6', await isHidden(pa, '#autoSyncBtn') && await visible(pa, '#syncChkBtn'), '찾은 뒤: [자동 싱크] 숨김 · "확인해 주세요" 보임');
-      ok('W9', await visible(pa, '#syncChkBtn') && /자동 싱크 · 확인해 주세요/.test(await txt(pa, '#syncChkBtn')), '"자동 싱크 · 확인해 주세요" 단추');
+      ok('W6', await isHidden(pa, '#autoSyncBtn') && await visible(pa, '#syncChkBtn'), '찾은 뒤: [자동 맞추기] 숨김 · "확인해 주세요" 보임');
+      ok('W9', await visible(pa, '#syncChkBtn') && /^자동 맞춤 · 확인해 주세요$/.test(await txt(pa, '#syncChkBtn')) && /^자동 맞추기$/.test(await txt(pa, '#autoSyncBtn')), '[자동 맞춤 · 확인해 주세요] 단추 (CR-236 글)');
       await pa.eval('applyAdv(false)');
       const d1 = await visible(pa, '#syncChkBtn');
       await pa.eval('applyAdv(true)');
@@ -298,7 +298,7 @@ export default async function hub(ctx) {
       await pa.until(`!state.sync`, 3000);
       const x = await song(pa, s2);
       ok('W9', !x.chk && await isHidden(pa, '#syncChkBtn'), `저장 뒤 표시 ${x.chk ? '남음' : '사라짐'}`);
-      ok('W9', await isHidden(pa, '#autoSyncBtn') && await isHidden(pa, '#alignBtn') && await isHidden(pa, '#syncTools'), '[자동 싱크]·[확인해 주세요]·[원곡 파일로 자동 싱크]가 다 숨으면 빈 줄(#syncTools)도 숨음');
+      ok('W9', await isHidden(pa, '#autoSyncBtn') && await isHidden(pa, '#alignBtn') && await isHidden(pa, '#syncTools'), '[자동 맞추기]·[확인해 주세요]·[원곡 파일로 자동 맞추기]가 다 숨으면 빈 줄(#syncTools)도 숨음');
       const up = await waitNode(() => rowOf(K2) && rowOf(K2).data.chk === undefined, 15000);
       ok('W9', up, '허브 줄의 확인 표시도 사라짐');
     });
@@ -325,7 +325,7 @@ export default async function hub(ctx) {
       { k: 'D', id: 'QAytW6dur0D', title: 'QA 시험 유튜브 자동곡라', dur: 0, get: 130, found: 'get', why: '영상 길이 모름 → 길이 없이 보냄 → 예전처럼 들어감' },
     ];
     for (const c of YTA) {
-      await step(`유튜브 곡 [자동 싱크] ${c.k}: ${c.why}`, ['W6'], async () => {
+      await step(`유튜브 곡 [자동 맞추기] ${c.k}: ${c.why}`, ['W6'], async () => {
         const yt = q(c.title + ' - QA가수Y');
         await pa.eval(`((window.__ytVideos = window.__ytVideos || {})[${q(c.id)}] = {title:${yt}, author:'QA 채널', dur:${c.dur}}, true)`);
         const sid = await pa.eval(`(async()=>{ const s = await ytAdd(${q(c.id)}, {title:${yt}, channel:'QA 채널'}); ${c.dur ? `s.ytDur = ${c.dur}; await persistSong(s);` : ''} return s.id })()`, 20000);
@@ -338,7 +338,7 @@ export default async function hub(ctx) {
           await pa.eval(`selectSong(songById(${q(sid)}))`);
           await pa.until(`state.song && state.song.id===${q(sid)} && (Yt.st===5 || Yt.err!=null)`, 15000).catch(() => {});
           const pre = { dur: await pa.eval(`state.song.ytDur || 0`), auto: await visible(pa, '#autoSyncBtn') };
-          ok('W6', pre.auto && pre.dur === c.dur, `유튜브 곡 ${c.k} (가사 없음, 영상 길이 ${pre.dur || '모름'}): [자동 싱크] ${pre.auto ? '보임' : '숨음'}`);
+          ok('W6', pre.auto && pre.dur === c.dur, `유튜브 곡 ${c.k} (가사 없음, 영상 길이 ${pre.dur || '모름'}): [자동 맞추기] ${pre.auto ? '보임' : '숨음'}`);
           const nGet = ctx.lrcGetLog.length, nSearch = ctx.lrcLog.length;
           await pa.click('#autoSyncBtn');
           await pa.until(`!AutoSync.busy && /찾았어요/.test($('#syncLine').textContent)`, 15000);

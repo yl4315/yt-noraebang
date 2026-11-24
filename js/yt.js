@@ -399,7 +399,7 @@ async function ytAutoLyrics(s) {
     if (c.swapped) { s.title = c.title; s.artist = c.artist; }
     await persistSong(s); ytRefreshSong(s);
     if (state.song === s) { computeLines(); updateLyrOffUI(); }
-    toast(`'${s.title}' 싱크 가사를 넣었어요 (LRCLIB)`);
+    toast(`'${s.title}' 시각 붙은 가사를 넣었어요 (LRCLIB)`);
   } catch { Yt.lyrTried.set(s.id, withDur ? 'dur' : 'nodur'); }
 }
 

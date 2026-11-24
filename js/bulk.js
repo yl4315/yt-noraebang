@@ -80,7 +80,7 @@ function buildRow(r) {
   return li;
 }
 const pickTags = r => r.pick.ai ? '집 AI 시각' + (r.pick.level === 'low' ? ' · 많이 틀릴 수 있어요' : '')
-  : (r.pick.syncedLyrics ? '싱크' : '가사만') + (r.mrDur && Math.abs(r.pick.duration - r.mrDur) <= AUTO_SEC ? ' · 길이 비슷' : '');
+  : (r.pick.syncedLyrics ? '시각 있음' : '가사만') + (r.mrDur && Math.abs(r.pick.duration - r.mrDur) <= AUTO_SEC ? ' · 길이 비슷' : '');
 // 줄 오른쪽(폰은 아래 줄) 상태: [모양, 글]
 function rowState(r) {
   if (!r.checked) return Bulk.mode === 'add' && r.dup ? ['dup', '이미 같은 곡이 있어요'] : ['dup', Bulk.mode === 'add' ? '넣지 않음' : '저장 안 함'];
@@ -102,7 +102,7 @@ function rowState(r) {
 }
 // 자동으로 넣지 않은 이유 (core.js chooseLyrics의 why)
 const BULK_WHY = {
-  plain: () => '싱크 있는 가사가 없어요. 고르면 시간 없이 들어가요 (저장한 뒤 [가사 맞추기]로 시각을 맞춰요)',
+  plain: () => '시각 붙은 가사가 없어요. 고르면 시간 없이 들어가요 (저장한 뒤 [가사 맞추기]로 시각을 맞춰요)',
   title: () => '제목이 똑같은 결과가 없어요. 맞는 걸 고르세요',
   noartist: () => '가수를 몰라서 저절로 넣지 않았어요. 맞는 걸 고르세요',
   artist: r => `'${r.artist.trim()}' 곡은 못 찾았어요. 맞는 게 없으면 영어 가수명으로 다시 찾아보세요 (예: 아이유 → IU)`,
@@ -117,8 +117,8 @@ function rowMsg(r) {
   const m = {
     wait: r.checked ? '차례가 되면 가사를 찾아요' : '',
     search: '가사를 찾는 중이에요…',
-    auto: '싱크·제목·가수·길이가 다 맞아서 저절로 넣었어요. 다른 걸 고르려면 아래에서 누르세요',
-    aligned: '집 AI가 MR을 만들며 이 노래 소리에 가사 시각을 맞췄어요. 저장하면 "자동 싱크 · 확인해 주세요"가 붙어요. LRCLIB에서 찾으려면 [다시 찾기]',
+    auto: '시각·제목·가수·길이가 다 맞아서 저절로 넣었어요. 다른 걸 고르려면 아래에서 누르세요',
+    aligned: '집 AI가 MR을 만들며 이 노래 소리에 가사 시각을 맞췄어요. 저장하면 "자동 맞춤 · 확인해 주세요"가 붙어요. LRCLIB에서 찾으려면 [다시 찾기]',
     picked: '고른 가사를 넣어요. 바꾸려면 아래에서 다른 걸 누르세요',
     ask: (BULK_WHY[r.why] || (() => '맞는 걸 고르세요'))(r),
     none: r.title.trim() ? '찾지 못했어요. 제목 철자를 확인하거나 영어 제목·영어 가수명으로 고쳐서 다시 찾아보세요 (예: 좋은 날 → Good Day, 아이유 → IU)' : '제목을 넣고 다시 찾아 주세요',

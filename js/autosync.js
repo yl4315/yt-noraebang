@@ -7,7 +7,8 @@
 // 순수 로직(lrclibGetParams·autoSyncPick·canAutoSync·canAlignSong·alignAsk·alignErrText)은 core.js, 테스트는 tests/core.test.js.
 'use strict';
 
-const AutoSync = { busy: false, hideTimer: 0, last: new Map() };
+// dropped: "넣지 않기"로 버린 집 AI 낮음 결과 (곡 id → { lrc, level, base }) — 이 탭 메모리에만, 저장·허브·백업 0 (W7 R5)
+const AutoSync = { busy: false, hideTimer: 0, last: new Map(), dropped: new Map() };
 // 아이콘 (디자인 5-sync-line: 14px 선 아이콘, 색은 아이콘에만)
 const SYNC_ICONS = {
   found: [['path', { d: 'M20 6L9 17l-5-5' }]],
@@ -34,7 +35,8 @@ function syncIcon(kind) {
   for (const [tag, at] of SYNC_ICONS[kind] || SYNC_ICONS.none) { const e = document.createElementNS(ns, tag); for (const [k, v] of Object.entries(at)) e.setAttribute(k, v); svg.append(e); }
   return svg;
 }
-// 한 줄 그리기. info = { kind:'found'|'loaded'|'none'|'busy', text, fix(직접 맞추기 단추), stop(그만두기 단추·점 3개), icon(아이콘만 다르게) }
+// 한 줄 그리기. info = { kind:'found'|'loaded'|'none'|'busy', text, fix(직접 맞추기 단추), stop(그만두기 단추·점 3개), icon(아이콘만 다르게),
+//   again(다른 파일로: 원곡 파일 고르기를 다시, W7 R1), go(주소 넣기: 설정 MR 주소 칸, CR-231 R6) }
 function paintSyncLine(box, info, s) {
   if (!box) return;
   box.textContent = '';
@@ -42,9 +44,18 @@ function paintSyncLine(box, info, s) {
   box.dataset.state = info.kind;
   const dots = () => { const d = el('span', 'sl-dots'); d.setAttribute('aria-hidden', 'true'); d.append(el('i'), el('i'), el('i')); return d; };
   box.append(info.stop ? dots() : syncIcon(info.icon || info.kind), el('span', 'sl-text', info.text));
+  const inDlg = box.id === 'syncLine2';
   if (info.fix && s) {
     const b = el('button', 'btn small sl-act', '직접 맞추기'); b.type = 'button';
     b.onclick = () => syncFixByHand(s);
+    box.append(b);
+  } else if (info.again && s) {
+    const b = el('button', 'btn small sl-act', '다른 파일로'); b.type = 'button';
+    b.onclick = () => { if (inDlg) $('#alignBtn2')?.click(); else if (typeof alignStart === 'function' && !state.sync) alignStart(s); };
+    box.append(b);
+  } else if (info.go) {
+    const b = el('button', 'btn small sl-act', '주소 넣기'); b.type = 'button';
+    b.onclick = () => { if ($('#songDialog')?.open) $('#songDialog').close(); if (typeof mrGoSettings === 'function') mrGoSettings(); };
     box.append(b);
   } else if (info.stop && s) {
     const b = el('button', 'btn small sl-act', '그만두기'); b.type = 'button';
@@ -63,11 +74,13 @@ async function syncFixByHand(s) {
 }
 // 원곡 파일로 자동 싱크 한 줄: 맞추는 중(점 3개 + [그만두기]) · 오류(code → 노래방 말, 집 밖은 와이파이 끊김 아이콘·단추 없음)
 const ALIGN_NO_FIX = ['unreachable', 'canceled', 'closed', 'blocked', 'no_align', 'noserver'];
+const ALIGN_AGAIN = ['no_vocals', 'not_audio'];      // 파일이 틀림: [직접 맞추기] 대신 [다른 파일로] (디자인 W7 R1)
 function alignInfo(kind, code) {
   if (kind === 'aligning') return { kind: 'busy', text: SYNC_TEXT.aligning, stop: true };
   if (kind === 'aligned') return { kind: 'found', text: SYNC_TEXT.aligned };
   if (kind === 'alignskip') return { kind: 'none', text: SYNC_TEXT.alignskip, fix: true };
-  return { kind: 'none', text: alignErrText(code), fix: !ALIGN_NO_FIX.includes(code), icon: code === 'unreachable' ? 'away' : '' };
+  const again = ALIGN_AGAIN.includes(code);
+  return { kind: 'none', text: alignErrText(code), fix: !again && !ALIGN_NO_FIX.includes(code), again, go: code === 'noserver', icon: code === 'unreachable' ? 'away' : '' };
 }
 // 곡의 마지막 싱크 소식을 S1(진행 막대 아래)에 보인다. 5초 뒤 사라지고, "못 찾음"만 남는다
 // 원곡 자동 싱크(kind aligning·aligned·alignskip·alignfail)는 text 자리에 오류 코드 (alignfail)
@@ -112,6 +125,29 @@ function syncLineDialog(s) {
   const box = $('#syncLine2'); if (!box) return;
   const info = s && AutoSync.last.get(s.id);
   paintSyncLine(box, info && info.kind !== 'busy' ? info : null, s);
+  alignDropShow(s);
+}
+// W7 R5: "넣지 않기"로 버린 낮음 결과를 곡 수정 창 가사 후보로 (집 AI를 다시 안 돌려도 됨). 그사이 가사가 바뀌었으면 버린다
+function alignDropShow(s) {
+  const d = s && AutoSync.dropped.get(s.id);
+  if (!d) return;
+  if ((s.lyrics || '') !== d.base || typeof lyricItem !== 'function') { AutoSync.dropped.delete(s.id); return; }
+  const ul = $('#lrcResults'), st = $('#lrcStatus');
+  ul.textContent = '';
+  ul.append(lyricItem({ ai: true, trackName: s.title, artistName: s.artist, level: d.level }, null, () => {
+    $('#f-lyrics').value = d.lrc;
+    ul.hidden = true;
+    st.textContent = '넣었어요 · 저장하면 "자동 맞춤 · 확인해 주세요"가 붙어요';
+  }));
+  ul.hidden = false;
+  st.textContent = '넣지 않은 집 AI 가사 시각이 있어요 · 고르면 가사 칸에 들어가요';
+}
+// 곡 수정 창 저장 때 (songs.js): 버린 결과를 골라 저장했으면 true (= 확인 표시를 단다), 후보는 지운다
+function alignDropTaken(s) {
+  const d = s && AutoSync.dropped.get(s.id);
+  if (!d || s.lyrics !== d.lrc) return false;
+  AutoSync.dropped.delete(s.id);
+  return true;
 }
 
 /* LRCLIB /api/get: 제목·가수·길이로 정확히 한 곡. 없으면(404) null. 바쁘면(5xx·429) 간격을 두고 3번까지 */
@@ -202,8 +238,12 @@ async function alignApply(s, m) {
     const yes = await alignConfirm(s, ask);
     s = songById(s.id);                  // 묻는 사이 곡이 지워졌거나 (허브로) 바뀌었으면 지금 것
     if (!s) return;
-    if (!yes) { syncLineShow('alignskip', s); return; }
+    if (!yes) {
+      if (ask.low) AutoSync.dropped.set(s.id, { lrc: m.lrc, level: m.level, base: s.lyrics || '' });   // W7 R5: 곡 수정 창 후보로 (메모리만)
+      syncLineShow('alignskip', s); return;
+    }
   }
+  AutoSync.dropped.delete(s.id);
   s.lyrics = m.lrc; s.lyricOffset = 0; s.syncChk = 1;      // W9 "자동 싱크 · 확인해 주세요"
   if (typeof hubTouch === 'function') hubTouch(s);
   await persistSong(s);

@@ -168,7 +168,7 @@ export default async function songs(ctx) {
     const st = await txt(p, '#lrcStatus');
     await p.click('#lrcResults li:first-child button');
     const after = await p.eval(`({ly:document.querySelector('#f-lyrics').value, hid:document.querySelector('#lrcResults').hidden, st:document.querySelector('#lrcStatus').textContent})`);
-    ok('D6', res.length === 2 && res[0].tag === '싱크 있음 · 길이 비슷' && res[1].tag === '가사만' && /2개 찾음/.test(st) && after.ly.startsWith('[00:01.00]QA 시험 가사 첫 줄') && after.hid && /넣었어요/.test(after.st),
+    ok('D6', res.length === 2 && res[0].tag === '시각 있음 · 길이 비슷' && res[1].tag === '가사만' && /2개 찾음/.test(st) && after.ly.startsWith('[00:01.00]QA 시험 가사 첫 줄') && after.hid && /넣었어요/.test(after.st),
       `결과 2개 "${res.map(r => r.tag).join('" / "')}" · 고르면 가사가 들어감`);
     // 못 찾음
     await p.eval(`document.querySelector('#f-title').value='QA 시험 없음'; document.querySelector('#f-artist').value=''`);

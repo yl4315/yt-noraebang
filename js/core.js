@@ -557,9 +557,9 @@ const MR_SAVE_TEXT = {
 };
 // [이 기기에서 지우기] 안내: 허브 값이 있으면 그것을 쓴다
 const mrClearText = hasHub => hasHub ? '이 기기 주소를 지웠어요 · 허브에 있는 주소를 써요' : '이 기기 주소를 지웠어요 · 주소를 넣어야 MR 만들기를 쓸 수 있어요';
-// 주소가 없을 때: 곡 목록 [MR 만들기] 안내는 짧게 (옆 [주소 넣기]가 길을 대신함) · 자동 싱크 줄은 단추가 없어 길을 글로
+// 주소가 없을 때: 곡 목록 [MR 만들기] 안내·자동 맞추기 줄은 짧게 (옆 [주소 넣기]가 길을 대신함, CR-231 R6) · 단추가 없는 곳에 쓸 긴 글은 길을 › 로 (R4)
 const MR_NOSERVER_SHORT = 'MR 만들기 서버 주소가 아직 없어요 · 한 번만 넣어 주세요';
-const MR_NOSERVER_TEXT = 'MR 만들기 서버 주소가 아직 없어요 · 설정 → 더 보기 (고급) → MR 만들기 (집 AI 서버)에 한 번 넣어 주세요';
+const MR_NOSERVER_TEXT = 'MR 만들기 서버 주소가 아직 없어요 · 설정 › 더 보기 (고급) › MR 만들기 (집 AI 서버)에 한 번 넣어 주세요';
 const MR_MAX_FILES = 30, MR_MAX_BYTES = 120 * 1024 * 1024;
 // 서버 주소 다듬기·검사 → { ok:true, url, origin } | { ok:false, why:'empty'|'scheme'|'userinfo'|'bad' }
 // http:// 또는 https://로 시작, 사용자·비밀번호(@) 없음, ?·# 없음, 끝 / 는 뗀다 (창은 url + '/'로 연다)
@@ -660,18 +660,20 @@ const canAlignSong = (s, stage = false) => !!s && !s.demo && !!alignLyricsText(s
 // 받은 결과를 넣기 전에 물을 것: low = 시각이 많이 틀릴 수 있음, overwrite = 이미 시각이 있는 가사 (기본은 넣지 않음)
 const alignAsk = (s, level) => ({ low: level === 'low', overwrite: !!(s && parseLyrics(s.lyrics || '').synced) });
 // 집 AI 오류 코드 → 노래방 안내 (yena-mr app/errors.py와 같은 뜻, 노래방 말로)
+// 폰 412에서 오른쪽 단추와 한 줄에 들어가게 짧게 (디자인 W7 R3). 목소리 없음·소리 파일 아님은 옆에 [다른 파일로] (R1),
+// 목소리 없음은 MR 창 제목과 같은 말 (R2), 주소 없음은 옆에 [주소 넣기] (CR-231 R6). 단추는 autosync.js alignInfo
 const ALIGN_ERR_TEXT = {
-  no_match: '가사와 노래 소리가 맞지 않아 시각을 못 붙였어요',
-  no_vocals: '목소리가 없는 파일이에요(MR). 원곡 파일을 골라 주세요',
-  bad_lyrics: '가사를 읽지 못했어요 · 곡 수정에서 가사 글을 확인해 주세요',
-  not_audio: '소리 파일이 아니거나 읽을 수 없어요 · 원곡 파일을 골라 주세요',
+  no_match: '가사와 노래 소리가 맞지 않아요',
+  no_vocals: '목소리가 없는 파일이에요 (MR)',
+  bad_lyrics: '가사 글을 읽지 못했어요',
+  not_audio: '소리 파일이 아니거나 못 읽었어요',
   no_align: '집 AI가 아직 가사 시각 맞추기를 못 해요',
   unreachable: '집 AI에 닿지 않아요 · 집에 가면 다시 해요',
   canceled: 'MR 만들기 창에서 그만뒀어요',
   closed: 'MR 만들기 창이 닫혔어요 · 다시 누르면 이어서 해요',
-  blocked: '새 창이 막혔어요. 주소창 오른쪽에서 이 사이트의 팝업을 허용해 주세요',
-  changed: '맞추는 사이에 가사를 고쳐서 넣지 않았어요 · 다시 눌러 주세요',
-  noserver: MR_NOSERVER_TEXT,      // CR-231: MR 만들기 서버 주소가 없음 (창을 열지 않음)
+  blocked: '새 창이 막혔어요 · 주소창에서 팝업을 허용해 주세요',
+  changed: '맞추는 사이 가사가 바뀌어서 안 넣었어요',
+  noserver: MR_NOSERVER_SHORT,     // CR-231: MR 만들기 서버 주소가 없음 (창을 열지 않음, 옆에 [주소 넣기])
 };
 const alignErrText = code => (Object.prototype.hasOwnProperty.call(ALIGN_ERR_TEXT, code) && ALIGN_ERR_TEXT[code]) || '가사 시각을 못 맞췄어요 · 잠시 뒤 다시 해 주세요';
 
@@ -900,4 +902,12 @@ function guestStateMsg({ now, playing, t, d, key, keyOk, queue, songOf, map, key
     now: now ? { title: guestCut(now.title, 80), artist: guestCut(now.artist, 60), kind: guestKind(now), playing: !!playing, t: Math.max(0, Math.round(t || 0)), d: Math.max(0, Math.round(d || 0)), key: key | 0, keyOk: !!keyOk } : null,
     q: queue.slice(0, GUEST_QUEUE_SHOW).map(row), rest: map.at.slice(GUEST_QUEUE_SHOW).filter(Boolean).map(r => r.rid), n: queue.length, keyOn: !!keyOn, yt: !!yt,
   };
+}
+// 손님 QR 그림 크기 (CR-228 L2): 칸 하나가 정수 px가 되게 그림 한 변(칸 수 + 여백 8칸) px의 배수로. target 안에서 가장 크게,
+// 그래도 min보다 작으면 min을 넘는 가장 작은 배수 (TV 카드 max(96px,16cqw), 시트 220px 칸)
+function qrFitPx(target, px, min = 0) {
+  if (!(px > 0) || !(target > 0)) return 0;
+  let k = Math.max(1, Math.floor(target / px));
+  if (k * px < min) k = Math.ceil(min / px);
+  return k * px;
 }

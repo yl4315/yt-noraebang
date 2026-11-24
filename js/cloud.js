@@ -240,7 +240,7 @@ function cloudErrText(e) {
   if (e.noClient) return '설정에서 Google 클라이언트 ID를 먼저 넣어 주세요';
   if (e.gisLoading) return 'Google 로그인 도구를 불러오는 중이에요. 잠시 후 다시 눌러 주세요';
   if (e.message === 'popup_failed_to_open') return '로그인 창이 막혔어요. 주소창의 팝업 차단 표시를 눌러 이 사이트를 허용한 뒤 다시 눌러 주세요';
-  if (e.message === 'popup_closed') return '로그인 창이 닫혔어요. 다시 눌러 끝까지 진행해 주세요. Google 화면에 "액세스 차단됨"이 보였다면 앱 등록 문제예요 (설정 → 클라이언트 ID 만드는 방법 3·5번)';
+  if (e.message === 'popup_closed') return '로그인 창이 닫혔어요. 다시 눌러 끝까지 진행해 주세요. Google 화면에 "액세스 차단됨"이 보였다면 앱 등록 문제예요 (설정 › 클라이언트 ID 만드는 방법 3·5번)';
   if (e.popup) return '로그인 창이 닫혔거나 막혔어요. 팝업을 허용하고 다시 눌러 주세요';
   if (e.message === 'access_denied') return '로그인을 허용하지 않았어요. 다시 눌러 Google 화면에서 "계속"과 "허용"을 눌러 주세요';
   if (e.needLogin) return 'Google 로그인이 필요해요. Drive 버튼을 눌러 다시 연결하세요';

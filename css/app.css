@@ -697,11 +697,11 @@ body:has(#tv.yt-mode:not([hidden])) .toast{left:14px;right:auto;transform:none;b
   .main #searchList .yt-thumb{width:96px;height:54px}
   .main #searchOv .ov-head .icon-btn{min-width:48px;min-height:48px;align-items:center;justify-content:center}
 }
-/* 자동 싱크 한 줄 (CR-227, 디자인 5-sync-line): S1 진행 막대 아래(무대 밖이라 TV에는 안 나옴) · S2 곡 수정 창 가사 칸 아래.
+/* 자동 맞추기 한 줄 (CR-227, 디자인 5-sync-line): S1 진행 막대 아래(무대 밖이라 TV에는 안 나옴) · S2 곡 수정 창 가사 칸 아래.
    글 12px 회색, 색은 14px 아이콘에만 (찾음 초록 · 불러옴 파랑 · 못 찾음 회색), [직접 맞추기]는 오른쪽 끝 */
 .sync-line{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:4px 0 0;font-size:12px;line-height:20px;color:var(--color-text-muted-strong,var(--muted))}
 .sync-line[hidden]{display:none}
-#syncTools:not(:has(> :not([hidden]))){display:none}   /* [자동 싱크]·[확인해 주세요]·[원곡 파일로 자동 싱크]가 다 숨으면 빈 줄도 숨김 */
+#syncTools:not(:has(> :not([hidden]))){display:none}   /* [자동 맞추기]·[확인해 주세요]·[원곡 파일로 자동 맞추기]가 다 숨으면 빈 줄도 숨김 */
 .sync-line svg{flex:none;width:14px;height:14px;color:var(--color-text-muted)}
 .sync-line[data-state=found] svg{color:var(--color-positive,#9CDCAE)}
 .sync-line[data-state=loaded] svg{color:var(--color-info)}
@@ -709,7 +709,7 @@ body:has(#tv.yt-mode:not([hidden])) .toast{left:14px;right:auto;transform:none;b
 .sync-line .sl-text{min-width:0}
 .sync-line .sl-act{margin-left:auto;padding:0 4px;background:none;border:0;font-size:12px;line-height:20px;font-weight:700;color:var(--color-text,var(--ink))}
 @keyframes sl-spin{to{transform:rotate(360deg)}}
-/* 원곡 파일로 자동 싱크 "집 AI가 맞추는 중" (CR-227 W8, 디자인 5-sync-line dots3): 점 3개가 차례로 밝아짐 */
+/* 원곡 파일로 자동 맞추기 "집 AI가 맞추는 중" (CR-227 W8, 디자인 5-sync-line dots3): 점 3개가 차례로 밝아짐 */
 .sync-line .sl-dots{display:inline-flex;gap:3px;align-items:center;flex:none;width:18px;height:14px}
 .sync-line .sl-dots i{width:4px;height:4px;border-radius:2px;background:var(--color-text-muted,var(--muted));animation:sl-dot 1.2s ease-in-out infinite}
 .sync-line .sl-dots i:nth-child(2){animation-delay:.2s}
@@ -718,6 +718,7 @@ body:has(#tv.yt-mode:not([hidden])) .toast{left:14px;right:auto;transform:none;b
 .sync-chk{color:var(--color-text,var(--ink))}
 .sync-chk::before{content:'';flex:none;width:6px;height:6px;border-radius:50%;background:var(--color-info)}
 @media (hover:none){.sync-line .sl-act{min-height:48px;margin:-14px 0 -14px auto}#syncLine2{margin-top:8px}}
+@media (hover:none){#syncTools .btn{min-height:48px}}   /* 폰: [자동 맞추기] 줄 손가락 자리 48 (디자인 kar-r1 R2) */
 @media (prefers-reduced-motion:reduce){.sync-line[data-state=busy] svg,.sync-line .sl-dots i{animation:none}}
 /* 허브 연결 (설정): 코드·메일·비밀번호 칸은 Drive 클라이언트 ID 칸과 같은 모양 */
 #hubSec .set-row input{flex:1;min-width:180px;background:var(--panel);border:1px solid transparent;border-radius:var(--r-in);padding:8px 10px;font-size:13px;color:var(--ink)}
@@ -726,9 +727,11 @@ body:has(#tv.yt-mode:not([hidden])) .toast{left:14px;right:auto;transform:none;b
 #hubLogin #hubEmail{flex-basis:100%}
 #hubLogin #hubPw{min-width:120px}
 @media (hover:none){#hubSec .btn,#hubSec .set-row input{min-height:48px}}
+#hubSec .hint{text-wrap:pretty}   /* 끝 한 단어만 다음 줄로 가지 않게 (디자인 kar-r1 R3, .ov-head .hint와 같은 방법) */
 /* 손님 방 (CR-228): 설정 "손님" 줄 · 손님 초대 QR 시트 (관리 화면 색) · TV 대기 화면 QR 카드 (무대 색 C1) */
 .guest-row{display:flex;align-items:center;gap:12px;width:100%;min-height:56px;padding:8px 12px;border:0;border-radius:var(--r-btn);background:var(--panel);color:var(--ink);text-align:left}
 .guest-row:hover{background:var(--hover)}
+#guestSec .guest-row,#guestSec .guest-row:hover{background:transparent;padding:0}   /* 설정 손님 칸은 한 겹 ("카드 안 카드" 빼기, 디자인 kar-r2 R1) */
 .guest-row-ico{width:36px;height:36px;border-radius:var(--radius-full);background:var(--panel-2);display:inline-flex;align-items:center;justify-content:center;flex:none}
 .guest-row-txt{flex:1;min-width:0;display:flex;flex-direction:column}
 .guest-row-txt b{font:var(--font-title-item)}
@@ -740,7 +743,7 @@ body:has(#tv.yt-mode:not([hidden])) .toast{left:14px;right:auto;transform:none;b
 .guest-head .icon-btn{font-size:18px;min-width:44px;min-height:44px;justify-content:center;align-items:center}
 #guestOff,#guestOnBox{display:flex;flex-direction:column;gap:10px}
 .guest-qr-box{align-self:center;width:220px;height:220px;border-radius:var(--radius-lg);background:#fff;overflow:hidden;display:flex;align-items:center;justify-content:center}
-.guest-qr-box img{width:220px;height:220px;image-rendering:pixelated;display:block}
+.guest-qr-box img{width:var(--qr-px,220px);height:var(--qr-px,220px);image-rendering:pixelated;display:block}   /* --qr-px: 칸당 정수 px (guesthost.js guestQrFit, CR-228 L2) */
 .guest-lead{margin:0;text-align:center;font:var(--font-body-small);color:var(--muted)}
 .guest-sw{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:56px;padding:6px 0;border-top:1px solid var(--line);cursor:pointer}
 .guest-sw>span{display:flex;flex-direction:column;min-width:0}
@@ -753,8 +756,8 @@ body:has(#tv.yt-mode:not([hidden])) .toast{left:14px;right:auto;transform:none;b
 .guest-count{margin:0;font:var(--font-body-small);color:var(--muted);border-top:1px solid var(--line);padding-top:12px}
 #guestOnBox .set-row .btn{min-height:44px}
 @media (prefers-reduced-motion:reduce){.guest-sw input,.guest-sw input::after{transition:none}}
-.guest-card{position:absolute;right:0;bottom:0;max-width:42%;display:flex;align-items:center;gap:.8em;padding:.7em .9em;border-radius:.6em;background:rgba(19,25,56,.94);border:1px solid var(--line);overflow:hidden}
-.guest-card-qr{width:max(96px,16cqw);height:max(96px,16cqw);image-rendering:pixelated;border-radius:.3em;background:#fff;flex:none}
+.guest-card{position:absolute;right:0;bottom:0;max-width:42%;display:flex;align-items:center;gap:.8em;padding:.7em .9em;border-radius:.6em;background:var(--panel);border:1px solid var(--line);overflow:hidden}   /* 바탕은 무대 패널 색 하나 (C1, CR-228 L8) */
+.guest-card-qr{width:var(--qr-px,max(96px,16cqw));height:var(--qr-px,max(96px,16cqw));image-rendering:pixelated;border-radius:.3em;background:#fff;flex:none}
 .guest-card-txt{display:flex;flex-direction:column;gap:.25em;min-width:0;font-size:.8em;line-height:1.35}
 .guest-card-txt b{font-size:1.15em;color:var(--ink)}
 .guest-card-txt span{color:var(--muted)}
@@ -766,3 +769,11 @@ body:has(#tv.yt-mode:not([hidden])) .toast{left:14px;right:auto;transform:none;b
 .tv-idle.guest-on .best ol li:only-child{white-space:normal}
 .idle-q .t small.who{color:var(--cyan)}
 @media (hover:none){.guest-card-txt .btn{min-height:44px}}
+/* 키가 낮은 TV 화면(높이 480 이하, 폰 가로 915×412 등): 카드가 시계·팁·점수를 덮어서 카드 대신 "손님 QR: 설정 › 손님" 한 줄만 (CR-228 L1) */
+.guest-card-mini{display:none}
+@media (max-height:480px){
+  .tv .guest-card{padding:.3em .7em;border-radius:.5em}
+  .tv .guest-card>:not(.guest-card-mini){display:none!important}
+  .tv .guest-card-mini{display:block;font-size:.75em;line-height:1.4;color:var(--muted);white-space:nowrap}
+  .tv .guest-card-mini b{color:var(--ink);font-weight:700}
+}

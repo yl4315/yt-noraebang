@@ -89,7 +89,7 @@ npm run test:ui                  # 화면 자동 점검: 헤드리스 Edge가 �
 | `js/hub.js` | 허브 연결(CR-227): 설정 창 "허브 연결" 칸(코드·로그인·끊기), 곡 설정 보내기·받기(`hubSync`), 허브 열쇠 칸 읽기(`hubYoutubeKey`) |
 | `js/guesthost.js` | 손님 방 방장 쪽(CR-228): 설정 "손님" 줄·손님 초대 QR 시트·TV 대기 카드, 허브 Realtime 공개 broadcast 방 열기·닫기, 손님 메시지 처리 (`hub.js` 다음) |
 | `js/vendor/toqr-0.1.1.mjs` | **남의 라이브러리 그대로** (toqr, MIT, `block-calendar` node_modules 사본). 손님 QR 그림만 `import()`로 씀. 고치지 않는다 |
-| `js/autosync.js` | 무대 "자동 싱크"(LRCLIB `/api/get` → 검색), 싱크 한 줄, "자동 싱크 · 확인해 주세요" |
+| `js/autosync.js` | 무대 [자동 맞추기](LRCLIB `/api/get` → 검색), 싱크 한 줄, [자동 맞춤 · 확인해 주세요] (코드 이름·id는 옛 `sync` 그대로) |
 | `js/yt.js` | 유튜브 곡 (CR-030): 공식 IFrame 플레이어, 검색 창 [유튜브 노래방 검색] 탭(링크·열쇠 검색·열어 찾기), 폰 [공유] 받기, 재생 못 함·눌러서 시작 안내, TV 유튜브 띠. `main.js` 바로 앞 |
 | `js/main.js` | 메인 루프, 앱 시작 (항상 마지막) |
 | `remote.html` | 휴대폰 리모컨 화면 (따로 동작, `remote.webmanifest`로 홈 화면 아이콘) |
@@ -168,13 +168,13 @@ npm run test:ui                  # 화면 자동 점검: 헤드리스 Edge가 �
   - 다른 창이 열려 있거나 TV·싱크 편집 중이면 `nack busy` + 알림 (열린 창·입력은 그대로).
 - 받은 파일은 `openBulk(files, note)` 그대로 (둘째 인자 = 안내 줄 "MR 만들기로 만든 곡 N개예요…", 없으면 예전과 같다). 곡 저장 구조·`SONG_FIELDS`는 안 바꾼다.
 - 서버 주소 (CR-231): **코드·문서·테스트에 집 AI 주소를 적지 않는다** (짧은 기계 이름·tailnet 이름·IP 모두. 공개 저장소). `MR_DEFAULT_SERVER`는 `''`. 예시는 `http://(집 AI 이름):8765`, 테스트는 `*.example.test` 같은 가짜 이름만.
-  - 쓰는 차례 (`core.js mrServerPick`): ① 이 기기 `nb-mrserver` ② 허브 열쇠 칸 `hub_secret('noraebang','mr_server')` (로그인한 뒤 한 번 읽어 메모리 `Hub.mrServer`, `hub.js hubMrServer`) ③ 없음 → [MR 만들기]·[원곡 파일로 자동 싱크]가 창을 열지 않는다. 곡 목록 안내는 짧은 `MR_NOSERVER_SHORT` + [주소 넣기](`#mrGo`, 설정 창 주소 칸으로), 자동 싱크 줄은 단추가 없어 길이 든 `MR_NOSERVER_TEXT`.
+  - 쓰는 차례 (`core.js mrServerPick`): ① 이 기기 `nb-mrserver` ② 허브 열쇠 칸 `hub_secret('noraebang','mr_server')` (로그인한 뒤 한 번 읽어 메모리 `Hub.mrServer`, `hub.js hubMrServer`) ③ 없음 → [MR 만들기]·[원곡 파일로 자동 맞추기]가 창을 열지 않는다. 곡 목록 안내와 싱크 한 줄 모두 짧은 `MR_NOSERVER_SHORT` + [주소 넣기](곡 목록 `#mrGo`, 싱크 줄은 `info.go` → 곡 수정 창이 열려 있으면 닫고 `mrGoSettings`). 길이 든 `MR_NOSERVER_TEXT`(설정 › 더 보기 (고급) › …)는 기록·시험용으로 남김.
   - 허브 값이 왔는데 이 기기에 값이 없으면 `mrHubValueOk`(=`normalizeMrServer`)가 맞을 때만 이 기기에도 저장 (`mrHubFill`). 틀린 값은 버린다.
   - 설정 창 [저장]: 언제나 이 기기에 저장 + 허브에 로그인해 있으면 `hub_secret_set`도 (`hubMrServerSet` → ok·off·fail, 안내 `MR_SAVE_TEXT`). 허브만 실패하면 이 기기 값은 그대로 두고 허브만 못 넣었다고. 빈 칸 저장 = [이 기기에서 지우기] = 이 기기 값만 지움 (허브 값을 지우는 단추는 없다).
   - 로그아웃·연결 끊기·허브 바꾸기는 메모리 값만 지운다 (`hubForgetMrServer`, 이 기기 `nb-mrserver`는 그대로). 손님 화면(guest.html)은 hub.js·mr.js를 안 불러온다.
   - 주소는 설정 칸에만 보인다: 콘솔·Drive `library.json`·백업 파일·허브 곡 기록에 넣지 않는다.
   - Drive `library.json`·백업 파일에 넣지 않는다.
-- 10초(`MR_HELLO_MS`) 안에 창이 `hello`를 안 하면 "못 닿았어요" + [다시 해보기]. 이어진 창이 열려 있으면 다시 누를 때 새로 열지 않는다 (올리는 중인 곡이 끊기지 않게).
+- 10초(`MR_HELLO_MS`) 안에 창이 `hello`를 안 하면 "못 닿았어요" + [다시 해 보기]. 이어진 창이 열려 있으면 다시 누를 때 새로 열지 않는다 (올리는 중인 곡이 끊기지 않게).
 - 화면 점검은 `tests/ui/fake-mr/index.html`(가짜 창, 다른 포트)과 `checks/mr.mjs`. 진짜 창의 진행·실패 안내(U4·U5)는 yena-mr 저장소 시험이 본다.
 
 ## 허브 연결 (`js/hub.js`, CR-227)
@@ -184,29 +184,30 @@ npm run test:ui                  # 화면 자동 점검: 헤드리스 Edge가 �
   - 받는 값 검사(`hubCodeParse`·`hubPairOk`, core.js): 주소는 `https://<소문자·숫자 20자>.supabase.co`, 키는 공개 키(anon JWT·`sb_publishable_`)만. `sb_secret_`·service_role은 거절.
   - 주소 `#hub=nbhub1.…`로 열면 저장하고 `history.replaceState`로 `#`을 지운다 (hub.js 맨 위, 다른 화면 그리기 전에).
 - 곡 열쇠 `songSettingsKey`: MR 곡 = 파일 내용 SHA-256 앞 40자 `mr-…`(곡에 `mrHash`·`mrHashSize`로 한 번만 계산), 유튜브 곡 = `yt-<영상번호>`. 제목·가수는 열쇠가 아니다. **MR 소리 파일은 허브에 올리지 않는다.**
-- 곡에 더한 칸(IndexedDB에만, `SONG_FIELDS`·Drive에는 안 넣음): `mrHash`·`mrHashSize` · `baseKey`(곡 기본 키) · `syncChk`(자동 싱크 확인 표시) · `settingsAt`(설정 고친 시각) · `hubK`·`hubSig`·`hubAt`(허브와 맞춘 표시) · `hubRej`(너무 커서 못 보냄).
+- 곡에 더한 칸(IndexedDB에만, `SONG_FIELDS`·Drive에는 안 넣음): `mrHash`·`mrHashSize` · `baseKey`(곡 기본 키) · `syncChk`(자동 맞춤 확인 표시) · `settingsAt`(설정 고친 시각) · `hubK`·`hubSig`·`hubAt`(허브와 맞춘 표시) · `hubRej`(너무 커서 못 보냄).
 - 합치기는 core.js `hubPlan`(나중 시각이 곡 통째로 이김, 지움은 표시만) · `hubMirrorAdd`(받은 줄 사본). 허브 사본은 IndexedDB `cache`의 `hub-songs` 한 줄.
-- 설정을 고치는 곳은 `hubTouch(s)`를 부른다 (가사 타이밍·키·싱크 편집 저장·곡 수정·여러 곡 넣기·자동 싱크). 3초 뒤 맞추기, 1분마다(앞에 있을 때)·앞으로 올 때·인터넷이 돌아올 때도. 실패하면 5분 쉼.
+- 설정을 고치는 곳은 `hubTouch(s)`를 부른다 (가사 타이밍·키·싱크 편집 저장·곡 수정·여러 곡 넣기·자동 맞추기). 3초 뒤 맞추기, 1분마다(앞에 있을 때)·앞으로 올 때·인터넷이 돌아올 때도. 실패하면 5분 쉼.
 - 키 두 층: 사용자별 키(`me().keys`)가 이기고, 없으면 허브를 쓸 때만 곡 기본 키(`keyOf`).
 - 허브 코드가 없으면(`nb-hub` 없음) 요청·타이머 0, 지금과 똑같이 돈다 (W12). 허브 함수를 다른 파일에서 부를 때는 `typeof … === 'function'`.
 - 허브 열쇠 칸(YouTube 검색 열쇠)은 `hubYoutubeKey()` 읽기 하나: 로그인 뒤 한 번 읽어 **메모리에만**, `ytSetKey`(CR-030 `yt.js`)가 있으면 넘긴다. 로그아웃·끊기에서 지운다.
 - **CSP** (`index.html` `<meta>`): `script-src`·`connect-src`만 정한다. 새 바깥 주소(스크립트·fetch)를 쓰면 여기에 더한다. 지금: Google 로그인·Drive, cdnjs(QR), YouTube, LRCLIB, `*.supabase.co`(허브·손님 방 Realtime `wss`). 손님 화면 `guest.html`은 따로 CSP (아래 "손님 방"). 허브·LRCLIB·사용자 글은 `textContent`로만 넣는다.
 
-## 자동 싱크 (`js/autosync.js`, CR-227 1단계)
+## 자동 맞추기 (`js/autosync.js`, CR-227 1단계 · 화면 말은 CR-236에서 "싱크" → "맞추기·시각")
 
 - LRCLIB에는 **곡 제목·가수(첫 이름)·MR 길이만** 보낸다 (`lrclibGetParams`). 덧붙이는 머리글 없음 (CORS 미리 묻기가 생김).
 - 길이: MR 파일 → 없으면 유튜브 곡은 영상 길이 `s.ytDur` (플레이어가 알려 준 값). 그래서 유튜브 곡도 MR 곡과 같은 길이 규칙(3초 안)이 돈다. 영상 길이를 아직 모르면 길이 없이 보낸다 (그때는 `/api/get` 답을 길이 비교 없이 받음).
 - 정확히 한 곡 찾는 `/api/get` 먼저 → 없거나(404) 맞지 않으면 곡 추가 창과 같은 `findLyrics`(검색) + `chooseLyrics`. 고르는 규칙은 core.js `autoSyncPick`.
-- 연주곡(`instrumental`)이면 가사를 넣지 않고 안내만. 찾으면 `syncChk`를 켜고 "자동 싱크 · 확인해 주세요" 단추 → 가사 맞추기(싱크 편집기)에서 저장하거나 가사를 손으로 고치면 `clearSyncCheck`.
-- [자동 싱크]·[확인해 주세요]·[원곡 파일로 자동 싱크](`#alignBtn`, 끝)는 아래 조작부 `#syncTools` 한 줄: 접힌 "가사 맞추기 ›"(`#lyrFold`) 밖이라 고급을 꺼도 보인다. 세 단추가 다 숨으면 줄도 숨는다 (`css/app.css` `#syncTools`).
-- 싱크 한 줄(`#syncLine` 무대 아래, `#syncLine2` 곡 수정 창): 찾음 / 불러옴(다른 기기) / 못 찾음 [직접 맞추기] / 집 AI가 맞추는 중 [그만두기] / 집 AI 오류 글.
+- 연주곡(`instrumental`)이면 가사를 넣지 않고 안내만. 찾으면 `syncChk`를 켜고 [자동 맞춤 · 확인해 주세요] 단추 → 가사 맞추기(싱크 편집기)에서 저장하거나 가사를 손으로 고치면 `clearSyncCheck`.
+- [자동 맞추기](`#autoSyncBtn`)·[자동 맞춤 · 확인해 주세요](`#syncChkBtn`)·[원곡 파일로 자동 맞추기](`#alignBtn`, 끝)는 아래 조작부 `#syncTools` 한 줄: 접힌 "가사 맞추기 ›"(`#lyrFold`) 밖이라 고급을 꺼도 보인다. 세 단추가 다 숨으면 줄도 숨는다 (`css/app.css` `#syncTools`, 손가락 화면(`hover:none`)에서는 단추 높이 48px).
+- 화면에 남은 "싱크"는 녹음 쪽만 (녹음 싱크·`싱크·믹스 조절`·녹음 기본 싱크). 가사 쪽은 "맞추기"·"가사 시각"으로 쓴다 (토스트 "가사 시각을 저장했어요", 곡 추가 창 태그 "시각 있음").
+- 싱크 한 줄(`#syncLine` 무대 아래, `#syncLine2` 곡 수정 창): 찾음 / 불러옴(다른 기기) / 못 찾음 [직접 맞추기] / 집 AI가 맞추는 중 [그만두기] / 집 AI 오류 글 (CR-236 W7 R2: 폰 412에서도 단추와 한 줄). 오류 단추는 `alignInfo`: 목소리 없음·소리 파일 아님 = [다른 파일로](`info.again`, 곡 수정 창이면 `#alignBtn2`, 무대면 `alignStart`) · 서버 주소 없음 = [주소 넣기](`info.go`) · 그 밖 = [직접 맞추기].
 
 ## 집 AI 가사 정렬 (CR-227 2단계 W7·W8, `js/mr.js`·`js/autosync.js`·`js/bulk.js`)
 
 - 노래방은 여전히 서버에 요청하지 않는다. 정렬도 MR 만들기 창(yena-mr `web/index.html`)이 하고, 노래방은 `postMessage`로 가사를 주고 결과만 받는다. 받는 모양 검사는 `core.js mrMessageOk` (`files.lrc`·`lyrics_req`·`aligned`·`hello.caps`), 넣을 곡 가사는 `mrLyricsFor`·`alignLyricsText`, 오류 글은 `ALIGN_ERR_TEXT` (yena-mr `app/errors.py`와 같은 뜻).
 - W7 (MR 만들 때 같이): 창의 `lyrics_req`에 곡마다 답한다 (`mrAnswerLyrics`) — 노래방에 같은 곡(제목·가수)이 있으면 그 가사, 없으면 LRCLIB `/api/get`(제목·가수·길이만, 8초). 시각이 이미 있으면 `synced:true`(글 안 보냄, 창이 맞추지 않음). `files.lrc`는 여러 곡 넣기 창에서 보통·높음 = `✔ 집 AI 시각 · 확인해 주세요`(W9 표시 `syncChk`) · 낮음 = 후보로만.
-- W8 (원곡 파일로 자동 싱크): 무대(`#syncTools`, 시각 없음·확인 표시 곡)·곡 수정 창(가사가 있는 곡) 단추 → `alignStart`가 클릭 안에서 같은 이름 창 `yena-mr`을 열고 `hello` 뒤 `align_req`. 기다리는 요청은 `Align.want` (창이 다시 인사하면 다시 보냄, 창은 같은 곡을 한 줄로). 10초 안에 인사가 없거나 인터넷이 없으면 "집 AI에 닿지 않아요 · 집에 가면 다시 해요".
-- 결과 넣기는 `alignApply`: `level` low → "가사 시각이 많이 틀릴 수 있어요. 넣을까요?", 이미 시각 있는 가사 → "이미 시각이 있는 가사예요. 바꿀까요?" (둘 다 처음 초점·Esc = 넣지 않기). 넣으면 `syncChk` + `hubTouch` (허브 길 그대로). 맞추는 사이 가사를 고쳤으면 넣지 않고 `ack{n:0}`. 다른 창이 열려 있으면 `nack busy`.
+- W8 (원곡 파일로 자동 맞추기): 무대(`#syncTools`, 시각 없음·확인 표시 곡)·곡 수정 창(가사가 있는 곡) 단추 → `alignStart`가 클릭 안에서 같은 이름 창 `yena-mr`을 열고 `hello` 뒤 `align_req`. 기다리는 요청은 `Align.want` (창이 다시 인사하면 다시 보냄, 창은 같은 곡을 한 줄로). 10초 안에 인사가 없거나 인터넷이 없으면 "집 AI에 닿지 않아요 · 집에 가면 다시 해요".
+- 결과 넣기는 `alignApply`: `level` low → "가사 시각이 많이 틀릴 수 있어요. 넣을까요?", 이미 시각 있는 가사 → "이미 시각이 있는 가사예요. 바꿀까요?" (둘 다 처음 초점·Esc = 넣지 않기). 낮음을 넣지 않으면 그 결과를 **이 화면 메모리에만** 둔다 (`AutoSync.dropped`, 곡 id → `{lrc, level, base}`; IndexedDB·허브·백업·Drive에 안 넣음, 새로 고치면 사라짐, CR-236 W7 R5). 그 곡의 수정 창을 열면 가사 후보에 "집 AI" 한 줄로 보이고, 고른 뒤 저장하면 `syncChk` (`alignDropTaken`). 가사가 그 사이 바뀌었으면(`base` 다름) 후보를 버린다. 넣으면 `syncChk` + `hubTouch` (허브 길 그대로). 맞추는 사이 가사를 고쳤으면 넣지 않고 `ack{n:0}`. 다른 창이 열려 있으면 `nack busy`.
 - 화면 점검: `tests/ui/checks/align.mjs` + 가짜 창 `tests/ui/fake-mr/index.html` (caps·aligned 흉내). 진짜 창 쪽은 yena-mr `tools/w7_check.py`.
 
 ## 손님 방 (`js/guesthost.js` · `guest.html`, CR-228)
@@ -221,8 +222,8 @@ npm run test:ui                  # 화면 자동 점검: 헤드리스 Edge가 �
 - 방을 닫는 때: [방 닫기] · [새 QR 만들기](새 방) · 노래방 화면 닫기(`pagehide`) · 허브 연결 끊기·바꾸기(`guestTick`이 1초마다 `Hub.sb`를 봄). 닫으면 손님에게 `closed`를 보내고 방 이름·손님 이름·예약 표를 메모리에서도 지운다.
 - 예약 목록의 손님 이름은 `guestNickAt(i)`(karaoke.js `renderQueue`·`renderQueueList`가 `typeof`로 부름). 방이 닫혀 있으면 ''.
 - 이 기기 설정: `nb-guest-tv`(`'0'` = TV에 QR 안 보임) · `nb-guest-key`(`'0'` = 손님 키 바꾸기 끔). 기본은 둘 다 켬이라 키를 안 만든다.
-- TV 대기 카드 `#guestCard`: 방이 열려 있으면 QR(`#tvIdle.guest-on`이면 옛 리모컨 안내 `#remoteInfo`는 숨김), 닫혀 있으면 허브가 있을 때만 [손님 QR 켜기]. 카드가 보이면 점수 칸은 시계 옆(`.idle-right>.best` 1행 2열)·팁은 고급이어도 한 줄, QR은 `max(96px,16cqw)` (디자인 확인 CR-228 #1~#3). `server.py` 휴대폰 리모컨(N1~N21)은 그대로.
-- 손님 화면 CSP는 `guest.html` `<meta>`에 따로: `default-src 'none'`, 스크립트·스타일은 `'self'`, 바깥은 `https://*.supabase.co`·`wss://*.supabase.co`만. `sw.js`는 손님 파일도 저장하지만(`SHELL` v12) 허브 요청은 저장하지 않는다.
+- TV 대기 카드 `#guestCard`: 방이 열려 있으면 QR(`#tvIdle.guest-on`이면 옛 리모컨 안내 `#remoteInfo`는 숨김), 닫혀 있으면 허브가 있을 때만 [손님 QR 켜기]. 카드가 보이면 점수 칸은 시계 옆(`.idle-right>.best` 1행 2열)·팁은 고급이어도 한 줄, QR은 `max(96px,16cqw)` (디자인 확인 CR-228 #1~#3). QR 이미지는 1칸 = 1px로 그리고(`guestQrMake` → `Guest.qrPx`), 보이는 크기는 `guestQrFit`가 그 배수로 내린다 (core.js `qrFitPx`, 카드는 최소 96px라 모자라면 한 배 위로, 창 `#guestQrImg`는 220px 안). 낮은 화면(높이 480px 이하)에서는 카드가 한 줄 `#guestCardMini` "손님 QR: 설정 › 손님"만 (CR-228 L1). 카드 바탕은 `--panel` (L8). `server.py` 휴대폰 리모컨(N1~N21)은 그대로.
+- 손님 화면 CSP는 `guest.html` `<meta>`에 따로: `default-src 'none'`, 스크립트·스타일은 `'self'`, 바깥은 `https://*.supabase.co`·`wss://*.supabase.co`만. `sw.js`는 손님 파일도 저장하지만(`SHELL` v13) 허브 요청은 저장하지 않는다.
 - 알려진 한계: 공개 broadcast라 방 이름을 아는 손님은 방장 답(`h`)을 흉내 낼 수 있다 (다른 손님 화면에 가짜 `closed`·목록). 손님 화면은 `textContent`로만 넣어서 스크립트는 못 넣는다.
 
 ## 녹음 구조

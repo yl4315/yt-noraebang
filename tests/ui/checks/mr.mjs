@@ -90,7 +90,7 @@ export default async function mr(ctx) {
       if (sp) ctx.log(`  사진 U1-MR-주소없음-안내-폰412-다크.png (글 ${lay.lines}줄 · [주소 넣기] 높이 ${lay.goH} · 화면 폭 ${lay.sw})`);
     } finally { await p.media([]); await p.emulate(size0); await sleep(250); }
     ok('U1', m.cur === '' && m.shown && m.text === m.want && !m.retry && m.go && m.goTxt === '주소 넣기' && !m.win && n1 === n0,
-      `주소 없음 → 창 ${n1 - n0}개 열림 · "${m.text}" + [${m.goTxt}] ([다시 해보기] ${m.retry ? '보임' : '숨김'})`);
+      `주소 없음 → 창 ${n1 - n0}개 열림 · "${m.text}" + [${m.goTxt}] ([다시 해 보기] ${m.retry ? '보임' : '숨김'})`);
     // [주소 넣기]: 고급이 꺼진 화면에서 눌러도 → 설정 창 + 고급 켬 + 주소 칸 펴고 초점 (사람이 누르는 길과 같음)
     await p.eval('applyAdv(false)');
     await p.click('#mrGo'); await sleep(400);
@@ -98,9 +98,9 @@ export default async function mr(ctx) {
     ok('U1', g.dlg && g.adv && g.ls === '1' && g.addr && g.focus && g.val === '' && !g.msg,
       `[주소 넣기] → 설정 창 ${g.dlg ? '열림' : '안 열림'} · 고급 ${g.adv ? '켬' : '꺼짐'} · 주소 칸 ${g.addr ? '펴짐' : '접힘'} · 초점 ${g.focus ? '칸' : '다른 곳'} · 빈 칸`);
     await p.click('#cloudClose');
-    // 자동 싱크(정렬) 길: 창을 열지 않고, 단추가 없으니 길이 든 글(MR_NOSERVER_TEXT), [직접 맞추기] 없음. 단추로 여는 것은 align.mjs(W8)가 본다
-    const al = await p.eval(`(()=>{ const info=alignInfo('alignfail','noserver'); return {text:info.text, fix:info.fix, want:MR_NOSERVER_TEXT}; })()`);
-    ok('U1', al.text === al.want && al.fix === false, `자동 싱크 이유 noserver → "${al.text}" ([직접 맞추기] ${al.fix ? '있음' : '없음'})`);
+    // 자동 맞추기(정렬) 길: 창을 열지 않고, 곡 목록과 같은 짧은 글(MR_NOSERVER_SHORT) + [주소 넣기] (CR-236 W7 R6), [직접 맞추기] 없음. 단추로 여는 것은 align.mjs(W8)가 본다
+    const al = await p.eval(`(()=>{ const info=alignInfo('alignfail','noserver'); return {text:info.text, fix:info.fix, go:info.go, want:MR_NOSERVER_SHORT}; })()`);
+    ok('U1', al.text === al.want && al.fix === false && al.go === true, `자동 맞추기 이유 noserver → "${al.text}" + [주소 넣기] ([직접 맞추기] ${al.fix ? '있음' : '없음'})`);
   });
 
   await step('설정 창 서버 주소 칸: 처음엔 빈 칸(코드에 주소 없음)·틀린 주소 안내·저장(이 기기, 끝 / 뗌)·[이 기기에서 지우기]·빈 칸 저장 = 지움·저장 안 하고 닫기·안내 줄', ['U3'], async () => {
@@ -128,7 +128,7 @@ export default async function mr(ctx) {
     await p.click('#cloudClose');
     ok('U3', lay.i > 0 && lay.prev === '백업 파일' && lay.next === '옛 휴대폰 리모컨 (PC에서 켰을 때만 보여요)' && lay.val === '' && lay.ph === 'http://(집 AI 이름):8765'
       && lay.sum === '서버 주소 넣기·바꾸기' && lay.reset === '이 기기에서 지우기'
-      && lay.hints.includes("주소창에 '안전하지 않음'이 보여도 집 Tailscale 안에서만 열리는 창이에요") && lay.hints.includes('이 기기에 저장돼요. 허브에 로그인해 있으면 허브에도 넣어서 내 다른 기기도 같이 써요. 집 밖에서는 Tailscale을 켜 주세요.'),
+      && lay.hints.includes("주소창에 '안전하지 않음'이 보여도 집 Tailscale 안에서만 열리는 창이에요") && lay.hints.includes('이 기기에 저장돼요. 허브에 로그인해 있으면 내 다른 기기도 같이 써요. 집 밖에서는 Tailscale을 켜 주세요.'),
       `칸 자리 "${lay.prev}" 아래·"${lay.next}" 위, 처음 값 "${lay.val}"(빈 칸) · 예시 "${lay.ph}" · [${lay.reset}] · 안내 ${lay.hints.length}줄`);
     ok('U3', bad1.ls === null && bad1.err && bad1.msg === '주소는 http:// 또는 https://로 시작해야 해요 (예: http://(집 AI 이름):8765)' && bad2.ls === null && bad2.err && /@/.test(bad2.msg),
       `틀린 주소는 저장 안 함: "${bad1.msg}" · "${bad2.msg}"`);
@@ -192,7 +192,7 @@ export default async function mr(ctx) {
     await closePopups(ctx, FAKE);      // 노래방을 새로고침하면 Mr.win을 잃는다: 창도 닫는다
   });
 
-  await step('못 열 때 안내: 팝업 막힘 · 10초 안에 인사 없음 → [다시 해보기] · 인터넷 끊김이면 창을 열지 않음', ['U2'], async () => {
+  await step('못 열 때 안내: 팝업 막힘 · 10초 안에 인사 없음 → [다시 해 보기] · 인터넷 끊김이면 창을 열지 않음', ['U2'], async () => {
     await p.eval(`window.__wo = window.open; window.open = () => null`);
     await p.click('#mrBtn');
     const blocked = await msgState(p);
@@ -209,12 +209,12 @@ export default async function mr(ctx) {
     const sec = (Date.now() - t0) / 1000;
     const late = await msgState(p);
     ok('U2', !early.shown && shown && sec >= 9.5 && late.text === '⟳ 집 AI 서버에 못 닿았어요 · Tailscale이 켜져 있는지 확인해 주세요' && late.retry && await p.eval('MR_HELLO_MS') === 10000,
-      `인사 없음 → ${sec.toFixed(1)}초 뒤 "${late.text}" + [다시 해보기] (3초엔 안내 없음)`);
-    // 주소를 고치고 [다시 해보기] → 이어지면 안내가 사라짐
+      `인사 없음 → ${sec.toFixed(1)}초 뒤 "${late.text}" + [다시 해 보기] (3초엔 안내 없음)`);
+    // 주소를 고치고 [다시 해 보기] → 이어지면 안내가 사라짐
     await p.eval(`localStorage.setItem('nb-mrserver', ${q(FAKE)})`);
     await p.click('#mrRetry');
     const again = await p.until(`Mr.linked && document.querySelector('#mrMsg').hidden`, 8000);
-    ok('U2', again && await popups(ctx, FAKE) === 1, '[다시 해보기] → 같은 창(yena-mr)이 다시 열려 이어지고 안내가 사라짐');
+    ok('U2', again && await popups(ctx, FAKE) === 1, '[다시 해 보기] → 같은 창(yena-mr)이 다시 열려 이어지고 안내가 사라짐');
     await closePopups(ctx, FAKE);
 
     // 인터넷 끊김: 창을 열지 않고 안내만 (앱 화면은 그대로)

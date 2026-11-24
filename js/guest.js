@@ -39,16 +39,18 @@
     noqr: { icon: 'qr', big: 'QR을 다시 찍어 주세요', body: '이 주소로는 방에 들어갈 수 없어요.', meta: 'TV나 방장 화면에 나온 QR을 폰 카메라로 찍어 주세요', conn: '연결 안 됨' },
     closed: { big: '방이 닫혔어요', body: '방장이 노래방을 끝냈어요.\n다시 하려면 TV에 나온 새 QR을 찍어 주세요.', meta: '이 폰에 남은 기록은 없어요', conn: '연결 끊김' },
     lost: { big: '방에 붙지 못했어요', body: '인터넷이 끊겼거나 QR이 오래됐어요.', retry: true, conn: '연결 안 됨' },
-    full: { big: '방이 꽉 찼어요', body: '손님은 6명까지 들어올 수 있어요.\n누가 나가면 다시 해 보세요.', retry: true, conn: '연결 안 됨' },
+    full: { big: '방이 꽉 찼어요', body: '손님은 6명까지 들어올 수 있어요.\n누가 나가면 다시 해 보세요.', retry: true, retryMeta: '자리가 나면 다시 찍어 주세요', conn: '연결 안 됨' },   // retryMeta: CR-228 L7
   };
   function setConn(on, text) {
     $('#conn').classList.toggle('off', !on);
     $('#connTxt').textContent = text || (on ? '방에 연결됨' : '연결 안 됨');
   }
+  const RETRY_META = $('#retryMeta').textContent;   // guest.html 기본 "그래도 안 되면 TV의 QR을 다시 찍어 주세요"
   function show(p, busy) {
     phase = p;
     const m = MSG[p];
     $('#scrMsg').hidden = !m; $('#msgFoot').hidden = !(m && m.retry);
+    $('#retryMeta').textContent = (m && m.retryMeta) || RETRY_META;   // 다시 하기 밑 한 줄: 방이 꽉 참만 다른 말
     $('#scrJoin').hidden = p !== 'join'; $('#scrMain').hidden = p !== 'main';
     if (p !== 'main') $('#toast').hidden = true;
     if (m) {

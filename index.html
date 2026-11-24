@@ -52,7 +52,7 @@
         <button class="btn primary" id="addSongBtn" type="button">+ 곡 추가 (MR 업로드)</button>
         <button class="btn mr-btn" id="mrBtn" type="button" title="집 AI 서버가 노래 파일에서 목소리를 빼 MR을 만들어요">내 노래 파일에서 MR 만들기</button>
         <button class="btn yt-add-btn" id="ytAddBtn" type="button" title="유튜브 노래방 영상을 링크로 곡 목록에 넣어요 (곡 검색의 [유튜브 노래방 검색] 탭)">유튜브 곡 넣기</button>
-        <p class="mr-msg" id="mrMsg" role="status" hidden><span id="mrMsgTxt"></span><button class="btn small" id="mrRetry" type="button" hidden>다시 해보기</button><button class="btn small" id="mrGo" type="button" hidden>주소 넣기</button></p>
+        <p class="mr-msg" id="mrMsg" role="status" hidden><span id="mrMsgTxt"></span><button class="btn small" id="mrRetry" type="button" hidden>다시 해 보기</button><button class="btn small" id="mrGo" type="button" hidden>주소 넣기</button></p>
         <button class="btn small miss-btn" id="missBtn" type="button" hidden title="가사가 없는 곡의 가사를 한꺼번에 찾아요">가사 없음 · 찾기</button>
         <ul class="list" id="songList"></ul>
         <p class="hint">MR 파일(mp3, m4a, wav, mp4 등)과 가사를 넣으면 곡이 추가돼요. MR을 여러 개 고르면 한 번에 넣고 가사도 찾아 줘요 (PC에서는 여기로 끌어다 놓아도 돼요). 곡은 이 기기에 저장되고, Drive에 연결하면 다른 기기와 맞춰져요.</p>
@@ -114,6 +114,7 @@
             <div class="remote-info" id="remoteInfo" hidden></div>
           </div>
           <div class="guest-card" id="guestCard" hidden>
+            <span class="guest-card-mini" id="guestCardMini"><b>손님 QR</b>: 설정 › 손님</span>
             <img class="guest-card-qr" id="guestCardQr" alt="손님 초대 QR" width="132" height="132" hidden>
             <div class="guest-card-txt">
               <b>손님 리모컨</b>
@@ -260,11 +261,11 @@
             <button class="btn small" id="syncBtn" type="button" title="노래를 들으며 가사 시각을 직접 맞춰요">가사 맞추기</button>
           </div>
           </div>
-          <!-- 자동 싱크 (CR-227): 접힌 "가사 맞추기 ›" 밖에 둬서 고급을 꺼도 보임. [자동 싱크]·[확인해 주세요]·[원곡 파일로 자동 싱크]가 다 숨으면 줄도 숨음 (css #syncTools) -->
+          <!-- 자동 맞추기 (CR-227, 화면 말은 CR-236): 접힌 "가사 맞추기 ›" 밖에 둬서 고급을 꺼도 보임. [자동 맞추기]·[확인해 주세요]·[원곡 파일로 자동 맞추기]가 다 숨으면 줄도 숨음 (css #syncTools) -->
           <div class="lyr-tools" id="syncTools">
-            <button class="btn small" id="autoSyncBtn" type="button" hidden title="곡 제목·가수·길이로 LRCLIB에서 시각 붙은 가사를 찾아요">자동 싱크</button>
-            <button class="btn small sync-chk" id="syncChkBtn" type="button" hidden title="자동으로 넣은 가사 시각이에요. 가사 맞추기에서 확인하고 저장하면 사라져요">자동 싱크 · 확인해 주세요</button>
-            <button class="btn small" id="alignBtn" type="button" hidden title="목소리가 있는 원곡 파일을 집 AI가 듣고 이 곡 가사에 시각을 맞춰요 (MR 만들기 창에서 파일을 골라요)">원곡 파일로 자동 싱크</button>
+            <button class="btn small" id="autoSyncBtn" type="button" hidden title="곡 제목·가수·길이로 LRCLIB에서 시각 붙은 가사를 찾아요">자동 맞추기</button>
+            <button class="btn small sync-chk" id="syncChkBtn" type="button" hidden title="자동으로 넣은 가사 시각이에요. 가사 맞추기에서 확인하고 저장하면 사라져요">자동 맞춤 · 확인해 주세요</button>
+            <button class="btn small" id="alignBtn" type="button" hidden title="목소리가 있는 원곡 파일을 집 AI가 듣고 이 곡 가사에 시각을 맞춰요 (MR 만들기 창에서 파일을 골라요)">원곡 파일로 자동 맞추기</button>
           </div>
           <div class="lyr-tools">
             <span>키</span>
@@ -361,8 +362,8 @@
     <div class="field">
       <span>가사</span>
       <div class="lrc-row">
-        <button class="btn small" id="lrcFind" type="button">제목·가수로 싱크 가사 찾기</button>
-        <button class="btn small" id="alignBtn2" type="button" hidden title="목소리가 있는 원곡 파일을 집 AI가 듣고 이 가사에 시각을 맞춰요 (MR 만들기 창에서 파일을 골라요)">원곡 파일로 자동 싱크</button>
+        <button class="btn small" id="lrcFind" type="button">제목·가수로 가사 찾기</button>
+        <button class="btn small" id="alignBtn2" type="button" hidden title="목소리가 있는 원곡 파일을 집 AI가 듣고 이 가사에 시각을 맞춰요 (MR 만들기 창에서 파일을 골라요)">원곡 파일로 자동 맞추기</button>
         <span class="hint" id="lrcStatus">LRCLIB 공개 가사 데이터베이스에서 찾아요</span>
       </div>
       <ul class="lrc-results" id="lrcResults" hidden></ul>
@@ -490,7 +491,7 @@
       <p class="hint" id="cloudStatus"></p>
       <label class="set-row chk"><input type="checkbox" id="recBackup"> 녹음도 Drive에 백업하기 <span class="hint">(4분 녹음에 약 23MB)</span></label>
       <div class="set-row"><button class="btn primary" id="gConnect" type="button">Google 계정 연결</button><button class="btn ghost danger" id="gDisconnect" type="button" hidden>연결 끊기</button></div>
-      <p class="hint">내 Drive의 'YT 노래방' 폴더에 MR과 곡 목록(가사·싱크·사용자·재생목록), 기기마다 점수·부른 횟수 파일(stats-…json)을 저장해요. 폴더의 stats 파일은 지우지 마세요 (지우면 그 기기 기록이 다른 기기에서 안 보여요). 이 폴더에 MR 파일을 직접 넣어도 다음 동기화 때 곡 목록에 들어와요. 앱이 만들지 않은 파일은 읽기만 해요. 녹음은 위를 켜면 함께 올라가요. 로그인은 한 시간쯤 유지돼서, 그 뒤에는 Drive 버튼을 한 번 눌러 주면 돼요.</p>
+      <p class="hint">내 Drive의 'YT 노래방' 폴더에 MR과 곡 목록(가사·가사 시각·사용자·재생목록), 기기마다 점수·부른 횟수 파일(stats-…json)을 저장해요. 폴더의 stats 파일은 지우지 마세요 (지우면 그 기기 기록이 다른 기기에서 안 보여요). 이 폴더에 MR 파일을 직접 넣어도 다음 동기화 때 곡 목록에 들어와요. 앱이 만들지 않은 파일은 읽기만 해요. 녹음은 위를 켜면 함께 올라가요. 로그인은 한 시간쯤 유지돼서, 그 뒤에는 Drive 버튼을 한 번 눌러 주면 돼요.</p>
       <details id="clientAdv">
         <summary>클라이언트 ID 설정 (보통은 안 바꿔도 돼요)</summary>
         <div class="set-row" style="margin-top:8px"><input type="text" id="gClientId" placeholder="클라이언트 ID (….apps.googleusercontent.com)" spellcheck="false" autocomplete="off" aria-label="Google 클라이언트 ID"><button class="btn small" id="gClientSave" type="button">저장</button></div>
@@ -520,13 +521,13 @@
     <!-- 허브 연결 (CR-227): "곡 창고" 묶음 안, 고급 밖 (새 싱크를 쓰려면 한 번은 로그인해야 함, 디자인 확인 CR-229 #2) -->
     <section class="set-sec" id="hubSec">
       <h3>허브 연결 (곡 설정 맞추기)</h3>
-      <p class="hint">가사·싱크·가사 타이밍·곡 키를 회사 허브에 두고 내 다른 기기와 맞춰요. MR 소리 파일은 올리지 않아요.</p>
+      <p class="hint">가사(시각 포함)·가사 타이밍·곡 키를 회사 허브에 두고 내 다른 기기와 맞춰요. MR 소리 파일은 올리지 않아요.</p>
       <p class="hint" id="hubState" role="status">연결 안 됨 · 허브 없이도 지금처럼 다 돼요</p>
       <div class="set-row" id="hubCodeRow"><input type="password" id="hubCode" spellcheck="false" autocomplete="off" autocapitalize="off" placeholder="연결 코드 (nbhub1.…)" title="nbhub1.… 코드나 hub.json 내용을 붙여 넣어요" aria-label="허브 연결 코드"><button class="btn" id="hubCodeSave" type="button">저장</button></div>
       <form class="set-row" id="hubLogin" hidden><input type="email" id="hubEmail" autocomplete="username" spellcheck="false" autocapitalize="off" placeholder="메일" aria-label="허브 계정 메일"><input type="password" id="hubPw" autocomplete="current-password" placeholder="비밀번호" aria-label="허브 계정 비밀번호"><button class="btn primary" id="hubLoginBtn" type="submit">로그인</button></form>
       <div class="set-row" id="hubBtns" hidden><button class="btn small" id="hubSyncNow" type="button">지금 맞추기</button><button class="btn small" id="hubLogout" type="button">로그아웃</button><button class="btn small" id="hubForget" type="button">연결 끊기</button></div>
       <p class="hint" id="hubMsg" role="status" hidden></p>
-      <p class="hint">연결 코드와 로그인은 이 기기에만 저장돼요. 백업 파일·Drive에는 안 들어가요. 비밀번호는 저장하지 않아요.</p>
+      <p class="hint">연결 코드와 로그인은 이 기기에만 저장돼요. 백업 파일과 Drive에는 안 들어가요. 비밀번호는 저장하지 않아요.</p>
     </section>
     <!-- 더 보기 (고급) (CR-229, W13): 처음엔 접힘, 한 번 펴면 이 기기(nb-advanced)에 기억. 켜면 앱의 다른 숨긴 칸(소리 설정 세부·가사 타이밍·클라이언트 ID 등)도 예전처럼 보인다 -->
     <button class="set-adv-btn" id="advBtn" type="button" aria-expanded="false" aria-controls="advBox"><span><b>더 보기 (고급)</b><small id="advSub">여행 준비 · 백업 파일 · MR 만들기 서버<span id="advSubRemote" hidden> · 옛 휴대폰 리모컨</span></small></span><i aria-hidden="true">›</i></button>
@@ -548,7 +549,7 @@
     </section>
     <section class="set-sec">
       <h3>백업 파일</h3>
-      <p class="hint">곡·가사·싱크·사용자·재생목록·점수(고르면 녹음까지)를 파일 하나로 저장해요. 새 컴퓨터나 다른 브라우저에서 불러오면 그대로 돌아와요. Drive 없이도 쓸 수 있어요.</p>
+      <p class="hint">곡·가사·가사 시각·사용자·재생목록·점수(고르면 녹음까지)를 파일 하나로 저장해요. 새 컴퓨터나 다른 브라우저에서 불러오면 그대로 돌아와요. Drive 없이도 쓸 수 있어요.</p>
       <div class="set-row chk"><label><input type="checkbox" id="bkRecs" checked> 녹음 포함</label><label><input type="checkbox" id="bkVideo" checked> 동영상 곡 포함</label></div>
       <div class="set-row"><button class="btn" id="bkExport" type="button">백업 파일 만들기</button><label class="btn" for="bkFile" tabindex="0">백업 파일 불러오기</label><input type="file" id="bkFile" accept=".ytbackup" hidden></div>
       <p class="hint" id="bkStatus"></p>
@@ -559,7 +560,7 @@
       <details class="mr-addr" id="mrAddr"><summary>서버 주소 넣기·바꾸기</summary>
       <div class="set-row"><input type="text" id="mrServer" inputmode="url" spellcheck="false" autocomplete="off" autocapitalize="off" placeholder="http://(집 AI 이름):8765" aria-label="MR 만들기 서버 주소"><button class="btn" id="mrSave" type="button">저장</button><button class="btn" id="mrReset" type="button">이 기기에서 지우기</button></div>
       <p class="hint">주소창에 '안전하지 않음'이 보여도 집 Tailscale 안에서만 열리는 창이에요</p>
-      <p class="hint">이 기기에 저장돼요. 허브에 로그인해 있으면 허브에도 넣어서 내 다른 기기도 같이 써요. 집 밖에서는 Tailscale을 켜 주세요.</p>
+      <p class="hint">이 기기에 저장돼요. 허브에 로그인해 있으면 내 다른 기기도 같이 써요. 집 밖에서는 Tailscale을 켜 주세요.</p>
       <p class="hint" id="mrSetMsg" role="status" hidden></p>
       </details>
     </section>

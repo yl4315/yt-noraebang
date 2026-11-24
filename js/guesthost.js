@@ -7,7 +7,7 @@
 // 지키는 것: 손님 6명까지 · 한 사람 1초 4개 · 4KB 넘는 메시지 버림 · 손님·곡 글은 textContent로만.
 
 const Guest = {
-  on: false, busy: false, sb: null, ch: null, room: null, url: null, qr: null,
+  on: false, busy: false, sb: null, ch: null, room: null, url: null, qr: null, qrPx: 0,   // qrPx: QR 그림 한 변 칸 수(여백 포함) = 그림 px (CR-228 L2)
   guests: new Map(),     // 손님 표 → { rate: [시각…], seen, nick }
   res: [],               // 손님 예약 [{ rid, gid, id, nick }] (core.js guestQueueMap으로 예약 목록 줄과 짝지음)
   all: [], last: '', lastAt: 0, tick: 0, note: '',
@@ -29,7 +29,19 @@ async function guestQrMake(text) {
   cv.width = cv.height = n + quiet * 2;
   const g = cv.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, cv.width, cv.height); g.fillStyle = '#000';
   for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) if (m[y * n + x]) g.fillRect(x + quiet, y + quiet, 1, 1);
-  return cv.toDataURL('image/png');
+  return { src: cv.toDataURL('image/png'), px: cv.width };     // 칸 하나 = 1px 그림 (화면에서는 guestQrFit이 정수배로 키움)
+}
+// QR을 칸당 정수 px로 (CR-228 L2): CSS가 정한 크기(--qr-px를 뗀 크기) 안에서 그림 px의 배수로. TV 카드는 96px 아래로 줄이지 않음.
+// 보이지 않으면(크기 0) CSS 크기 그대로 두고, 대기 화면 크기가 바뀌거나 보이게 되면 다시 (아래 ResizeObserver)
+function guestQrFit() {
+  const px = Guest.qrPx;
+  for (const [sel, min] of [['#guestQrImg', 0], ['#guestCardQr', 96]]) {
+    const img = $(sel); if (!img) continue;
+    img.style.removeProperty('--qr-px');
+    if (!px || img.hidden) continue;
+    const w = img.getBoundingClientRect().width;
+    if (w > 0) img.style.setProperty('--qr-px', qrFitPx(w, px, min) + 'px');
+  }
 }
 
 /* ---------------- 방 열기·닫기 ---------------- */
@@ -54,12 +66,12 @@ async function guestOpen() {
     Guest.busy = false; guestNote('방을 열지 못했어요. 인터넷을 확인하고 다시 눌러 주세요', true); guestRender();
     return false;
   }
-  Object.assign(Guest, { on: true, busy: false, sb, ch, room, qr: null, guests: new Map(), res: [], all: [], last: '', lastAt: 0,
+  Object.assign(Guest, { on: true, busy: false, sb, ch, room, qr: null, qrPx: 0, guests: new Map(), res: [], all: [], last: '', lastAt: 0,
     url: guestUrl(location.href, room, hubCodeMake(Hub.conf.u, Hub.conf.k)) });
   clearInterval(Guest.tick); Guest.tick = setInterval(guestTick, 1000);
   guestRender(); guestSendState(true);
   const url = Guest.url;
-  try { const qr = await guestQrMake(url); if (Guest.url === url) Guest.qr = qr; }
+  try { const qr = await guestQrMake(url); if (Guest.url === url) { Guest.qr = qr.src; Guest.qrPx = qr.px; } }
   catch { if (Guest.url === url) guestNote('QR 그림을 못 만들었어요. 새 QR 만들기를 눌러 주세요', true); }
   guestRender();
   return true;
@@ -68,7 +80,7 @@ async function guestOpen() {
 async function guestClose(quiet) {
   const { ch, sb } = Guest;
   clearInterval(Guest.tick);
-  Object.assign(Guest, { on: false, sb: null, ch: null, room: null, url: null, qr: null, guests: new Map(), res: [], all: [], last: '', lastAt: 0, tick: 0 });
+  Object.assign(Guest, { on: false, sb: null, ch: null, room: null, url: null, qr: null, qrPx: 0, guests: new Map(), res: [], all: [], last: '', lastAt: 0, tick: 0 });
   if (ch) {
     try { await ch.send({ type: 'broadcast', event: 'h', payload: { v: GUEST_V, t: 'closed' } }); } catch {}
     try { await (sb ? sb.removeChannel(ch) : ch.unsubscribe()); } catch {}
@@ -216,6 +228,7 @@ function guestRender() {
   $('#guestCardLine').textContent = showQr ? '폰 카메라로 찍으면 곡을 찾아 예약할 수 있어요' : '같이 있는 사람이 폰으로 곡을 찾아 예약해요';
   $('#guestCardSub').textContent = `로그인 없음 · 손님 ${n}명`; $('#guestCardSub').hidden = !showQr;
   const cb = $('#guestCardBtn'); cb.hidden = !showBtn; cb.disabled = Guest.busy;
+  guestQrFit();
 }
 function guestSheet() {
   const d = $('#guestDialog'); if (!d) return;
@@ -227,6 +240,10 @@ function guestSheet() {
 {
   const on = (sel, ev, fn) => $(sel)?.addEventListener(ev, fn);
   on('#guestRow', 'click', guestSheet);
+  // TV 대기 화면이 보이게 되거나 크기가 바뀌면 카드 QR을 다시 정수배로 (대기 화면 크기는 카드 QR 크기와 상관없어서 되풀이 없음)
+  const idle = $('#tvIdle');
+  if (idle && typeof ResizeObserver === 'function') new ResizeObserver(() => guestQrFit()).observe(idle);
+  else window.addEventListener('resize', guestQrFit);
   on('#guestOpenBtn', 'click', () => guestOpen());
   on('#guestNewBtn', 'click', () => guestOpen());          // 새 QR = 새 방 (지금 손님은 "방이 닫혔어요")
   on('#guestCloseBtn', 'click', () => guestClose());

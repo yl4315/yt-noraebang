@@ -294,7 +294,7 @@ export default async function youtube(ctx) {
       await selYt(p, ID.L);
       const got = await p.until(`/^\\[00:01\\.00\\]/.test(findYtSong(state.songs, ${q(ID.L)}).lyrics||'')`, 10000);
       const s1 = await ytSongOf(p, ID.L);
-      const tip = await sawToast(p, /싱크 가사를 넣었어요/, m0, 3000);
+      const tip = await sawToast(p, /시각 붙은 가사를 넣었어요/, m0, 3000);
       const lines = await p.eval(`(state.lines||[]).filter(l=>String(l.text||'').trim()).length`);
       const qs = ctx.lrcLog.slice(l0).map(x => x.q);
       ok('V9', s0 && !s0.lyrics && got && s1.ytDur === 95 && tip && lines > 0 && qs.every(x => x === 'QA 시험 가사곡 QA가수L'),

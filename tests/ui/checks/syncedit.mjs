@@ -104,7 +104,7 @@ export default async function syncedit(ctx) {
     await p.click('#sySave');
     const saved = await p.until(`!state.sync && document.querySelector('#syncPanel').hidden`, 3000);
     const song = await p.eval(`(()=>{const s=songById(${q(ids.edit)}); const r=parseLyrics(s.lyrics); return {synced:r.synced, n:r.lines.filter(l=>l.text).length, off:s.lyricOffset}})()`);
-    const t = await sawToast(p, /가사 싱크를 저장했어요/, m);
+    const t = await sawToast(p, /가사 시각을 저장했어요/, m);
     const db = await p.eval(`DB.get('songs', ${q(ids.edit)}).then(s=>s.lyrics)`);
     // 취소: 다시 열고 한 줄 고친 뒤 취소
     await p.click('#syncBtn');

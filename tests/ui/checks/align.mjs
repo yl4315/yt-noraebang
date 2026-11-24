@@ -14,15 +14,15 @@ const LRC_AI2 = ['[00:00.30]QA 시험 하나', '[00:01.30]QA 시험 둘', '[00:0
 const PLAIN_OUT = 'QA 시험 바깥 첫 줄\nQA 시험 바깥 둘째 줄';
 const T = {   // 노래방 말 (core.js ALIGN_ERR_TEXT · autosync.js SYNC_TEXT와 같아야 함)
   aligning: '집 AI가 맞추는 중', aligned: '집 AI가 가사 시각을 맞췄어요', skip: '맞춘 가사 시각을 넣지 않았어요',
-  no_vocals: '목소리가 없는 파일이에요(MR). 원곡 파일을 골라 주세요',
-  no_match: '가사와 노래 소리가 맞지 않아 시각을 못 붙였어요',
-  bad_lyrics: '가사를 읽지 못했어요 · 곡 수정에서 가사 글을 확인해 주세요',
+  no_vocals: '목소리가 없는 파일이에요 (MR)', not_audio: '소리 파일이 아니거나 못 읽었어요',
+  no_match: '가사와 노래 소리가 맞지 않아요',
+  bad_lyrics: '가사 글을 읽지 못했어요',
   other: '가사 시각을 못 맞췄어요 · 잠시 뒤 다시 해 주세요',
   unreachable: '집 AI에 닿지 않아요 · 집에 가면 다시 해요',
   no_align: '집 AI가 아직 가사 시각 맞추기를 못 해요',
   closed: 'MR 만들기 창이 닫혔어요 · 다시 누르면 이어서 해요',
-  blocked: '새 창이 막혔어요. 주소창 오른쪽에서 이 사이트의 팝업을 허용해 주세요',
-  changed: '맞추는 사이에 가사를 고쳐서 넣지 않았어요 · 다시 눌러 주세요',
+  blocked: '새 창이 막혔어요 · 주소창에서 팝업을 허용해 주세요',
+  changed: '맞추는 사이 가사가 바뀌어서 안 넣었어요',
   low: '가사 시각이 많이 틀릴 수 있어요. 넣을까요?', over: '이미 시각이 있는 가사예요. 바꿀까요?',
 };
 
@@ -162,7 +162,7 @@ export default async function align(ctx) {
     if (id) {
       await selectById(p, id);
       const chk = await visible(p, '#syncChkBtn'), ab = await visible(p, '#alignBtn');
-      ok('W9', chk && ab, `MR 만들기에서 집 AI 시각으로 넣은 곡: "자동 싱크 · 확인해 주세요" 단추 ${chk ? '보임' : '안 보임'} (확인 표시라 [원곡 파일로 자동 싱크]도 ${ab ? '보임' : '안 보임'})`);
+      ok('W9', chk && ab, `MR 만들기에서 집 AI 시각으로 넣은 곡: "자동 맞춤 · 확인해 주세요" 단추 ${chk ? '보임' : '안 보임'} (확인 표시라 [원곡 파일로 자동 맞추기]도 ${ab ? '보임' : '안 보임'})`);
     }
   });
 
@@ -182,7 +182,7 @@ export default async function align(ctx) {
       await shot('W8-syncTools-기본화면-412.png');
     } finally { await p.emulate(PC); await sleep(200); await p.eval('applyAdv(true)'); }
     ok('W8', pos.row === 'syncTools' && pos.prev === 'syncChkBtn' && pos.last && !pos.inFold && d0.auto && d0.align && d0.row && d0.fold && ph && ph.auto && ph.align,
-      `무대 단추 자리 #${pos.row} 끝(앞 #${pos.prev}, "가사 맞추기 ›" ${pos.inFold ? '안' : '밖'}) · 고급 꺼짐: [자동 싱크] ${d0.auto ? '보임' : '숨음'} · [원곡 파일로 자동 싱크] ${d0.align ? '보임' : '숨음'} · "가사 맞추기 ›" 안 칸 ${d0.fold ? '접힌 채' : '펴짐'} · 폰 412 둘 다 ${ph && ph.auto && ph.align ? '보임' : '안 보임'}`);
+      `무대 단추 자리 #${pos.row} 끝(앞 #${pos.prev}, "가사 맞추기 ›" ${pos.inFold ? '안' : '밖'}) · 고급 꺼짐: [자동 맞추기] ${d0.auto ? '보임' : '숨음'} · [원곡 파일로 자동 맞추기] ${d0.align ? '보임' : '숨음'} · "가사 맞추기 ›" 안 칸 ${d0.fold ? '접힌 채' : '펴짐'} · 폰 412 둘 다 ${ph && ph.auto && ph.align ? '보임' : '안 보임'}`);
     await selectById(p, B.id); const b = await vis();
     await selectById(p, N.id); const n = await vis();
     const demo = await p.eval(`(async()=>{const d=state.songs.find(s=>s.demo); if(!d) return null; await selectSong(d); return !document.querySelector('#alignBtn').hidden})()`);
@@ -190,7 +190,7 @@ export default async function align(ctx) {
     const dA = await dlg(A.id), dB = await dlg(B.id), dN = await dlg(N.id);
     await p.eval(`openSongDialog()`); await p.until(`document.querySelector('#songDialog').open`, 3000);
     const dNew = await visible(p, '#alignBtn2'); await p.eval(`document.querySelector('#songDialog').close()`);
-    ok('W8', a.stage && a.text === '원곡 파일로 자동 싱크' && !b.stage && !n.stage && demo === false && dA && dB && !dN && !dNew,
+    ok('W8', a.stage && a.text === '원곡 파일로 자동 맞추기' && !b.stage && !n.stage && demo === false && dA && dB && !dN && !dNew,
       `무대: 시간 없는 가사 ${a.stage ? '보임' : '안 보임'} · 시각 있는 가사 ${b.stage ? '보임' : '안 보임'} · 가사 없음 ${n.stage ? '보임' : '안 보임'} · 데모 ${demo ? '보임' : '안 보임'} / 곡 수정 창: 가 ${dA ? '보임' : '-'} · 나 ${dB ? '보임' : '-'} · 가사 없음 ${dN ? '보임' : '안 보임'} · 새 곡 ${dNew ? '보임' : '안 보임'}`);
   });
 
@@ -199,15 +199,18 @@ export default async function align(ctx) {
     if (pop) await pop.detach();
     await closePopups(ctx, FAKE);
     await selectById(p, A.id);
-    // CR-231: 서버 주소가 없으면 창을 열지 않고 MR 만들기와 같은 안내 ([직접 맞추기] 없음)
+    // CR-231: 서버 주소가 없으면 창을 열지 않는다. CR-236 W7 R6: 곡 목록과 같은 짧은 글 + [주소 넣기] ([직접 맞추기] 없음)
     await p.eval(`localStorage.removeItem('nb-mrserver')`);
     const pages = async () => (await ctx.browser.send('Target.getTargets')).targetInfos.filter(x => x.type === 'page').length;
     const pg0 = await pages();
     await p.click('#alignBtn'); await sleep(300);
-    const nos = await lineOf(p), pg1 = await pages(), nosWant = await p.eval('MR_NOSERVER_TEXT');
+    const nos = await lineOf(p), pg1 = await pages(), nosWant = await p.eval('MR_NOSERVER_SHORT');
+    await p.eval(`document.querySelector('#syncLine .sl-act').click()`); await sleep(300);
+    const go = await p.eval(`({open:document.querySelector('#cloudDialog').open, focus:document.activeElement&&document.activeElement.id})`);
+    await p.eval(`document.querySelector('#cloudDialog').close()`); await sleep(150);
     await p.eval(`localStorage.setItem('nb-mrserver', ${q(FAKE)}); syncLineClear(state.song)`);
-    ok('W8', nos.shown && nos.text === nosWant && nos.state === 'none' && !nos.btn && pg1 === pg0,
-      `주소 없음 → 창 ${pg1 - pg0}개 열림 · "${nos.text}" (단추 ${nos.btn || '없음'})`);
+    ok('W8', nos.shown && nos.text === nosWant && nos.state === 'none' && nos.btn === '주소 넣기' && go.open && go.focus === 'mrServer' && pg1 === pg0,
+      `주소 없음 → 창 ${pg1 - pg0}개 열림 · "${nos.text}" + [${nos.btn}] → 설정 창 ${go.open ? '열림' : '안 열림'}, 초점 #${go.focus}`);
     await p.click('#alignBtn');
     const busy = await lineOf(p);
     const dis = await p.eval(`document.querySelector('#alignBtn').disabled`);
@@ -234,7 +237,7 @@ export default async function align(ctx) {
     const lines = await p.eval(`state.lines.filter(l=>l.text).length`);
     ok('W8', acked && s.lyrics === LRC_AI && s.db === LRC_AI && s.off === 0 && l.text === T.aligned && l.state === 'found' && ht === 1 && lines === 3,
       `aligned(high) → 창에 ack {n:1} · 곡 가사 = 맞춘 시각 (저장됨, 무대 줄 ${lines}개) · 한 줄 "${l.text}" · 허브 길 hubTouch ${ht}번`);
-    ok('W9', s.chk === 1 && s.dbChk === 1 && await visible(p, '#syncChkBtn'), '집 AI가 맞춘 곡에 "자동 싱크 · 확인해 주세요" (저장에도 표시)');
+    ok('W9', s.chk === 1 && s.dbChk === 1 && await visible(p, '#syncChkBtn'), '집 AI가 맞춘 곡에 "자동 맞춤 · 확인해 주세요" (저장에도 표시)');
     ok('W8', !(await p.eval(`document.querySelector('#alignBtn').disabled`)), '끝나면 단추가 다시 눌림');
   });
 
@@ -259,6 +262,25 @@ export default async function align(ctx) {
     ok('W8', d1.title === T.low && d1.yes === '넣기' && d1.no === '넣지 않기' && d1.focus === 'alignNo' && /QA 시험 물음곡/.test(d1.txt) && acked === '1'
       && s1.lyrics === PLAIN && !s1.chk && l1.text === T.skip && l1.btn === '직접 맞추기',
       `low → 물음 "${d1.title}" [${d1.yes}] [${d1.no}] 초점 ${d1.focus} · 넣지 않기 → 가사 그대로, 한 줄 "${l1.text}" + [${l1.btn}] (ack ${acked})`);
+    // CR-236 W7 R5: 넣지 않은 낮음 결과는 이 화면 메모리에만 → 곡 수정 창 가사 후보 "집 AI" → 고르고 저장 = 확인 표시
+    const kept = await p.eval(`(()=>{const d=AutoSync.dropped.get(${q(C.id)}); return d?{lrc:d.lrc===${q(LRC_AI)}, level:d.level}:null})()`);
+    await p.eval(`openSongDialog(songById(${q(C.id)}))`); await p.until(`document.querySelector('#songDialog').open`, 3000);
+    const cand = await p.eval(`(()=>{const ul=document.querySelector('#lrcResults'), li=ul.querySelectorAll('li'); return {shown:!ul.hidden, n:li.length, tag:(ul.querySelector('.tag')||{}).textContent||'', st:document.querySelector('#lrcStatus').textContent}})()`);
+    await shot('W7R5-버린결과-후보-1280.png');
+    await p.eval(`document.querySelector('#lrcResults li button').click()`); await sleep(100);
+    const filled = await p.eval(`document.querySelector('#f-lyrics').value===${q(LRC_AI)}`);
+    await p.click('#dlgSave');
+    await p.until(`!document.querySelector('#songDialog').open && songById(${q(C.id)}).lyrics===${q(LRC_AI)}`, 3000);
+    await sleep(200);
+    const s1b = await songOf(p, C.id), gone = await p.eval(`!AutoSync.dropped.has(${q(C.id)})`);
+    ok('W8', kept && kept.lrc && kept.level === 'low' && cand.shown && cand.n === 1 && /집 AI 시각/.test(cand.tag) && /넣지 않은 집 AI 가사 시각/.test(cand.st) && filled && s1b.chk === 1 && s1b.dbChk === 1 && gone,
+      `넣지 않은 낮음 → 메모리에만 (${kept ? kept.level : '없음'}) · 곡 수정 창 후보 ${cand.n}개 [${cand.tag}] "${cand.st}" → 고름·저장 → 가사 들어감 + 확인 표시 ${s1b.chk} (DB ${s1b.dbChk}) · 후보 ${gone ? '지움' : '남음'}`);
+    // 가사가 바뀐 곡에는 옛 후보를 보이지 않는다
+    await p.eval(`(()=>{const s=songById(${q(C.id)}); AutoSync.dropped.set(s.id,{lrc:${q(LRC_AI2)},level:'low',base:'QA 다른 가사'}); openSongDialog(s)})()`); await p.until(`document.querySelector('#songDialog').open`, 3000);
+    const stale = await p.eval(`({shown:!document.querySelector('#lrcResults').hidden && /집 AI/.test(document.querySelector('#lrcResults').textContent), left:AutoSync.dropped.has(${q(C.id)})})`);
+    await p.eval(`document.querySelector('#songDialog').close()`); await sleep(150);
+    ok('W8', !stale.shown && !stale.left, `가사가 바뀐 곡의 옛 후보 → ${stale.shown ? '보임' : '안 보임'}, ${stale.left ? '남음' : '지움'}`);
+    await p.eval(`(async()=>{const s=songById(${q(C.id)}); s.lyrics=${q(PLAIN)}; delete s.syncChk; await persistSong(s); computeLines(); autoSyncUI()})()`);
     // Esc(창 닫기)도 넣지 않음
     await ask();
     await p.eval(`document.querySelector('#alignDialog').close()`); await sleep(200);
@@ -309,7 +331,7 @@ export default async function align(ctx) {
     await selectById(p, A.id);
     await p.eval(`(async()=>{const s=songById(${q(A.id)}); s.lyrics=${q(PLAIN)}; delete s.syncChk; await persistSong(s); computeLines(); autoSyncUI()})()`);
     const res = {};
-    for (const code of ['no_vocals', 'no_match', 'bad_lyrics', 'worker_failed']) {
+    for (const code of ['no_vocals', 'not_audio', 'no_match', 'bad_lyrics', 'worker_failed']) {
       await pop.ev(`__got.length=0`);
       await p.click('#alignBtn');
       await waitReq(A.id);
@@ -320,8 +342,33 @@ export default async function align(ctx) {
       res[code].ack = (await got(`m.type==='ack'`)).length;
     }
     const s = await songOf(p, A.id);
-    ok('W10', res.no_vocals.text === T.no_vocals && res.no_vocals.btn === '직접 맞추기', `목소리 없는 파일(MR) → "${res.no_vocals.text}" + [직접 맞추기]`);
-    ok('W8', res.no_match.text === T.no_match && res.bad_lyrics.text === T.bad_lyrics && res.worker_failed.text === T.other && s.lyrics === PLAIN && Object.values(res).every(x => x.ack === 0 && x.btn === '직접 맞추기'),
+    ok('W10', res.no_vocals.text === T.no_vocals && res.no_vocals.btn === '다른 파일로' && res.not_audio.text === T.not_audio && res.not_audio.btn === '다른 파일로',
+      `목소리 없는 파일(MR) → "${res.no_vocals.text}" + [${res.no_vocals.btn}] · 소리 파일 아님 → "${res.not_audio.text}" + [${res.not_audio.btn}] (CR-236 W7 R1)`);
+    // [다른 파일로] = 같은 곡으로 창에 다시 부탁 (align_req)
+    await pop.ev(`__got.length=0`);
+    await p.eval(`paintSyncLine(document.querySelector('#syncLine'), alignInfo('alignfail','no_vocals'), state.song); document.querySelector('#syncLine .sl-act').click()`);
+    await waitReq(A.id);
+    const again = (await got(`m.type==='align_req' && m.songId===${q(A.id)}`)).length;
+    await pop.ev(`sendAligned(${q({ songId: A.id, error: 'worker_failed' })})`);
+    await p.until(`document.querySelector('#syncLine').dataset.state==='none'`, 3000);
+    ok('W10', again >= 1, `[다른 파일로] → 창에 같은 곡 다시 부탁 (align_req ${again}번)`);
+    // W7 R2: 폰 412에서 오류 글 + 단추가 한 줄
+    let rows = null;
+    try {
+      await p.emulate(PHONE); await sleep(250);
+      rows = await p.eval(`(()=>{const box=document.querySelector('#syncLine'), out=[];
+        for (const c of Object.keys(ALIGN_ERR_TEXT).concat(['worker_failed'])) { paintSyncLine(box, alignInfo('alignfail', c), state.song);
+          const t=box.querySelector('.sl-text'), a=box.querySelector('.sl-act'), tr=t.getBoundingClientRect(), lh=parseFloat(getComputedStyle(t).lineHeight)||tr.height;
+          const ar = a && a.getBoundingClientRect();
+          const one = tr.height > 0 && tr.height <= lh*1.5 && (!a || Math.abs(ar.top + ar.height/2 - (tr.top + tr.height/2)) < 12) && box.scrollWidth <= box.clientWidth + 1;
+          out.push({c, one, h:Math.round(tr.height), lh:Math.round(lh), btn:a?a.textContent:''}); }
+        return out})()`);
+      await p.eval(`paintSyncLine(document.querySelector('#syncLine'), alignInfo('alignfail','noserver'), state.song); document.querySelector('#syncLine').scrollIntoView({block:'center'})`); await sleep(150);
+      await shot('W7R2-오류한줄-주소넣기-412.png');
+    } finally { await p.emulate(PC); await sleep(200); await p.eval(`syncLineClear(state.song)`); }
+    const bad2 = (rows || []).filter(r => !r.one);
+    ok('W8', rows && rows.length >= 11 && !bad2.length, `폰 412: 오류 글 ${rows ? rows.length : 0}개 모두 단추와 한 줄` + (bad2.length ? ` · 두 줄: ${bad2.map(r => `${r.c}(${r.h}/${r.lh}px)`).join(', ')}` : ''));
+    ok('W8', res.no_match.text === T.no_match && res.bad_lyrics.text === T.bad_lyrics && res.worker_failed.text === T.other && s.lyrics === PLAIN && ['no_match', 'bad_lyrics', 'worker_failed'].every(c => res[c].btn === '직접 맞추기') && Object.values(res).every(x => x.ack === 0),
       `no_match "${res.no_match.text}" · bad_lyrics "${res.bad_lyrics.text}" · 그 밖 "${res.worker_failed.text}" · 가사 그대로`);
     // 이상한 aligned: 시각 없는 글·점수 2·모르는 level·이상한 곡 id·64KB 넘음 → 그대로 "맞추는 중"
     await pop.ev(`__got.length=0`);

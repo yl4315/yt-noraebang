@@ -1,8 +1,4 @@
 /* 손님 리모컨 (guest.html, CR-228): 회사 다크 토큰 (css/tokens.css). 디자인실 시안 3-guest-remote G1~G6b 모양 그대로 */
-:root{
-  --g-positive:var(--color-positive,#9CDCAE);              /* 연결됨 점·예약했어요 체크 (토큰 1.2.0에 없어서 시안 값) */
-  --g-muted-strong:var(--color-text-muted-strong,#8E949E); /* 안내 글 (토큰 1.2.0에 없어서 시안 값) */
-}
 *{box-sizing:border-box}
 [hidden]{display:none!important}
 html,body{margin:0;height:100%}
@@ -16,13 +12,13 @@ svg{flex:none}
   padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
 .pad{padding:0 var(--space-screen)}
 .meta{font:var(--font-meta);color:var(--color-text-muted)}
-.label{font:var(--font-label);color:var(--g-muted-strong)}
+.label{font:var(--font-label);color:var(--color-text-muted-strong)}
 
 /* 머리: "노래방 리모컨" + 연결 표시 */
 .ghd{height:56px;flex:none;display:flex;align-items:center;justify-content:space-between;padding:0 var(--space-screen)}
 .ghd .t{font:var(--font-title-bar)}
-.conn{display:inline-flex;align-items:center;gap:6px;font:var(--font-meta);color:var(--g-muted-strong);background:var(--color-surface);border-radius:var(--radius-full);padding:4px 10px}
-.conn i{width:8px;height:8px;border-radius:4px;background:var(--g-positive)}
+.conn{display:inline-flex;align-items:center;gap:6px;font:var(--font-meta);color:var(--color-text-muted-strong);background:var(--color-surface);border-radius:var(--radius-full);padding:4px 10px}
+.conn i{width:8px;height:8px;border-radius:4px;background:var(--color-positive)}
 .conn.off i{background:var(--color-text-faint)}
 
 /* 가운데 글 화면 (붙는 중 · G1 위쪽 · G6a · G6b · 꽉 참) */
@@ -30,7 +26,7 @@ svg{flex:none}
 .center{display:flex;flex-direction:column;align-items:center;text-align:center;justify-content:center;gap:10px;padding:0 28px}
 .scr.center,.center.grow{flex:1}
 .center .big{font:var(--font-title-screen)}
-.center .body{font:var(--font-body);color:var(--g-muted-strong);white-space:pre-line}
+.center .body{font:var(--font-body);color:var(--color-text-muted-strong);white-space:pre-line}
 .center .meta{margin-top:6px}
 .circle{width:72px;height:72px;border-radius:36px;background:var(--color-surface);display:flex;align-items:center;justify-content:center;color:var(--color-text)}
 .foot{flex:none;margin-bottom:8px}
@@ -54,14 +50,14 @@ input.field{padding:0 var(--space-xl)}
 .pill{height:36px;min-width:56px;padding:0 14px;border-radius:var(--radius-full);display:inline-flex;align-items:center;justify-content:center;font:var(--font-label);font-size:14px;white-space:nowrap;flex:none;position:relative;border:0}
 .pill::after{content:'';position:absolute;left:-4px;right:-4px;top:-6px;bottom:-6px}   /* 손가락 자리 48 */
 .pill.sec{background:var(--color-surface);border:1px solid var(--color-line);color:var(--color-text)}
-.pill.ghost{background:none;color:var(--g-muted-strong);font-weight:600;padding:0 8px;min-width:44px}
+.pill.ghost{background:none;color:var(--color-text-muted-strong);font-weight:600;padding:0 8px;min-width:44px}
 .pill:disabled{opacity:var(--opacity-disabled)}
 
 /* 들어온 뒤 */
 .main{position:relative}
 .tab-body{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding-bottom:var(--space-section)}
 .seg{display:flex;background:var(--color-surface);border-radius:var(--radius-sm);padding:3px;height:48px}
-.seg>button{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;border-radius:8px;border:0;background:none;font-size:14px;font-weight:600;color:var(--color-text-muted);white-space:nowrap}
+.seg>button{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;border-radius:var(--radius-sm);border:0;background:none;font-size:14px;font-weight:600;color:var(--color-text-muted);white-space:nowrap}
 .seg>button.on{background:var(--color-bg);color:var(--color-text);font-weight:700;box-shadow:var(--shadow-raised)}
 #segBox+.find-top{margin-top:12px}
 .find-top{margin-top:4px}
@@ -72,11 +68,11 @@ input.field{padding:0 var(--space-xl)}
 .li .no:empty{width:0;margin-right:calc(-1 * var(--space-lg))}
 .li .no.idx{width:28px}
 .li .tx{flex:1;min-width:0}
-.li .t1{font:var(--font-title-item);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.li .t1{font:var(--font-title-item);display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-clamp:2;overflow:hidden;overflow-wrap:break-word}   /* 긴 유튜브 제목은 두 줄까지 (CR-228 L5) */
 .li .t2{font:var(--font-meta);color:var(--color-text-muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .li .chips{display:flex;gap:6px;margin-top:4px}
 .more,.empty{padding:14px 0}
-.chip{display:inline-flex;align-items:center;height:22px;border-radius:var(--radius-xs);padding:0 6px;font-size:11px;font-weight:700;background:var(--color-selected);color:var(--g-muted-strong);white-space:nowrap}
+.chip{display:inline-flex;align-items:center;height:22px;border-radius:var(--radius-xs);padding:0 6px;font-size:11px;font-weight:700;background:var(--color-selected);color:var(--color-text-muted-strong);white-space:nowrap}
 .chip.me{color:var(--color-info);background:transparent;border:1px solid var(--color-info)}
 .card{background:var(--color-surface);border-radius:var(--radius-lg);padding:var(--space-card);margin-top:4px}
 .now-t{font:var(--font-title-sheet);margin-top:6px;overflow-wrap:anywhere}
@@ -84,13 +80,13 @@ input.field{padding:0 var(--space-xl)}
 .prog{height:4px;border-radius:2px;background:var(--color-line);position:relative;overflow:hidden;margin-top:14px}
 .prog i{position:absolute;left:0;top:0;bottom:0;width:0;background:var(--color-text)}
 .times{margin-top:6px;display:flex;justify-content:space-between;font-variant-numeric:tabular-nums}
-.sech{font:var(--font-label);color:var(--g-muted-strong);margin:var(--space-section) 20px var(--space-md)}
+.sech{font:var(--font-label);color:var(--color-text-muted-strong);margin:var(--space-section) 20px var(--space-md)}
 .keys{display:grid;grid-template-columns:1fr 1fr 1fr;gap:var(--space-md)}
 .key{min-height:62px;border:0;border-radius:var(--radius-lg);background:var(--color-surface);color:var(--color-text);display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:20px;font-weight:800}
 .key small{font:var(--font-meta);color:var(--color-text-muted);margin-top:2px}
 .key.key-0{font-size:16px}
 .key:disabled{opacity:var(--opacity-disabled)}
-.info{display:flex;gap:6px;align-items:flex-start;font:var(--font-meta);color:var(--g-muted-strong);margin-top:10px}
+.info{display:flex;gap:6px;align-items:flex-start;font:var(--font-meta);color:var(--color-text-muted-strong);margin-top:10px}
 .info .ic{margin-top:2px;color:var(--color-text-muted)}
 .rows{background:var(--color-surface);border-radius:var(--radius-lg);overflow:hidden}
 .row{display:flex;align-items:center;gap:var(--space-lg);padding:var(--space-card);min-height:56px}
@@ -107,6 +103,6 @@ input.field{padding:0 var(--space-xl)}
 
 /* 알림 "예약했어요 · 3번째" */
 .toast{position:fixed;left:16px;right:16px;bottom:calc(76px + env(safe-area-inset-bottom,0px));max-width:528px;margin:0 auto;display:flex;align-items:center;gap:10px;background:var(--color-selected);border:1px solid var(--color-line);border-radius:var(--radius-lg);padding:12px 14px;font:var(--font-body-small);font-weight:600;box-shadow:var(--shadow-sheet);z-index:5}
-.toast.ok::before{content:'✓';color:var(--g-positive);font-weight:800;font-size:16px}
+.toast.ok::before{content:'✓';color:var(--color-positive);font-weight:800;font-size:16px}
 @media (prefers-reduced-motion:no-preference){.toast{animation:gt-in .18s ease-out}}
 @keyframes gt-in{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}

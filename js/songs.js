@@ -198,6 +198,7 @@ $('#songForm').addEventListener('submit', async e => {
   const lyricsChanged = s.lyrics !== $('#f-lyrics').value;
   s.title = title; s.artist = $('#f-artist').value.trim(); s.lyrics = $('#f-lyrics').value;
   if (lyricsChanged) { s.lyricOffset = 0; if (typeof clearSyncCheck === 'function') clearSyncCheck(s); }
+  if (editing && lyricsChanged && typeof alignDropTaken === 'function' && alignDropTaken(s)) s.syncChk = 1;   // 버린 집 AI 시각을 골라 저장 = "확인해 주세요" (W7 R5)
   if (file && typeof hubFileChanged === 'function') hubFileChanged(s);
   if (file) { s.blob = file; s.buffer = null; s.keyCache = null; s.mediaDirty = true; s.mime = file.type; s.size = file.size; for (const r of state.recs) if (r.songId === s.id) recCache.delete(r.id); }
   s.video = (isVideoBlob(s.blob) || (!s.blob && /^video\//.test(s.mime || ''))) && $('#f-video').checked; s.videoLyrics = $('#f-videoLyrics').checked;
@@ -258,7 +259,7 @@ async function findLyrics(title, artist, onRetry, onStep = () => {}) {
   if (!found.length && artist) { onStep('제목만으로 다시 찾는 중…'); found = await lrclibSearch({ q: title }, onRetry); }
   return found;
 }
-// 후보 한 줄 (곡 추가 창과 여러 곡 넣기 창이 같은 모양): 제목, 가수·앨범·길이, "싱크 있음/가사만 · 길이 비슷"
+// 후보 한 줄 (곡 추가 창과 여러 곡 넣기 창이 같은 모양): 제목, 가수·앨범·길이, "시각 있음/가사만 · 길이 비슷"
 function lyricItem(it, mrDur, onPick) {
   const li = document.createElement('li'), b = document.createElement('button'); b.type = 'button';
   b.innerHTML = '<span class="nm"></span><span class="s"></span><span class="tag"></span>';
@@ -274,7 +275,7 @@ function lyricItem(it, mrDur, onPick) {
   }
   b.querySelector('.s').textContent = `${it.artistName}${it.albumName ? ' · ' + it.albumName : ''} · ${fmt(it.duration)}`;
   const close = mrDur && Math.abs(it.duration - mrDur) <= AUTO_SEC;
-  tag.textContent = (it.syncedLyrics ? '싱크 있음' : '가사만') + (close ? ' · 길이 비슷' : ''); if (!it.syncedLyrics) tag.classList.add('plain');
+  tag.textContent = (it.syncedLyrics ? '시각 있음' : '가사만') + (close ? ' · 길이 비슷' : ''); if (!it.syncedLyrics) tag.classList.add('plain');
   b.onclick = () => onPick(it);
   li.append(b);
   return li;
