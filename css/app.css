@@ -51,15 +51,15 @@ button{cursor:pointer}
 .mic-status span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:260px}
 
 .btn{border:1px solid var(--btn-line);background:var(--btn-bg);border-radius:var(--r-btn);padding:8px 14px;font-weight:500;display:inline-flex;align-items:center;gap:8px;justify-content:center;white-space:nowrap}
-.btn:hover{border-color:var(--btn-hover)}
+@media (hover:hover){.btn:hover{border-color:var(--btn-hover)}}   /* CR-241 N3: 마우스 화면만. 손가락으로 누른 뒤 테두리가 밝게 남지 않게 (키보드 :focus-visible 윤곽은 그대로) */
 .btn.primary{background:var(--amber);border-color:var(--amber);color:var(--on-amber)}
-.btn.primary:hover{filter:brightness(1.08)}
+@media (hover:hover){.btn.primary:hover{filter:brightness(1.08)}}
 .btn.ghost{background:transparent}
 .btn.small{padding:4px 10px;font-size:13px}
 .btn.danger{color:var(--danger-ink)}
 .btn svg{width:16px;height:16px;fill:currentColor}
 .btn:disabled{opacity:.45;cursor:not-allowed}
-.btn[data-share]:disabled{opacity:1;cursor:progress}   /* 디자인 보기 K4: 세는 글은 읽혀야 함 (키트 Button busy와 같음) */
+.btn[data-share]:disabled,.btn[aria-busy=true]:disabled{opacity:1;cursor:progress}   /* 디자인 보기 K4 · CR-241 N4: 세는 글·"만드는 중…"은 읽혀야 함 (키트 Button busy와 같음, 눌림은 막음) */
 select{background:var(--btn-bg);border:1px solid var(--btn-line);border-radius:var(--r-in);padding:7px 10px}
 
 /* layout */
@@ -98,6 +98,7 @@ select{background:var(--btn-bg);border:1px solid var(--btn-line);border-radius:v
 .rec .btn.play{min-width:7.5em;font-variant-numeric:tabular-nums}
 .rec .btns .brk{flex-basis:100%;height:0}
 .rec .btns:has(> .brk){row-gap:3px}   /* 줄 바꿈 칸 위아래 3+3 = 지금과 같은 6px 틈 */
+.rec .btns .btn[data-share]:disabled{padding-inline:8px}   /* CR-241 N5: "만드는 중 120초"가 되어도 PC 옆 칸(256px)에서 [삭제]가 3줄째로 안 감 (세는 동안만) */
 .score-chip{font:var(--font-stat-strong);line-height:1;color:var(--ink);background:var(--panel);padding:5px 8px;border-radius:var(--r-tag);flex:none}
 
 /* stage */
@@ -452,7 +453,7 @@ body:has(#tv:not([hidden])) .toast{bottom:calc(var(--bar-h,80px) + 8px)}
   .tv .np-grid{flex:1;min-height:0;grid-auto-rows:minmax(0,1fr)}
 }
 
-.toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--btn-bg);color:var(--ink);padding:10px 16px;border-radius:var(--r-in);word-break:keep-all;font-size:14px;box-shadow:0 10px 30px rgba(0,0,0,.4);z-index:30;max-width:calc(100vw - 32px);pointer-events:none}
+.toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--btn-bg);color:var(--ink);padding:10px 16px;border-radius:var(--r-in);word-break:keep-all;overflow-wrap:break-word;font-size:14px;box-shadow:0 10px 30px rgba(0,0,0,.4);z-index:30;width:max-content;max-width:calc(100vw - 32px);pointer-events:none}   /* CR-241 N1: 글 길이만큼 넓게 (화면 반 폭으로 좁아지지 않음), 화면 폭 - 32px 안에서. 띄어쓰기 없는 긴 이름도 안 넘침 */
 
 /* 사용자 · Drive · 내 목록 */
 .prof-chip{padding:5px 12px 5px 5px}

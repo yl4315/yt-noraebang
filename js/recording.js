@@ -193,10 +193,11 @@ function renderRecs() {
   renderPlayerUI(); renderShareUI();
 }
 async function exportWav(rec, mix, b) {
-  const label = b.textContent; b.disabled = true; b.textContent = '만드는 중…';
+  // CR-241 N4: 만드는 동안 눌림은 막고 흐리게 하지 않는다 (aria-busy → css .btn[aria-busy=true]:disabled · 디자인 보기 K4와 같음)
+  const label = b.textContent; b.disabled = true; b.setAttribute('aria-busy', 'true'); b.textContent = '만드는 중…';
   try { download(encodeWav(await renderMix(rec, mix)), fileName(rec, 'wav')); }
   catch (e) { console.error(e); toast('WAV 파일을 만들지 못했어요'); }
-  b.disabled = false; b.textContent = label;
+  b.disabled = false; b.removeAttribute('aria-busy'); b.textContent = label;
 }
 // 파일 이름 규칙 하나 (core recFileName): WAV 저장·작은 파일 저장·공유·예전 녹음 다운로드가 같이 쓴다 (CR-031 R9)
 const fileName = (r, ext) => recFileName(r.title, r.createdAt, ext);
@@ -283,7 +284,7 @@ async function deliver(choice, made, tapped) {
   catch (e) {
     if (e?.name === 'AbortError') return;                                       // 공유 창을 그냥 닫음: 안내 없음
     if (e?.name === 'NotAllowedError' && !tapped) return askTap(made.key);      // 누른 지 오래됨 → [보내기]로 한 번 더
-    console.error(e); toast('보내지 못했어요 · 잠시 뒤 다시 눌러 보세요. 계속 안 되면 [WAV로 저장]으로 저장해서 보내 주세요', 5000);
+    console.error(e); toast('보내지 못했어요 · 다시 눌러 보세요. 계속 안 되면 WAV로 저장해서 보내 주세요', 5000);   // CR-241 N2: 줄([WAV로 저장])·믹스 창([WAV로 내보내기]) 어디서 나도 맞는 말
   }
 }
 // 보낼 파일: 예전 방식 녹음은 파일 그대로, 아니면 믹스를 다시 만들어 작은 파일(안 되면 WAV)로

@@ -110,6 +110,8 @@ npm run test:ui                  # 화면 자동 점검: 헤드리스 Edge가 �
 - 디자인실이 토큰을 바꾸면 두 파일을 다시 복사한다 (`cmp`로 같은지 확인).
 - 진동은 손가락 화면에서만(`haptic()`): 누르기 `tap`, 예약·저장 `success`, 취소 `warning` (한 번 누르면 하나만). 리모컨은 `remote.html` 안 `buzz()`.
 - 조작 막대가 가리는 높이는 `updateBarSpace()`가 문서 `--bar-h`로 둔다 → 대기 화면 아래쪽, 막대가 보이는 동안 가사 두 줄, TV 화면 알림이 그만큼 올라간다.
+- `.btn:hover`·`.btn.primary:hover`는 `@media (hover:hover)` 안에만 둔다 (CR-241): 손가락 화면은 누른 뒤 밝은 테두리가 남지 않고, 마우스 화면은 그대로. 키보드 윤곽 `:focus-visible`은 늘.
+- 아래 알림 `.toast`는 글 길이만큼 넓다 (`width:max-content`, 화면 폭 - 32px까지, 띄어쓰기 없는 긴 이름은 `overflow-wrap`으로 접음, CR-241). 알림 글에 단추 이름을 `[ ]`로 쓸 때는 그 단추가 그 화면에 있는지 본다.
 
 ## 꼭 지킬 것
 
@@ -225,7 +227,7 @@ npm run test:ui                  # 화면 자동 점검: 헤드리스 Edge가 �
 - 예약 목록의 손님 이름은 `guestNickAt(i)`(karaoke.js `renderQueue`·`renderQueueList`가 `typeof`로 부름). 방이 닫혀 있으면 ''.
 - 이 기기 설정: `nb-guest-tv`(`'0'` = TV에 QR 안 보임) · `nb-guest-key`(`'0'` = 손님 키 바꾸기 끔). 기본은 둘 다 켬이라 키를 안 만든다.
 - TV 대기 카드 `#guestCard`: 방이 열려 있으면 QR(`#tvIdle.guest-on`이면 옛 리모컨 안내 `#remoteInfo`는 숨김), 닫혀 있으면 허브가 있을 때만 [손님 QR 켜기]. 카드가 보이면 점수 칸은 시계 옆(`.idle-right>.best` 1행 2열)·팁은 고급이어도 한 줄, QR은 `max(96px,16cqw)` (디자인 확인 CR-228 #1~#3). QR 이미지는 1칸 = 1px로 그리고(`guestQrMake` → `Guest.qrPx`), 보이는 크기는 `guestQrFit`가 그 배수로 내린다 (core.js `qrFitPx`, 카드는 최소 96px라 모자라면 한 배 위로, 창 `#guestQrImg`는 220px 안). 낮은 화면(높이 480px 이하)에서는 카드가 한 줄 `#guestCardMini` "손님 QR: 설정 › 손님"만 (CR-228 L1). 카드 바탕은 `--panel` (L8). `server.py` 휴대폰 리모컨(N1~N21)은 그대로.
-- 손님 화면 CSP는 `guest.html` `<meta>`에 따로: `default-src 'none'`, 스크립트·스타일은 `'self'`, 바깥은 `https://*.supabase.co`·`wss://*.supabase.co`만. `sw.js`는 손님 파일도 저장하지만 허브 요청은 저장하지 않는다 (`SHELL` 지금 v16).
+- 손님 화면 CSP는 `guest.html` `<meta>`에 따로: `default-src 'none'`, 스크립트·스타일은 `'self'`, 바깥은 `https://*.supabase.co`·`wss://*.supabase.co`만. `sw.js`는 손님 파일도 저장하지만 허브 요청은 저장하지 않는다 (`SHELL` 지금 v17).
 - 알려진 한계: 공개 broadcast라 방 이름을 아는 손님은 방장 답(`h`)을 흉내 낼 수 있다 (다른 손님 화면에 가짜 `closed`·목록). 손님 화면은 `textContent`로만 넣어서 스크립트는 못 넣는다.
 
 ## 내 폰 리모컨 (`js/myremote.js` · `js/myphone.js`, CR-228 ③)
@@ -253,8 +255,8 @@ npm run test:ui                  # 화면 자동 점검: 헤드리스 Edge가 �
 - 내 녹음 줄과 싱크·믹스 조절 창(`#mxShare`, [WAV로 내보내기] 앞)에 단추 하나. 손가락 화면(`isTouch`)이고 공유 창에 파일을 실을 수 있으면 [공유], 아니면 작은 파일을 만들 수 있을 때 [작은 파일 저장], 둘 다 아니면 단추 없음 (core `shareChoice`). [WAV로 저장]·[WAV로 내보내기]·예전 녹음 [다운로드]는 그대로.
 - 작은 파일 형식은 기기에서 고른다 (`AudioEncoder.isConfigSupported`, core `smallFormatPick`): AAC → m4a(`m4aParts`) · 안 되고 Opus → Ogg Opus(`oggOpusParts`) · 둘 다 안 되면 WAV + `WAV_NOTE` 안내. 128kbps(`SMALL_BITRATE`). 예전 방식 녹음은 파일 그대로.
 - 공유 종류는 m4a면 `audio/x-m4a` 먼저, 안 되면 `audio/mp4` (`canShare`로 확인). `navigator.share`에는 `files`·`title`만.
-- 공유 창은 누른 지 5초쯤 안에만 열린다: 만드는 데 4.5초가 넘으면(`shareNeedsTap`) 단추가 [보내기]로 바뀌고 한 번 더 누르면 다시 만들지 않고 바로 연다. 만드는 동안 단추는 "만드는 중 N초"(PC [작은 파일 저장]은 "저장 중 N초") · 눌림은 막고 흐리게 하지 않는다. 새 녹음 줄은 늘 2줄: [▶ 듣기][싱크·믹스 조절] / [공유·작은 파일 저장][WAV로 저장][삭제] (`.brk`). 폰 창은 1줄 [공유][WAV로 내보내기] · 2줄 [닫기][저장].
-- 만든 파일은 **메모리에 하나만** (`Share.made`, 열쇠 = 녹음·종류·믹스 값 `shareKey`). 디스크·IndexedDB·Drive·허브에 저장하지 않고, `nb-` 키·IDB 칸·`library.json` 칸을 더하지 않는다. 공유 창을 닫으면(AbortError) 안내 없음.
+- 공유 창은 누른 지 5초쯤 안에만 열린다: 만드는 데 4.5초가 넘으면(`shareNeedsTap`) 단추가 [보내기]로 바뀌고 한 번 더 누르면 다시 만들지 않고 바로 연다. 만드는 동안 단추는 "만드는 중 N초"(PC [작은 파일 저장]은 "저장 중 N초") · 눌림은 막고 흐리게 하지 않는다 (세는 동안 좌우 여백 8px: 손가락 되는 PC 옆 칸에서 "만드는 중 120초"가 넘어도 2줄, CR-241). [WAV로 저장]·[WAV로 내보내기]의 "만드는 중…"도 같다 (`aria-busy`, CR-241). 새 녹음 줄은 늘 2줄: [▶ 듣기][싱크·믹스 조절] / [공유·작은 파일 저장][WAV로 저장][삭제] (`.brk`). 폰 창은 1줄 [공유][WAV로 내보내기] · 2줄 [닫기][저장].
+- 만든 파일은 **메모리에 하나만** (`Share.made`, 열쇠 = 녹음·종류·믹스 값 `shareKey`). 디스크·IndexedDB·Drive·허브에 저장하지 않고, `nb-` 키·IDB 칸·`library.json` 칸을 더하지 않는다. 공유 창을 닫으면(AbortError) 안내 없음. 그 밖 실패는 "보내지 못했어요 · 다시 눌러 보세요. 계속 안 되면 WAV로 저장해서 보내 주세요" (줄·창 어디서 나도 맞게 단추 이름 없이).
 - 파일 이름은 하나의 규칙 `recFileName` (`곡이름_YYYYMMDD-HHMM.확장자`)을 WAV·작은 파일·공유·다운로드가 같이 쓴다.
 
 ## Claude의 내장 브라우저로 확인할 때
