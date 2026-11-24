@@ -54,3 +54,17 @@ test('최근 것만 두는 Map (YT-r1, 녹음 미리듣기 캐시): 넣거나 �
   lruSet(m, 'r5', 5, 0);                                                           // 0·이상한 값이어도 1개는 둔다
   assert.deepEqual([...m.keys()], ['r5']);
 });
+
+test('녹음 저장 알림 (YT-r11 = YT-16): 녹음 백업이 꺼져 있으면 "이 기기에만 있어요 · 백업 켜기", 켜져 있으면 예전 글 그대로', () => {
+  const { recSavedText } = load(['recSavedText']);
+  assert.equal(recSavedText('곡', '0:05', false), "녹음 저장됨 · 곡 (0:05) · 이 기기에만 있어요 · 백업 켜기: 설정 › 곡 창고 · 박자가 어긋나면 '싱크·믹스 조절'에서 고치세요");
+  assert.equal(recSavedText('곡', '0:05', true), "녹음 저장됨 · 곡 (0:05) · 박자가 어긋나면 '싱크·믹스 조절'에서 고치세요");
+});
+
+test('녹음 줄 "백업 안 됨" 표 (YT-16): 백업이 꺼져 있고 Drive에 없는 녹음만', () => {
+  const { recBackupMissing } = load(['recBackupMissing']);
+  assert.equal(recBackupMissing({ id: 'a' }, false), true);
+  assert.equal(recBackupMissing({ id: 'a', fileId: 'f1' }, false), false);   // 이미 Drive에 있음
+  assert.equal(recBackupMissing({ id: 'a' }, true), false);                  // 백업 켬 (다음 동기화 때 올라감)
+  assert.equal(recBackupMissing(null, false), false);
+});

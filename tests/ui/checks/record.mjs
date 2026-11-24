@@ -41,7 +41,7 @@ export default async function record(ctx) {
     const lbl2 = await p.eval(`({l:document.querySelector('#recLbl').textContent, b:document.querySelector('#recBadge').hidden, p:state.playing})`);
     await p.key(' ');
     const saved = await p.until(`state.recs.length===${n0 + 1}`, 15000);
-    const t = await sawToast(p, /녹음 저장됨 · QA 시험 짧은 곡 \(0:0\d\)/, m, 3000);
+    const t = await sawToast(p, /녹음 저장됨 · QA 시험 짧은 곡 \(0:0\d\) · 이 기기에만 있어요 · 백업 켜기: 설정 › 곡 창고/, m, 3000);   // 녹음 백업 꺼짐(기본) → 이 기기에만 (CR-251 YT-r11 = YT-16)
     const r = await p.eval(`(()=>{const r=state.recs[0]; return {v:r.v, title:r.title, parts:r.parts.length, dur:r.duration, size:r.vocal.size, count:document.querySelector('#recCount').textContent}})()`);
     ids.recNew = await p.eval('state.recs[0].id');
     const seen = await sawToast(p, /마이크가 꺼져 있어서 목소리 없이 녹음돼요/, m, 200);
@@ -52,7 +52,7 @@ export default async function record(ctx) {
     ok('F1', lbl0.startsWith('녹음 대기') && lbl1.l === '녹음 중' && lbl1.b && lbl2.l === '녹음 일시정지', `녹음 상태 글: "${lbl0}" → "${lbl1.l}"(● REC ${lbl1.b}) → "${lbl2.l}"`);
     ok('J1', saved && r.title === 'QA 시험 짧은 곡', '녹음을 켜고 시작하면 녹음됨 (목소리 없이)');
     ok('J2', lbl2.l === '녹음 일시정지' && lbl2.b && !lbl2.p && saved, '일시정지하면 녹음도 멈춤(REC 숨김), 끝나면 저장');
-    ok('J4', t, `저장 알림 "녹음 저장됨 · QA 시험 짧은 곡 (…)"`);
+    ok('J4', t && await p.eval(`localStorage.getItem('nb-recbackup')===null`), `저장 알림 "녹음 저장됨 · QA 시험 짧은 곡 (…) · 이 기기에만 있어요 · 백업 켜기: 설정 › 곡 창고" (백업은 저절로 안 켬)`);
     ok('J3', r.v === 2 && r.parts >= 1 && r.size > 0 && r.count === String(n0 + 1), `목소리 따로(${r.size}바이트) + 반주 위치 ${r.parts}조각 → 다시 섞을 수 있음`);
     // 노래 중에 녹음을 켜면 (마이크 꺼짐) 안내가 보인다
     await p.click('#recBtn'); await p.until('!state.armed', 2000);
@@ -81,6 +81,36 @@ export default async function record(ctx) {
     await p.click('#recBtn');
     ok('J14', j14b, j14b ? '녹음을 못 하는 브라우저면 "이 브라우저는 녹음을 지원하지 않아요"' : `녹음을 못 하는 브라우저 안내도 처음부터 시작하면 안 보임 (앱은 ${asked2 ? '불렀지만 덮임' : '안 부름'})`);
     if (!seen || !j14b) ctx.finding('J14', '녹음을 켜 둔 채(마이크 꺼짐) 처음부터 시작하면 play()가 "마이크가 꺼져 있어서 목소리 없이 녹음돼요"(또는 "이 브라우저는 녹음을 지원하지 않아요") 바로 다음에 "마이크를 켜면 녹음하고 점수도 받을 수 있어요"를 띄워서 앞 안내가 한 번도 안 보임 (js/playback.js play: startRecording() 뒤 toast). 노래 중에 녹음을 켜면 보임');
+  });
+
+  // CR-251 YT-16: 녹음 백업이 꺼져 있으면 이 기기에만 있는 녹음 줄에 "백업 안 됨" → 누르면 설정의 "녹음도 Drive에 백업하기" 칸. 켜면 표가 바로 빠짐 (저절로 켜지 않음)
+  await step('녹음 백업 꺼짐: 새 녹음 줄 "백업 안 됨" → 누르면 설정 백업 칸 · 켜면 표가 빠짐 · TV 1920 사진', ['J5', 'J4'], async () => {
+    await p.click('#tabRecs');
+    const d251 = path.join(ctx.OUT, 'cr251');
+    const rowSel = await p.eval(`'#recList li.rec:nth-child('+(state.recs.findIndex(r=>r.id===${q(ids.recNew)})+1)+')'`);
+    const tagOf = () => p.eval(`(()=>{const b=document.querySelector(${q(rowSel + ' .rec-tag')}); return b?{t:b.textContent, btn:b.tagName==='BUTTON'}:null})()`);
+    const tag0 = await tagOf();
+    const pcSize = p.size || PC;
+    try {
+      await p.emulate(TV);
+      await clipShot(p, [rowSel], path.join(d251, 'tv-1920-rec-backup-tag.png'));
+      await p.eval(`toast(recSavedText('QA 시험 짧은 곡', '0:05', false), 6000)`); await sleep(200);
+      await clipShot(p, ['#toast'], path.join(d251, 'tv-1920-rec-saved-toast.png'), 24);
+      await p.eval(`clearTimeout(toastTimer); document.querySelector('#toast').hidden=true`);
+    } finally { await p.emulate(pcSize); }
+    await p.click(rowSel + ' .rec-tag');
+    const go = await p.until(`document.querySelector('#cloudDialog').open && document.activeElement && document.activeElement.id==='recBackup'`, 3000);
+    const stillOff = await p.eval(`localStorage.getItem('nb-recbackup')===null && !document.querySelector('#recBackup').checked`);
+    // 켜 보고 바로 끔 (동기화 예약은 잠깐 막음: Drive에 올리지 않게)
+    let on = null, off = null;
+    try {
+      await p.eval(`(()=>{window.__cs=Cloud.schedule; Cloud.schedule=()=>{}; const c=document.querySelector('#recBackup'); c.checked=true; c.dispatchEvent(new Event('change'))})()`); await sleep(150);
+      on = await tagOf();
+      await p.eval(`(()=>{const c=document.querySelector('#recBackup'); c.checked=false; c.dispatchEvent(new Event('change'))})()`); await sleep(150);
+      off = await tagOf();
+    } finally { await p.eval(`(()=>{if(window.__cs){Cloud.schedule=window.__cs; delete window.__cs} document.querySelector('#cloudDialog').close()})()`).catch(() => {}); }
+    ok('J5', !!tag0 && tag0.t === '백업 안 됨' && tag0.btn && go && stillOff, `백업 꺼짐: 새 녹음 줄 "${tag0?.t || '없음'}" → 누르면 설정 창 "녹음도 Drive에 백업하기" 칸 (${go ? '열림' : '안 열림'}) · 저절로 안 켬 ${stillOff}`);
+    ok('J5', !on && !!off && await p.eval(`localStorage.getItem('nb-recbackup')===null`), `백업을 켜면 "백업 안 됨"이 바로 빠지고 (${on ? '남음' : '빠짐'}), 끄면 다시 보임 (${off ? '보임' : '안 보임'})`);
   });
 
   await step('내 녹음 탭: 날짜·길이·점수, "반주 없음"·"반주 위치 맞추기 필요", Drive에만 있는 녹음, 예전 방식 녹음', ['J5', 'J7', 'J8'], async () => {
@@ -390,6 +420,15 @@ export default async function record(ctx) {
       phIds.push(await seedRec(ph, { songId: ids.short, title: 'QA 시험 폰 예전', v2: false, createdAt: base - 60e3 }));
       await ph.eval(`(()=>{ window.__rm=0; window.__rmDelay=0; window.__rmOrig=renderMix; renderMix=async(...a)=>{ __rm++; if(__rmDelay) await new Promise(r=>setTimeout(r,__rmDelay)); return __rmOrig(...a); }; })()`);
       await ph.tap('#tabRecs');
+      // CR-251 YT-16 사진 (폰 390): 녹음 줄 "백업 안 됨" · 저장 알림 "이 기기에만 있어요 · 백업 켜기"
+      try {
+        await ph.emulate({ name: '390x844', width: 390, height: 844, mobile: true, touch: true });
+        const d251 = path.join(ctx.OUT, 'cr251'), r390 = await rowOf(ph, 'QA 시험 폰 나누기');
+        if (r390) await clipShot(ph, [r390.sel], path.join(d251, 'phone-390-rec-backup-tag.png'));
+        await ph.eval(`toast(recSavedText('QA 시험 폰 나누기', '0:05', false), 6000)`); await sleep(200);
+        await clipShot(ph, ['#toast'], path.join(d251, 'phone-390-rec-saved-toast.png'), 24);
+        await ph.eval(`clearTimeout(toastTimer); document.querySelector('#toast').hidden=true`);
+      } finally { await ph.emulate(PHONE); }
       const calls = () => ph.eval('__sh.calls.length'), rm = () => ph.eval('__rm'), last = () => ph.eval('__sh.calls[__sh.calls.length-1]');
       const btnText = sel => ph.eval(`(()=>{const b=document.querySelector(${q(sel)}); return b?{t:b.textContent, d:b.disabled}:null})()`);
       let r = await rowOf(ph, 'QA 시험 폰 나누기');

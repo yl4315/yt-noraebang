@@ -1067,6 +1067,15 @@ const SMALL_BITRATE = 128000;      // AAC-LC 128kbps 스테레오 (4분 곡 약 
 // 눈에 안 보이는 글자: 제어 글자(0~1F, 7F~9F), 소프트 하이픈, 폭 없는 공백·방향 표시(200B~200F, 2028~202E, 2060~206F), BOM(FEFF)
 const INVISIBLE_CHARS = new RegExp('[' + [[0x00, 0x1f], [0x7f, 0x9f], [0xad, 0xad], [0x200b, 0x200f], [0x2028, 0x202e], [0x2060, 0x206f], [0xfeff, 0xfeff]]
   .map(([a, b]) => String.fromCharCode(a) + '-' + String.fromCharCode(b)).join('') + ']', 'g');
+// 녹음 저장 알림 글 (CR-251 YT-r11 = YT-16): 녹음 백업(설정 "녹음도 Drive에 백업하기")이 꺼져 있으면 이 기기에만 있다고, 켜는 곳과 같이 알린다
+// (백업은 저절로 켜지 않는다: 4분 녹음에 약 23MB라 켜는 것은 사람이)
+function recSavedText(title, len, backupOn) {
+  return `녹음 저장됨 · ${title} (${len})${backupOn ? '' : ' · 이 기기에만 있어요 · 백업 켜기: 설정 › 곡 창고'} · 박자가 어긋나면 '싱크·믹스 조절'에서 고치세요`;
+}
+// 녹음 줄 "백업 안 됨" 표 (CR-251 YT-16): 녹음 백업이 꺼져 있고 Drive에도 아직 없는 녹음 (Drive에 올라간 녹음은 fileId가 있다)
+function recBackupMissing(rec, backupOn) {
+  return !backupOn && !!rec && !rec.fileId;
+}
 // 녹음 파일 이름: 곡이름_YYYYMMDD-HHMM.확장자 (시각 = 녹음한 시각, 이 기기 시간). 한글 그대로.
 // 풀어 쓴 한글(NFD) → 한 글자로(NFC), 눈에 안 보이는 제어 글자 빼기, \ / : * ? " < > | → _, 앞뒤 공백·점 빼기, 제목 50자, 빈 제목은 "녹음"
 function recFileName(title, createdAt, ext) {
