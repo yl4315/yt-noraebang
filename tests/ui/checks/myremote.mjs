@@ -331,6 +331,12 @@ export default async function myremote(ctx) {
     const closed0 = R.log.filter(e => e.op === 'broadcast' && e.t === 'closed' && e.from === 'page').length;
     // 폰은 그동안 화면이 숨은 것으로 둔다 (꺼짐 화면에서 15초마다 저절로 다시 보는 것을 막아, 꺼짐 안내를 확실히 본다)
     await ph.eval(`Object.defineProperty(document,'visibilityState',{configurable:true,get:()=>'hidden'})`);
+    // CR-251 YT-r7: 이 탭에서 손님 방을 켜 둔 채 새로 고침하면 새 방(새 이름·새 QR)으로 다시 연다
+    await host.eval('guestOpen()');
+    const gOn = await host.until(`Guest.on && !Guest.busy && !!Guest.qr`, 20000);
+    const gRoom1 = gOn ? await host.eval('Guest.room') : '';
+    if (gRoom1) secrets.add(gRoom1);
+    const gWant = await host.eval(`sessionStorage.getItem('nb-guest-on')`);
     const t0 = Date.now(), reload = host.goto(base + '/index.html', READY_DEMO, 150000);
     // 닫히는 페이지가 pagehide에서 보내는 "closed"는 가짜 점검 다리(CDP)가 못 받는다 → 그때는 폰의 30초 끊김 길(LOST_MS)로 꺼짐. 바로 뜨는지는 기기 확인(X10)
     // CR-251 YT-r4: 30초 끊김 뒤 폰은 열쇠 칸을 다시 읽는다 → PC가 그사이 새 방을 열었으면 새 방에 저절로 이어지고, 아니면 "꺼져 있어요"
@@ -343,6 +349,14 @@ export default async function myremote(ctx) {
     if (room3) secrets.add(room3);
     const why = [!seen && `폰 꺼짐 안내 안 보임(PC closed ${closedN}개)`, !on && 'PC가 다시 안 켬', on && !ROOM_RE.test(room3) && '이름 모양 틀림', on && room3 === room2 && '옛 방 이름', on && slot() !== room3 && '열쇠 칸 ≠ 새 방'].filter(Boolean);
     ok('X9', !why.length, `새로 고침: 폰 ${autoBack ? '새 방에 저절로 다시 이어짐' : '"' + H_OFF + '"'} (${seen ? seenS + '초 · ' + (closedN ? 'PC closed 받음' : '30초 끊김 길 — 가짜 다리는 닫히는 페이지 메시지를 못 받음, 바로 뜨는지 기기 확인') : '못 봄'}) → 다시 연 화면은 로그인한 채라 새 방으로 저절로 켬 (열쇠 칸 = 새 방)${why.length ? ' · 틀림: ' + why.join(', ') : ''}`);
+    const gBack = await host.until(`Guest.on && !Guest.busy && !!Guest.qr && $('#tvIdle').classList.contains('guest-on') === Guest.tvQr`, 20000);
+    const gRoom2 = gBack ? await host.eval('Guest.room') : '';
+    if (gRoom2) secrets.add(gRoom2);
+    ok('X8', gOn && gWant === '1' && gBack && /^nbr-/.test(gRoom2) && gRoom2 !== gRoom1 && await host.eval(`localStorage.getItem('nb-guest-on')===null`),
+      `손님 방을 켜 둔 탭을 새로 고침 → 새 방(이름 ${gRoom2 && gRoom2 !== gRoom1 ? '바뀜' : '그대로'})으로 저절로 다시 열고 새 QR · 기억은 이 탭(sessionStorage)에만`);
+    await host.eval(`$('#guestCloseBtn').click()`);
+    const gOff = await host.until(`!Guest.on && !Guest.busy`, 6000) && await host.eval(`sessionStorage.getItem('nb-guest-on')===null`);
+    ok('X8', gOff, '[방 닫기]를 누르면 이 탭 기억도 지움 (다음 새로 고침에는 안 엶)');
     // 폰 화면을 다시 보이게 하고 [다시 해 보기] → 새 방 (열쇠 칸에서 새 이름을 읽음)
     await ph.eval(`delete document.visibilityState`);
     const still = await ph.eval(VIEW(H_OFF));
