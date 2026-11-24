@@ -48,6 +48,7 @@ lock = threading.Lock()
 cmds = []            # (번호, 명령) — 휴대폰이 보낸 명령을 노래방 화면이 가져간다
 seq = 0
 tv_state = b'{}'     # 노래방 화면이 올려 둔 현재 상태 (곡 목록, 예약 등)
+BOOT = '%08x' % random.SystemRandom().getrandbits(32)   # 켤 때마다 새 표: 화면이 "서버를 껐다 켰다"를 안다 (명령 번호가 0부터 다시, CR-251 YT-r12)
 fails = {}           # IP별 틀린 코드 횟수
 # 이 PC 전용 창구가 받는 주소창 이름: localhost·127.0.0.1·[::1] (포트는 아무거나). 불러올 때 한 번 만들어 둔다
 LOCAL_HOST = re.compile(r'(localhost|127[.]0[.]0[.]1|\[::1\])(:[0-9]+)?')
@@ -180,7 +181,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             with lock:
                 out = [c for n, c in cmds if n > since]
                 last = seq
-            return self.send_json({'cmds': out, 'last': last})
+            return self.send_json({'cmds': out, 'last': last, 'boot': BOOT})
         if u.path == '/api/remote/state':
             # 이 PC 화면(주소창 localhost)은 코드 없이, 휴대폰(와이파이 주소)은 맞는 코드가 있어야 본다
             if not (self.is_local() and self.local_host()) and not self.pin_ok((q.get('pin') or [''])[0]):

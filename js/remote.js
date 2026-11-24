@@ -3,7 +3,7 @@
 
 /* ================= 휴대폰 리모컨 (같은 와이파이) ================= */
 // 이 PC에서 server.py로 열었을 때만 켜진다. 휴대폰은 remote.html에서 명령을 보내고, 이 화면이 받아서 실행한다.
-const Remote = { on: false, since: 0, info: null, last: '' };
+const Remote = { on: false, since: 0, boot: null, info: null, last: '', polling: false };
 async function remoteInit() {
   if (!/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) return;
   try {
@@ -15,12 +15,18 @@ async function remoteInit() {
   setInterval(remotePoll, 600); setInterval(remotePush, 1000);
 }
 async function remotePoll() {
+  if (Remote.polling) return;      // 앞 요청이 끝나기 전에는 또 묻지 않는다 (CR-251 YT-r12)
+  Remote.polling = true;
   try {
     const r = await fetch('/api/remote/poll?since=' + Remote.since, { cache: 'no-store' });
     if (!r.ok) return;
-    const { cmds, last } = await r.json(); Remote.since = last;
-    for (const c of cmds) { try { remoteRun(c); } catch (e) { console.warn('remote', e); } }
-  } catch {}
+    const { cmds, last, boot } = await r.json();
+    // 서버를 껐다 켬(번호가 0부터 다시): 번호를 맞추고 상태를 바로 다시 올린다. 이 답의 명령은 다음 번에 처음부터 받는다 (core.js remotePollNext)
+    const nx = typeof remotePollNext === 'function' ? remotePollNext(Remote, { last, boot }) : { since: last, boot: null, restarted: false };
+    Remote.since = nx.since; Remote.boot = nx.boot;
+    if (nx.restarted) { Remote.last = ''; return; }
+    for (const c of cmds || []) { try { remoteRun(c); } catch (e) { console.warn('remote', e); } }
+  } catch {} finally { Remote.polling = false; }
 }
 function remoteState() {
   const s = state.song;
@@ -36,7 +42,8 @@ function remoteState() {
 async function remotePush() {
   const body = JSON.stringify(remoteState());
   if (body === Remote.last) return;
-  try { const r = await fetch('/api/remote/state', { method: 'POST', body, headers: { 'Content-Type': 'application/json' } }); if (r.ok) Remote.last = body; } catch {}
+  // 못 올렸으면 기억을 비워, 서버가 다시 켜지면 같은 상태라도 다시 올린다 (CR-251 YT-r12)
+  try { const r = await fetch('/api/remote/state', { method: 'POST', body, headers: { 'Content-Type': 'application/json' } }); Remote.last = r.ok ? body : ''; } catch { Remote.last = ''; }
 }
 function remoteRun(c) {
   const a = c.args || {}, qi = id => state.queue.indexOf(id);

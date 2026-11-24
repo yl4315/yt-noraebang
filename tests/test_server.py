@@ -85,6 +85,14 @@ class ServerTest(ServerBase):
         # 이미 가져간 명령은 다시 오지 않는다
         self.assertEqual(json.loads(self.get(f"/api/remote/poll?since={data['last']}")[1])['cmds'], [])
 
+    def test_poll_tells_server_boot_mark(self):
+        # CR-251 YT-r12: 서버를 껐다 켜면 명령 번호가 0부터 다시 → 화면이 알아채도록 켤 때마다 새 표(boot)를 같이 준다
+        a = json.loads(self.get('/api/remote/poll?since=0')[1])
+        b = json.loads(self.get('/api/remote/poll?since=0')[1])
+        self.assertRegex(a['boot'], r'^[0-9a-f]{8}$')
+        self.assertEqual(a['boot'], b['boot'])
+        self.assertEqual(a['boot'], server.BOOT)
+
     def test_too_big_request_is_refused(self):
         # 2MB가 넘는 요청은 몸통을 읽지 않고 거절한다 (CR-019: N14 "2MB 넘는 요청은 거절"의 테스트)
         import http.client

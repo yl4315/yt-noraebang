@@ -1029,6 +1029,16 @@ function remoteModePick({ status, body } = {}) {
   if (status === 403 && obj && body.error === 'local only') return 'server';
   return 'hub';
 }
+// 옛 폰 리모컨 받아 오기 (server.py /api/remote/poll, CR-251 YT-r12): 검은 서버 창을 껐다 켜면 명령 번호가 0부터 다시 시작한다.
+// prev = 화면이 가진 { since, boot }, res = 서버 답 { last, boot }. 서버 표(boot)가 바뀌었거나 번호가 줄었으면 restarted:
+// 그 답의 명령은 실행하지 않고 since = 0으로 돌려 다음 번에 새 서버의 명령을 처음부터 받는다 (화면은 상태도 다시 올림)
+function remotePollNext(prev, res) {
+  const p = prev || {}, r = res || {}, since = Number.isInteger(p.since) && p.since >= 0 ? p.since : 0;
+  const last = Number.isInteger(r.last) && r.last >= 0 ? r.last : since;
+  const boot = typeof r.boot === 'string' && r.boot ? r.boot : (p.boot || null);
+  const restarted = (!!p.boot && !!boot && boot !== p.boot) || last < since;
+  return { since: restarted ? 0 : last, boot, restarted };
+}
 // TV 대기 화면 내 폰 리모컨 QR 주소 (CR-228 ④ L6): 노래방을 연 곳과 같은 곳의 remote.html.
 // 방 이름·코드·계정은 넣지 않는다 (`?`·`#`·사용자 이름 없음). 방 이름은 폰이 허브 열쇠 칸에서 읽는다
 function myRemoteUrl(href) {

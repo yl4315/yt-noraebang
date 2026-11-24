@@ -235,6 +235,39 @@ export default async function remote(ctx) {
     ok('N3', asked && re, '코드가 바뀌면 다시 넣으라고 함 → 새 코드로 다시 연결');
   });
 
+  // CR-251 YT-r12: 검은 서버 창을 껐다 켜면 명령 번호가 0부터 다시 → 열려 있던 PC 화면이 알아채고 번호를 맞춘 뒤 폰 명령을 실행·상태를 다시 올린다.
+  // 진짜 서버는 그대로 두고, PC 페이지의 fetch만 "새 서버"(번호를 지금부터 0으로·다른 boot 표)처럼 바꿔서 본다
+  await step('서버를 껐다 켬 흉내: 화면이 번호를 맞추고 폰 명령을 그대로 실행 · 상태를 다시 올림 · 앞 요청이 끝나기 전엔 또 안 물음', ['N13'], async () => {
+    await p.eval(`(() => {
+      const of = window.fetch.bind(window); window.__rsOf = of; window.__rs = { base: null, pushes: 0, inflight: 0, maxIn: 0 };
+      window.fetch = async (u, o) => {
+        const s = String(u), rs = window.__rs;
+        if (s.startsWith('/api/remote/state') && o && o.method === 'POST' && rs.base != null) rs.pushes++;
+        if (!s.startsWith('/api/remote/poll')) return of(u, o);
+        rs.inflight++; rs.maxIn = Math.max(rs.maxIn, rs.inflight);
+        try {
+          if (rs.base == null) return await of(u, o);
+          const since = +new URL(s, location.href).searchParams.get('since') || 0;
+          const j = await (await of('/api/remote/poll?since=' + (since + rs.base), o)).json();
+          return new Response(JSON.stringify({ cmds: j.cmds, last: Math.max(0, j.last - rs.base), boot: 'ffff0000' }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+        } finally { rs.inflight--; }
+      };
+    })()`);
+    const since0 = await p.eval('Remote.since');
+    await p.eval(`window.__rs.base = Remote.since`);            // 이 순간 서버를 새로 켠 것처럼 (새 서버 번호 0)
+    const reset = await p.until(`Remote.since === 0 && Remote.boot === 'ffff0000'`, 4000);
+    const pushed = await p.until(`window.__rs.pushes >= 1`, 4000);   // 상태가 안 바뀌어도 새 서버에 다시 올림
+    const n0 = await p.eval('__cmds.length'), key0 = await p.eval('state.key||0');
+    const r = await fetch(`${ctx.base}/api/remote/cmd`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pin: await p.eval('Remote.info.pin'), cmd: 'key', args: { delta: 1 } }) });
+    const ran = await p.until(`__cmds.length === ${n0} + 1 && __cmds[__cmds.length-1] === 'key' && (state.key||0) === ${key0} + 1`, 4000);
+    const one = await p.eval('window.__rs.maxIn');
+    // 되돌리기: 받아 오기를 잠깐 막고 진짜 서버 번호로 맞춘 뒤 원래 fetch
+    await p.eval(`(async () => { Remote.polling = true; window.fetch = window.__rsOf; const j = await (await fetch('/api/remote/poll?since=0', { cache: 'no-store' })).json(); Remote.since = j.last; Remote.boot = j.boot; Remote.polling = false; delete window.__rs; delete window.__rsOf; })()`);
+    await p.eval(`setKey(${key0})`);
+    ok('N13', since0 > 0 && reset && pushed && r.status === 200 && ran && one === 1,
+      `새 서버(번호 0부터): 화면 번호 ${since0} → 0 ${reset ? '맞춤' : '(안 맞춤)'} · 상태 다시 올림 ${pushed ? '됨' : '안 됨'} · 폰 명령 "key" ${ran ? '실행' : '안 됨'} · 동시에 묻는 요청 최대 ${one}개`);
+  });
+
   await step('홈 화면 아이콘용 manifest', ['N19'], async () => {
     const m = await ph.eval(`(async()=>{ const href=document.querySelector('link[rel=manifest]').getAttribute('href'); const j=await (await fetch(href)).json(); return {href, ...j} })()`);
     ok('N19', m.href === 'remote.webmanifest' && m.short_name === '노래방 리모컨' && m.start_url === 'remote.html' && m.display === 'standalone' && m.icons?.length >= 2, `remote.webmanifest "${m.short_name}" · 시작 ${m.start_url} · ${m.display}`);
