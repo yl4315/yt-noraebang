@@ -167,6 +167,7 @@ function renderRecs() {
       const pb = mk('▶ 듣기', 'play', () => (P.playing && P.rec === r) ? pStop(false) : pPlay(r, r.mix, P.rec === r ? P.from : 0));
       pb.dataset.play = r.id;
       mk('싱크·믹스 조절', 'primary', () => openMix(r));
+      btns.append(Object.assign(document.createElement('span'), { className: 'brk' }));   // 디자인 보기 K2: 2줄째는 늘 [공유][WAV로 저장][삭제]
       shareButton(mk, r, () => r.mix);
       mk('WAV로 저장', '', b => exportWav(r, r.mix, b));
     } else {
@@ -199,7 +200,7 @@ async function exportWav(rec, mix, b) {
 }
 // 파일 이름 규칙 하나 (core recFileName): WAV 저장·작은 파일 저장·공유·예전 녹음 다운로드가 같이 쓴다 (CR-031 R9)
 const fileName = (r, ext) => recFileName(r.title, r.createdAt, ext);
-/* ---------------- 녹음 나누기 (CR-031): 폰은 [공유] → 공유 창, PC는 [작은 파일로 저장] ----------------
+/* ---------------- 녹음 나누기 (CR-031): 폰은 [공유] → 공유 창, PC는 [작은 파일 저장] ----------------
    작은 파일 형식은 이 기기에서 고른다: AAC 되면 m4a · 안 되고 Opus 되면 ogg · 둘 다 안 되면 WAV (core smallFormatPick).
    만든 파일은 메모리에 하나만 (같은 녹음·같은 종류·같은 믹스 값일 때 다시 씀). 디스크·IndexedDB·Drive에 저장하지 않는다.
    공유 창은 누른 지 5초쯤 안에만 열려서, 만드는 데 그보다 오래 걸리면 단추가 [보내기]로 바뀌어 한 번 더 누른다 */

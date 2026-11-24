@@ -1380,8 +1380,8 @@ test('녹음 나누기: 단추 고르기 — 손가락·공유·작은 파일 �
   const f = (touch, share, small, legacy) => C.shareChoice({ touch, share, small, legacy });
   same(f(true, true, true), { act: 'share', file: 'small' });     // 폰: m4a 공유
   same(f(true, true, false), { act: 'share', file: 'wav' });      // 폰, 작은 파일 못 만듦: WAV 공유
-  same(f(true, false, true), { act: 'save', file: 'small' });     // 폰, 공유 안 됨: 작은 파일로 저장
-  same(f(false, true, true), { act: 'save', file: 'small' });     // PC: 작은 파일로 저장 (공유 되어도)
+  same(f(true, false, true), { act: 'save', file: 'small' });     // 폰, 공유 안 됨: 작은 파일 저장
+  same(f(false, true, true), { act: 'save', file: 'small' });     // PC: 작은 파일 저장 (공유 되어도)
   same(f(false, false, true), { act: 'save', file: 'small' });
   assert.equal(f(true, false, false), null);                      // 그 밖: 지금과 같음
   assert.equal(f(false, true, false), null);
@@ -1506,11 +1506,13 @@ test('녹음 나누기: [보내기] 5초 규칙 · 단추 글 · 만든 파일 �
   assert.equal(C.shareNeedsTap(8000), true);
   assert.equal(C.SHARE_MARGIN_MS, 500);
   assert.equal(C.shareBtnText({ act: 'share' }), '공유');
-  assert.equal(C.shareBtnText({ act: 'save' }), '작은 파일로 저장');
+  assert.equal(C.shareBtnText({ act: 'save' }), '작은 파일 저장');                    // 디자인 보기 K1: PC 줄 [삭제]가 2줄 안에
   assert.equal(C.shareBtnText({ act: 'share', ready: true }), '보내기');
   assert.equal(C.shareBtnText({ act: 'share', busyMs: 300 }), '만드는 중…');
-  assert.equal(C.shareBtnText({ act: 'share', busyMs: 3999 }), '만드는 중… 3초');      // 경과 초만 (남은 시간 X)
-  assert.equal(C.shareBtnText({ act: 'save', busyMs: 12000, ready: true }), '만드는 중… 12초');  // 만드는 중이 먼저
+  assert.equal(C.shareBtnText({ act: 'share', busyMs: 3999 }), '만드는 중 3초');       // 경과 초만 (남은 시간 X) · 디자인 보기 K2: 짧게
+  assert.equal(C.shareBtnText({ act: 'save', busyMs: 12000, ready: true }), '저장 중 12초');   // 만드는 중이 먼저 · PC는 누른 단추 말("저장")
+  assert.equal(C.shareBtnText({ act: 'save', busyMs: 300 }), '저장 중…');
+  assert.equal(C.shareBtnText({ act: 'share', busyMs: 125000 }), '만드는 중 125초');
   const mix = { offset: 120, vocal: 80, mr: 80, echo: 25, reverb: 35 };
   const k = C.shareKey('r1', mix, 'small');
   assert.equal(k, C.shareKey('r1', { ...mix }, 'small'));

@@ -59,6 +59,7 @@ button{cursor:pointer}
 .btn.danger{color:var(--danger-ink)}
 .btn svg{width:16px;height:16px;fill:currentColor}
 .btn:disabled{opacity:.45;cursor:not-allowed}
+.btn[data-share]:disabled{opacity:1;cursor:progress}   /* 디자인 보기 K4: 세는 글은 읽혀야 함 (키트 Button busy와 같음) */
 select{background:var(--btn-bg);border:1px solid var(--btn-line);border-radius:var(--r-in);padding:7px 10px}
 
 /* layout */
@@ -95,6 +96,8 @@ select{background:var(--btn-bg);border:1px solid var(--btn-line);border-radius:v
 .rec audio{width:100%;height:36px}
 .rec .btns{display:flex;gap:6px;flex-wrap:wrap}
 .rec .btn.play{min-width:7.5em;font-variant-numeric:tabular-nums}
+.rec .btns .brk{flex-basis:100%;height:0}
+.rec .btns:has(> .brk){row-gap:3px}   /* 줄 바꿈 칸 위아래 3+3 = 지금과 같은 6px 틈 */
 .score-chip{font:var(--font-stat-strong);line-height:1;color:var(--ink);background:var(--panel);padding:5px 8px;border-radius:var(--r-tag);flex:none}
 
 /* stage */
@@ -232,6 +235,7 @@ dialog h2{margin:0;font:var(--font-title-sheet)}
 .two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .dlg-btns{display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap}
 .dlg-btns .grow{flex:1}
+@media (max-width:560px){#mixDialog .dlg-btns:has(#mxShare:not([hidden])) .grow{flex-basis:100%;height:0}}   /* 디자인 보기 K3: 폰은 1줄 [공유][WAV로 내보내기] · 2줄 [닫기][저장] */
 .err{color:var(--color-danger);font-size:13px;margin:0}
 .lrc-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 .lrc-results{list-style:none;margin:0;padding:0;border-radius:var(--r-in);max-height:210px;overflow:auto;background:var(--room)}

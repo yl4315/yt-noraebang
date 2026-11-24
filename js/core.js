@@ -1151,11 +1151,12 @@ function shareKey(id, mix, file) { return `${id}|${file}|${MIX_KEYS.map(k => mix
 // 다 만든 뒤 공유 창을 바로 열 수 있나: 누른 지 5초가 넘으면 브라우저가 막는다 → [보내기]로 한 번 더 (0.5초는 여유)
 const SHARE_MARGIN_MS = 500;
 const shareNeedsTap = elapsedMs => elapsedMs >= SHARE_GESTURE_MS - SHARE_MARGIN_MS;
-// 단추 글: 평소 [공유]·[작은 파일로 저장] / 만드는 중 "만드는 중… N초"(경과 초만) / 다 만들고 기다림 [보내기]
+// 단추 글: 평소 [공유]·[작은 파일 저장] / 만드는 중 "만드는 중 N초"(폰)·"저장 중 N초"(PC, 누른 단추 말) (경과 초만) / 다 만들고 기다림 [보내기]
+// (CR-031 디자인 보기 K1: PC 줄에서 [삭제]가 2줄 안에 들어가게 짧은 이름 · K2: 세는 글도 짧게)
 function shareBtnText({ act, busyMs = null, ready = false }) {
-  if (busyMs != null) return busyMs < 1000 ? '만드는 중…' : `만드는 중… ${Math.floor(busyMs / 1000)}초`;
+  if (busyMs != null) { const w = act === 'save' ? '저장 중' : '만드는 중'; return busyMs < 1000 ? `${w}…` : `${w} ${Math.floor(busyMs / 1000)}초`; }
   if (ready) return '보내기';
-  return act === 'share' ? '공유' : '작은 파일로 저장';
+  return act === 'share' ? '공유' : '작은 파일 저장';
 }
 
 /* Ogg Opus 틀 (RFC 7845): 첫 쪽 OpusHead · 둘째 쪽 OpusTags · 그다음 소리 쪽들. 쪽마다 CRC.

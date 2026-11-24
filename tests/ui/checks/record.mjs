@@ -1,8 +1,8 @@
 // 흐름 11: 녹음 (마이크 없이: 마이크가 꺼져 있으면 목소리 없이 녹음되고 1.5초가 넘으면 저장된다), 내 녹음, 싱크·믹스 조절, WAV,
-// 녹음 나누기 (CR-031: 폰 [공유]·PC [작은 파일로 저장], 공유는 흉내)
+// 녹음 나누기 (CR-031: 폰 [공유]·PC [작은 파일 저장], 공유는 흉내 · 디자인 보기 K1~K4: 새 녹음 줄 2줄, 폰 창 단추 2줄, 세는 글 대비)
 import fs from 'node:fs';
 import path from 'node:path';
-import { PHONE, READY_DEMO, openPage, clipShot, txt, visible, isHidden, marks, sawToast, sleep, q, stopAll, selectById, seedRec } from './_lib.mjs';
+import { PC, TV, PHONE, READY_DEMO, openPage, clipShot, txt, visible, isHidden, marks, sawToast, sleep, q, stopAll, selectById, seedRec } from './_lib.mjs';
 export const areas = ['J', 'F'];
 
 export async function waitDownload(ctx, re, since, ms = 15000) {
@@ -170,8 +170,8 @@ export default async function record(ctx) {
     const listening = await p.until(`/^⏸ /.test(document.querySelector('${sel} [data-play]').textContent)`, 5000);
     await p.click(`${sel} [data-play]`);
     const since = ctx.downloads().length;
-    const wi = await p.eval(`[...document.querySelectorAll('${sel} .btns button')].findIndex(b=>b.textContent==='WAV로 저장')+1`);   // CR-031: 3번째는 [작은 파일로 저장]
-    await p.click(`${sel} .btns button:nth-child(${wi})`);
+    const wi = await p.eval(`[...document.querySelectorAll('${sel} .btns button')].findIndex(b=>b.textContent==='WAV로 저장')+1`);   // CR-031: 3번째는 [작은 파일 저장]
+    await p.click(`${sel} .btns button:nth-of-type(${wi})`);                        // 줄 바꿈 칸(span.brk)이 끼어 있어서 nth-of-type
     const wav = await waitDownload(ctx, /^QA 시험 점수 녹음_\d{8}-\d{4}\.wav$/, since, 20000);
     const n0 = await nRecs();
     await p.click(`${sel} .btns .danger`);
@@ -191,9 +191,37 @@ export default async function record(ctx) {
   const DECODE = blobExpr => `(async()=>{ try { const ab=await (${blobExpr}).arrayBuffer(); const ac=new OfflineAudioContext(2, 4800, 48000); const b=await ac.decodeAudioData(ab); let pk=0; const d=b.getChannelData(0); for (let i=0;i<d.length;i+=5) pk=Math.max(pk,Math.abs(d[i])); return {ok:true, dur:b.duration, ch:b.numberOfChannels, pk} } catch(e) { return {ok:false, err:String(e)} } })()`;
   const fromB64 = b64 => `new Blob([Uint8Array.from(atob(${q(b64)}),c=>c.charCodeAt(0))])`;
   const SEC = 3, WANT = SEC + 1.5;            // 믹스 길이 = 녹음 + 1.5초
+  // 디자인 보기 K1~K3: 보이는 단추를 위치(top)로 줄로 묶는다. gap = 1줄 아래 끝 ~ 2줄 위 끝, rightGap = 칸 오른쪽 끝 ~ 마지막 줄 오른쪽 끝
+  const linesOf = (pg, sel) => pg.eval(`(()=>{const box=document.querySelector(${q(sel)}); if(!box) return null; const L=[];
+    for (const b of box.querySelectorAll('button')) { const r=b.getBoundingClientRect(); if(!r.width||!r.height) continue; let l=L.find(x=>Math.abs(x.top-r.top)<4);
+      if(!l) L.push(l={top:r.top, bottom:r.bottom, right:r.right, t:[]}); l.t.push(b.textContent); l.bottom=Math.max(l.bottom,r.bottom); l.right=Math.max(l.right,r.right); }
+    L.sort((a,b)=>a.top-b.top); const br=box.getBoundingClientRect(), r1=v=>Math.round(v*10)/10;
+    return {lines:L.map(l=>l.t), gap:L.length>1?r1(L[1].top-L[0].bottom):null, w:r1(br.width), rightGap:L.length?r1(br.right-L[L.length-1].right):null}})()`);
+  // K4: 단추 글 대비 (투명도까지 넣어서 뒤 칸 색 위에 보이는 색으로 잰다, WCAG 식)
+  const inkOf = (pg, expr) => pg.eval(`(()=>{const e=${expr}; if(!e) return null;
+    const rgb=s=>{const m=s.match(/[\\d.]+/g).map(Number); return {r:m[0],g:m[1],b:m[2],a:m.length>3?m[3]:1}}, over=(f,b)=>({r:f.r*f.a+b.r*(1-f.a),g:f.g*f.a+b.g*(1-f.a),b:f.b*f.a+b.b*(1-f.a),a:1});
+    let back={r:0,g:0,b:0,a:1}; for(let p=e.parentElement;p;p=p.parentElement){const c=rgb(getComputedStyle(p).backgroundColor); if(c.a>0){back=over(c,back); break;}}
+    const cs=getComputedStyle(e), op=+cs.opacity, bg=over(rgb(cs.backgroundColor),back), fg=over(rgb(cs.color),bg), seen=c=>over({...c,a:op},back);
+    const lum=c=>{const f=v=>{v/=255; return v<=0.03928?v/12.92:Math.pow((v+0.055)/1.055,2.4)}; return 0.2126*f(c.r)+0.7152*f(c.g)+0.0722*f(c.b)};
+    const a=lum(seen(fg)), b=lum(seen(bg)); return {t:e.textContent, op, color:cs.color, d:e.disabled, ratio:Math.round((Math.max(a,b)+0.05)/(Math.min(a,b)+0.05)*100)/100}})()`);
+  const btnByText = (sel, t) => `[...document.querySelectorAll(${q(sel + ' button')})].find(b=>b.textContent===${q(t)})`;
+  const fmtL = L => L ? L.lines.map(l => '[' + l.join('][') + ']').join(' / ') + (L.gap != null ? ` (틈 ${L.gap}px)` : '') : '없음';
+  // 새 녹음 줄: 1줄 [▶ 듣기][싱크·믹스 조절] · 2줄 [공유 자리][WAV로 저장][삭제], 줄 틈 6px (K2)
+  const twoLines = (L, first) => !!L && L.lines.length === 2 && JSON.stringify(L.lines[0]) === '["▶ 듣기","싱크·믹스 조절"]' && L.lines[1].length === 3
+    && first.test(L.lines[1][0]) && L.lines[1][1] === 'WAV로 저장' && L.lines[1][2] === '삭제' && Math.abs(L.gap - 6) < 0.6;
+  // 폰 창: 1줄 [공유 자리][WAV로 내보내기] · 2줄 [닫기][저장] 오른쪽에 붙음 (K3)
+  const mixTwo = (L, first) => !!L && L.lines.length === 2 && L.lines[0].length === 2 && first.test(L.lines[0][0]) && L.lines[0][1] === 'WAV로 내보내기'
+    && JSON.stringify(L.lines[1]) === '["닫기","저장"]' && Math.abs(L.rightGap) < 1;
+  const inkOk = (busy, wav) => !!busy && !!wav && busy.d && busy.op === 1 && busy.color === wav.color && busy.ratio >= 4.5;
+  const fmtInk = (busy, wav) => busy && wav ? `"${busy.t}" 투명도 ${busy.op} · 대비 ${busy.ratio}:1 (눌림 막음 ${busy.d}) / [${wav.t}] ${wav.ratio}:1 · 글 색 같음 ${busy.color === wav.color}` : '못 잼';
+  // 세는 글이 가장 길 때 (2분 넘게): renderShareUI가 Share.busy로 그리는 모양을 잠깐 넣어 본다 (파일은 안 만듦)
+  const LONG = sel => `(()=>{const b=document.querySelector(${q(sel)}); Share.busy={key:shareKeyOf(b.shareInfo), t0:performance.now()-125000}; renderShareUI(); return b.textContent})()`;
+  const LONG_OFF = `(()=>{Share.busy=null; renderShareUI()})()`;
+  const PC_1024 = { name: '1024x768', width: 1024, height: 768 };
+  const PHONE_360 = { name: '360x800', width: 360, height: 800, mobile: true, touch: true };
   const pcIds = [];
 
-  await step('녹음 나누기 (PC 마우스 화면): [작은 파일로 저장] → 작은 파일·알림, 창 단추, [WAV로 저장] 그대로, 예전 녹음은 새 단추 없음', ['J16', 'J17', 'J18'], async () => {
+  await step('녹음 나누기 (PC 마우스 화면): [작은 파일 저장] → 작은 파일·알림, 창 단추, [WAV로 저장] 그대로, 예전 녹음은 새 단추 없음, 1024·1280·1920 줄 2줄', ['J16', 'J17', 'J18'], async () => {
     const fm = await p.eval(`(async()=>({f48: await smallFormatFor(48000), f44: await smallFormatFor(44100), pick: Share.pick, small: Share.small, enc: typeof AudioEncoder}))()`);
     ctx.log(`  작은 파일 형식 (이 Edge): 48kHz ${fm.f48} · 44.1kHz ${fm.f44} (AudioEncoder ${fm.enc})`);
     const base = Date.now() - 5 * 3600e3;
@@ -201,8 +229,29 @@ export default async function record(ctx) {
     pcIds.push(await seedRec(p, { songId: ids.short, title: 'QA 시험 나누기 예전', v2: false, createdAt: base - 60e3 }));
     await p.click('#tabRecs');
     const r1 = await rowOf(p, 'QA 시험 나누기 녹음'), lg = await rowOf(p, 'QA 시험 나누기 예전');
-    await clipShot(p, [r1.sel], path.join(crDir, 'pc-1280-rec-row.png'));
-    // [작은 파일로 저장]
+    // 디자인 보기 K1·K2: PC 1024·1280·1920 새 녹음 줄은 늘 2줄 ([삭제]가 3줄째로 안 떨어짐), "저장 중 125초"가 되어도 그대로 · K4 세는 글 대비
+    const pcL = {}, pcSize = p.size || PC, shareSel = `${r1.sel} [data-share]`;
+    let pcInk = null;
+    try {
+      for (const size of [PC_1024, PC, TV]) {
+        await p.emulate(size);
+        const w = size.width;
+        pcL[w] = { normal: await linesOf(p, `${r1.sel} .btns`) };
+        await clipShot(p, [r1.sel], path.join(crDir, `pc-${w}-rec-row.png`));
+        pcL[w].longText = await p.eval(LONG(shareSel));
+        pcL[w].long = await linesOf(p, `${r1.sel} .btns`);
+        if (w === 1280) {
+          pcInk = { busy: await inkOf(p, `document.querySelector(${q(shareSel)})`), wav: await inkOf(p, btnByText(`${r1.sel} .btns`, 'WAV로 저장')) };
+          await clipShot(p, [r1.sel], path.join(crDir, 'pc-1280-saving-long.png'));
+        }
+        await p.eval(LONG_OFF);
+      }
+    } finally { await p.eval(LONG_OFF).catch(() => {}); await p.emulate(pcSize); }
+    ctx.log(`  PC 줄: ${[1024, 1280, 1920].map(w => w + ' ' + pcL[w].normal?.w + 'px ' + fmtL(pcL[w].normal) + ' → "' + pcL[w].longText + '" ' + fmtL(pcL[w].long)).join(' · ')}`);
+    ok('J17', [1024, 1280, 1920].every(w => twoLines(pcL[w].normal, /^작은 파일 저장$/) && twoLines(pcL[w].long, /^저장 중 125초$/)),
+      `디자인 K1·K2 PC 새 녹음 줄 2줄: ${[1024, 1280, 1920].map(w => w + ' ' + fmtL(pcL[w].normal) + ' · "' + pcL[w].longText + '"도 2줄 ' + twoLines(pcL[w].long, /^저장 중 125초$/)).join(' | ')}`);
+    ok('J17', inkOk(pcInk?.busy, pcInk?.wav), `디자인 K4 PC 세는 글: ${fmtInk(pcInk?.busy, pcInk?.wav)}`);
+    // [작은 파일 저장]
     const ext = fm.f48 === 'wav' ? 'wav' : fm.f48;
     let since = ctx.downloads().length, m = await marks(p);
     await p.click(`${r1.sel} [data-share]`);
@@ -212,7 +261,7 @@ export default async function record(ctx) {
     // 같은 믹스 WAV (기존 단추 그대로)
     since = ctx.downloads().length;
     const wi = await p.eval(`[...document.querySelectorAll(${q(r1.sel + ' .btns button')})].findIndex(b=>b.textContent==='WAV로 저장')+1`);
-    await p.click(`${r1.sel} .btns button:nth-child(${wi})`);
+    await p.click(`${r1.sel} .btns button:nth-of-type(${wi})`);
     const wav = await waitDownload(ctx, /^QA 시험 나누기 녹음_\d{8}-\d{4}\.wav$/, since, 20000);
     const dec = small ? await p.eval(DECODE(fromB64(fs.readFileSync(small.file).toString('base64')))) : { ok: false, err: '받은 파일 없음' };
     const magic = small ? (ext === 'm4a' ? small.head.toString('latin1', 4, 8) : small.head.toString('latin1', 0, 4)) : '';
@@ -221,14 +270,17 @@ export default async function record(ctx) {
     await p.click(`${r1.sel} .btns .primary`);
     await p.until(`document.querySelector('#mixDialog').open`, 3000);
     const mx = await p.eval(`(()=>{const b=document.querySelector('#mxShare'); return {hidden:b.hidden, t:b.textContent, order:[...b.parentElement.querySelectorAll('button')].map(x=>x.textContent)}})()`);
+    const pcMixL = await linesOf(p, '#mixDialog .dlg-btns');           // K3: PC 창은 그대로 한 줄
     await clipShot(p, ['#mixDialog .dlg-btns'], path.join(crDir, 'pc-1280-mix-buttons.png'));
     await p.click('#mxClose');
-    const want = ['▶ 듣기', '싱크·믹스 조절', '작은 파일로 저장', 'WAV로 저장', '삭제'];
-    ok('J17', JSON.stringify(r1.btns) === JSON.stringify(want) && !!small && saved && label === '작은 파일로 저장' && !mx.hidden && mx.t === '작은 파일로 저장'
-      && mx.order[0] === '작은 파일로 저장' && mx.order[1] === 'WAV로 내보내기' && !!wav && wav.head.toString('latin1', 0, 4) === 'RIFF' && JSON.stringify(lg.btns) === JSON.stringify(['다운로드', '삭제']),
+    const want = ['▶ 듣기', '싱크·믹스 조절', '작은 파일 저장', 'WAV로 저장', '삭제'];
+    ok('J17', JSON.stringify(r1.btns) === JSON.stringify(want) && !!small && saved && label === '작은 파일 저장' && !mx.hidden && mx.t === '작은 파일 저장'
+      && mx.order[0] === '작은 파일 저장' && mx.order[1] === 'WAV로 내보내기' && !!wav && wav.head.toString('latin1', 0, 4) === 'RIFF' && JSON.stringify(lg.btns) === JSON.stringify(['다운로드', '삭제']),
       `PC 줄 [${r1.btns.join('] [')}] → ${small ? small.name : '안 받아짐'} + "저장했어요 · 이름 (크기)" · 창 [${mx.order.slice(0, 2).join('] [')}] · [WAV로 저장] ${wav ? wav.size + '바이트' : '안 됨'} · 예전 녹음 [${lg.btns.join('] [')}]`);
     ok('J16', fm.f48 !== 'wav' && !!small && !!wav && small.size * 5 < wav.size && magic === (ext === 'm4a' ? 'ftyp' : 'OggS') && dec.ok && Math.abs(dec.dur - WANT) < 0.1 && dec.ch === 2 && dec.pk > 0.001,
       `${ext} ${small ? small.size : 0}바이트 < WAV ${wav ? wav.size : 0}의 1/5 · 머리 "${magic}" · Edge에서 읽힘 ${dec.ok ? dec.dur.toFixed(3) + '초 (녹음 ' + SEC + ' + 1.5초)' : dec.err}`);
+    ok('J17', !!pcMixL && pcMixL.lines.length === 1 && JSON.stringify(pcMixL.lines[0]) === '["작은 파일 저장","WAV로 내보내기","닫기","저장"]',
+      `디자인 K3 PC 창 단추는 한 줄 그대로 (창 안 ${pcMixL?.w}px): ${fmtL(pcMixL)}`);
     const stem = small && wav && small.name.replace(/\.\w+$/, '') === wav.name.replace(/\.\w+$/, '');
     ok('J18', stem, `작은 파일·WAV 이름이 같은 규칙: ${small?.name} / ${wav?.name}`);
   });
@@ -260,7 +312,20 @@ export default async function record(ctx) {
       let r = await rowOf(ph, 'QA 시험 폰 나누기');
       const lg = await rowOf(ph, 'QA 시험 폰 예전'), dr = await rowOf(ph, 'QA 시험 Drive 녹음');
       const sb = `${r.sel} [data-share]`;
-      await clipShot(ph, [r.sel], path.join(crDir, 'phone-412-rec-row.png'));
+      // 디자인 보기 K2·K3: 412에서 재고 찍은 뒤 360으로 바꿔 같은 것을 재고 찍는다 (그다음 412로 돌아감)
+      const both = async (name, clipSel, lineSel) => {
+        const o = { 412: { t: (await btnText(sb))?.t, L: await linesOf(ph, lineSel) } };
+        if (name) await clipShot(ph, [clipSel], path.join(crDir, `phone-412-${name}.png`));
+        await ph.emulate(PHONE_360);
+        try { o[360] = { t: (await btnText(sb))?.t, L: await linesOf(ph, lineSel) }; if (name) await clipShot(ph, [clipSel], path.join(crDir, `phone-360-${name}.png`)); }
+        finally { await ph.emulate(PHONE); }
+        return o;
+      };
+      const rowL = { normal: await both('rec-row', r.sel, `${r.sel} .btns`) };
+      await ph.eval(LONG(sb));
+      rowL.long = await both('', r.sel, `${r.sel} .btns`);
+      await ph.eval(LONG_OFF);
+      const lgL = await linesOf(ph, `${lg.sel} .btns`);                 // 예전 방식 녹음 줄은 그대로 한 줄 [공유][다운로드][삭제]
       await clipShot(ph, [lg.sel], path.join(crDir, 'phone-412-legacy-row.png'));
       const touch = await ph.eval(`isTouch()`);
       // ① [공유] → 바로 공유 창 (짧은 곡은 5초 안에 만들어짐)
@@ -290,8 +355,9 @@ export default async function record(ctx) {
       await ph.eval(`__sh.mode='auto'`);
       await ph.tap(sb); await ph.until(`__sh.calls.length>${c0 + 1}`, 5000);
       const na = { rmUp: (await rm()) - rm0, after: await btnText(sb), share: await last() };
-      // ⑤ 만드는 데 5초 넘게 걸림 → "만드는 중… N초"(눌림 방지) → [보내기] + 안내 → 누르면 바로 공유 (다시 안 만듦)
-      await ph.eval(`Share.made=null; __rmDelay=5200`);
+      // ⑤ 만드는 데 5초 넘게 걸림 → "만드는 중 N초"(눌림 방지) → [보내기] + 안내 → 누르면 바로 공유 (다시 안 만듦)
+      //    (7초: 만드는 중에 412·360 두 크기를 재고 찍을 틈)
+      await ph.eval(`Share.made=null; __rmDelay=7000`);
       m = await marks(ph); c0 = await calls(); rm0 = await rm();
       await ph.tap(sb);
       await sleep(300);
@@ -299,12 +365,15 @@ export default async function record(ctx) {
       const mb = await marks(ph);
       await ph.tap(`${lg.sel} [data-share]`);                                         // 다른 녹음 [공유]
       const busyToast = await sawToast(ph, /^다른 녹음을 만드는 중이에요 · 끝나면 눌러 주세요$/, mb, 2000);
-      await ph.until(`/^만드는 중… [2-4]초$/.test(document.querySelector(${q(sb)}).textContent)`, 6000);
+      await ph.until(`/^만드는 중 [2-4]초$/.test(document.querySelector(${q(sb)}).textContent)`, 6000);
       const busy2 = await btnText(sb);
-      await clipShot(ph, [r.sel], path.join(crDir, 'phone-412-making.png'));
+      const rowInk = { busy: await inkOf(ph, `document.querySelector(${q(sb)})`), wav: await inkOf(ph, btnByText(`${r.sel} .btns`, 'WAV로 저장')) };
+      rowL.making = await both('making', r.sel, `${r.sel} .btns`);
       const readyOk = await ph.until(`document.querySelector(${q(sb)}).textContent==='보내기'`, 20000);
       const readyToast = await sawToast(ph, /^준비됐어요 · \[보내기\]를 눌러 주세요$/, m, 3000);
       await ph.shot(path.join(crDir, 'phone-412-send-ready.png'));
+      rowL.ready = await both('ready-row', r.sel, `${r.sel} .btns`);
+      await ph.emulate(PHONE_360); await ph.shot(path.join(crDir, 'phone-360-send-ready.png')); await ph.emulate(PHONE);
       const noShareYet = (await calls()) === c0;
       await ph.eval(`__rmDelay=0`);
       await ph.tap(sb); await ph.until(`__sh.calls.length>${c0}`, 5000);
@@ -329,7 +398,7 @@ export default async function record(ctx) {
       const wv = await last();
       const wavNote = await sawToast(ph, /^이 브라우저는 작은 파일을 못 만들어서 WAV로 보내요 \(파일이 커요\)$/, m, 3000);
       await ph.eval(`(async()=>{ window.AudioEncoder=__AE; Share.fmt.clear(); Share.made=null; await shareProbe(); renderRecs(); })()`);
-      // ⑨ 공유가 안 되는 브라우저 (canShare false) → [작은 파일로 저장]
+      // ⑨ 공유가 안 되는 브라우저 (canShare false) → [작은 파일 저장]
       await ph.eval(`__sh.canShare=false; renderRecs()`);
       const saveLabel = (await btnText(sb))?.t;
       let since = ctx.downloads().length; m = await marks(ph);
@@ -341,9 +410,29 @@ export default async function record(ctx) {
       await ph.tap(`${r.sel} .btns .primary`);
       await ph.until(`document.querySelector('#mixDialog').open`, 3000);
       const mxt = await btnText('#mxShare');
-      await clipShot(ph, ['#mixDialog .dlg-btns'], path.join(crDir, 'phone-412-mix-buttons.png'));
+      //    디자인 보기 K3: 폰 창 단추 1줄 [공유][WAV로 내보내기] · 2줄 [닫기][저장] (평소·만드는 중·[보내기], 412·360). [공유]가 숨으면 지금처럼 한 줄
+      const MX = '#mixDialog .dlg-btns', mxBoth = async name => {
+        const o = { 412: { t: (await btnText('#mxShare'))?.t, L: await linesOf(ph, MX) } };
+        await clipShot(ph, [MX], path.join(crDir, `phone-412-${name}.png`));
+        await ph.emulate(PHONE_360);
+        try { o[360] = { t: (await btnText('#mxShare'))?.t, L: await linesOf(ph, MX) }; await clipShot(ph, [MX], path.join(crDir, `phone-360-${name}.png`)); }
+        finally { await ph.emulate(PHONE); }
+        return o;
+      };
+      const mxL = { normal: await mxBoth('mix-buttons') };
+      await ph.emulate(PHONE_360);
+      try { mxL.noShare = await ph.eval(`(()=>{const b=document.querySelector('#mxShare'); b.hidden=true; return 1})()`).then(() => linesOf(ph, MX)); }
+      finally { await ph.eval(`document.querySelector('#mxShare').hidden=false`); await ph.emulate(PHONE); }
       c0 = await calls(); rm0 = await rm();
-      await ph.tap('#mxShare'); await ph.until(`__sh.calls.length>${c0}`, 20000);
+      await ph.eval(`__rmDelay=7000`);
+      await ph.tap('#mxShare');
+      await ph.until(`/^만드는 중 [1-4]초$/.test(document.querySelector('#mxShare').textContent)`, 6000);
+      const mxInk = { busy: await inkOf(ph, `document.querySelector('#mxShare')`), wav: await inkOf(ph, `document.querySelector('#mxWav')`) };
+      mxL.making = await mxBoth('mix-making');
+      await ph.until(`document.querySelector('#mxShare').textContent==='보내기'`, 20000);
+      mxL.ready = await mxBoth('mix-ready');
+      await ph.eval(`__rmDelay=0`);
+      await ph.tap('#mxShare'); await ph.until(`__sh.calls.length>${c0}`, 5000);               // [보내기] → 바로 공유 (다시 안 만듦)
       await ph.tap('#mxShare'); await ph.until(`__sh.calls.length>${c0 + 1}`, 5000);
       const mxSame = (await rm()) - rm0;
       await ph.tap('[data-nudge="10"]');
@@ -358,14 +447,26 @@ export default async function record(ctx) {
       ctx.log(`  폰 공유 ①: ${JSON.stringify(s1)} · 믹스 만들기 ${rm1}번`);
       ok('J15', touch && JSON.stringify(r.btns) === JSON.stringify(['▶ 듣기', '싱크·믹스 조절', '공유', 'WAV로 저장', '삭제']) && sh1 && rm2 === rm1
         && abortQuiet && failMsg && afterFail?.t === '공유' && naToast && na.rmUp === 1 && na.share.active && na.after?.t === '공유'
-        && busy0?.t === '만드는 중…' && busy0.d && busyToast && /^만드는 중… [2-4]초$/.test(busy2?.t) && busy2.d && readyOk && readyToast && noShareYet && slow.rmUp === 1 && slow.share.active && nameRe.test(slow.share.name)
+        && busy0?.t === '만드는 중…' && busy0.d && busyToast && /^만드는 중 [2-4]초$/.test(busy2?.t) && busy2.d && readyOk && readyToast && noShareYet && slow.rmUp === 1 && slow.share.active && nameRe.test(slow.share.name)
         && JSON.stringify(lg.btns) === JSON.stringify(['공유', '다운로드', '삭제']) && /^QA 시험 폰 예전_\d{8}-\d{4}\.webm$/.test(lgs.share.name) && lgs.share.size === 64 && lgs.rmUp === 0 && dr && !dr.share
         && mxt?.t === '공유' && mxSame === 1 && mx.rmUp === 2 && mx.keyHasDraft && recMixOff === 120 && draftOff === 130,
         `손가락 화면(hover:none ${touch}) 줄 [${r.btns.join('] [')}] · [공유] → 파일 ${s1.n}개 ${s1.name} ${s1.type} ${s1.size}바이트 "${s1.head.slice(4, 8)}", 칸 ${s1.keys.join('·')} · 또 누르면 다시 안 만듦 · 닫음 안내 ${abortQuiet ? '없음' : '나옴'} · 실패 안내 ${failMsg} · NotAllowed → [보내기] → 바로 공유 · 5초 넘음: "${busy0?.t}"(눌림 방지 ${busy0?.d}) → "${busy2?.t}" → [보내기] + 안내 → 공유(다시 만들기 ${slow.rmUp - 1}번) · 다른 녹음 누름 안내 ${busyToast} · 예전 녹음 ${lgs.share.name} ${lgs.share.size}바이트 그대로 · Drive 녹음 새 단추 없음 · 창 [공유]는 조절 값(타이밍 ${draftOff}ms)으로 다시 만듦`);
       ok('J16', /^QA 시험 폰 나누기_\d{8}-\d{4}\.ogg$/.test(og.name) && og.type === 'audio/ogg' && og.head.startsWith('OggS') && ogDec.ok && Math.abs(ogDec.dur - WANT) < 0.1 && ogDec.pk > 0.001
         && noEncLabel === '공유' && /\.wav$/.test(wv.name) && wv.type === 'audio/wav' && wv.head.startsWith('RIFF') && wavNote,
         `AAC 안 됨 → ${og.name} ${og.type} "${og.head.slice(0, 4)}" Edge에서 읽힘 ${ogDec.ok ? ogDec.dur.toFixed(3) + '초' : ogDec.err} · AudioEncoder 없음 → ${wv.name} "${wv.head.slice(0, 4)}" + 안내 ${wavNote}`);
-      ok('J17', saveLabel === '작은 파일로 저장' && !!phSave && phSaved, `폰인데 공유가 안 되면 [${saveLabel}] → ${phSave ? phSave.name + ' ' + phSave.size + '바이트' : '안 받아짐'} + 알림 ${phSaved}`);
+      ok('J17', saveLabel === '작은 파일 저장' && !!phSave && phSaved, `폰인데 공유가 안 되면 [${saveLabel}] → ${phSave ? phSave.name + ' ' + phSave.size + '바이트' : '안 받아짐'} + 알림 ${phSaved}`);
+      // 디자인 보기 K2·K3·K4 (폰 412·360)
+      const S = [412, 360], rowStates = [['normal', /^공유$/], ['making', /^만드는 중 \d+초$/], ['ready', /^보내기$/], ['long', /^만드는 중 125초$/]];
+      const rowOk = rowStates.every(([k, re]) => S.every(w => twoLines(rowL[k]?.[w]?.L, re)));
+      ctx.log(`  폰 줄: ${rowStates.map(([k]) => k + ' ' + S.map(w => w + ' ' + rowL[k]?.[w]?.L?.w + 'px ' + fmtL(rowL[k]?.[w]?.L)).join(' · ')).join(' | ')} · 예전 ${fmtL(lgL)}`);
+      ok('J15', rowOk && !!lgL && lgL.lines.length === 1 && JSON.stringify(lgL.lines[0]) === '["공유","다운로드","삭제"]',
+        `디자인 K2 폰 새 녹음 줄 2줄 (평소·만드는 중·[보내기]·"만드는 중 125초", 412·360): ${rowStates.map(([k, re]) => k + ' ' + S.map(w => twoLines(rowL[k]?.[w]?.L, re)).join('/')).join(' · ')} · 360 만드는 중 ${fmtL(rowL.making?.[360]?.L)} · 예전 녹음 줄 ${fmtL(lgL)}`);
+      const mxStates = [['normal', /^공유$/], ['making', /^만드는 중 \d+초$/], ['ready', /^보내기$/]];
+      const mxOk = mxStates.every(([k, re]) => S.every(w => mixTwo(mxL[k]?.[w]?.L, re)));
+      ctx.log(`  폰 창: ${mxStates.map(([k]) => k + ' ' + S.map(w => w + ' ' + mxL[k]?.[w]?.L?.w + 'px ' + fmtL(mxL[k]?.[w]?.L)).join(' · ')).join(' | ')} · 공유 숨김 ${fmtL(mxL.noShare)}`);
+      ok('J15', mxOk && !!mxL.noShare && mxL.noShare.lines.length === 1 && JSON.stringify(mxL.noShare.lines[0]) === '["WAV로 내보내기","닫기","저장"]',
+        `디자인 K3 폰 창 1줄 [공유 자리][WAV로 내보내기] · 2줄 [닫기][저장] (412·360): ${mxStates.map(([k, re]) => k + ' ' + S.map(w => mixTwo(mxL[k]?.[w]?.L, re)).join('/')).join(' · ')} · 360 만드는 중 ${fmtL(mxL.making?.[360]?.L)} · [공유] 숨으면 ${fmtL(mxL.noShare)}`);
+      ok('J15', inkOk(rowInk.busy, rowInk.wav) && inkOk(mxInk.busy, mxInk.wav), `디자인 K4 폰 세는 글: 줄 ${fmtInk(rowInk.busy, rowInk.wav)} · 창 ${fmtInk(mxInk.busy, mxInk.wav)}`);
       ok('J18', nameRe.test(s1.name) && /\.webm$/.test(lgs.share.name) && /\.ogg$/.test(og.name) && /\.wav$/.test(wv.name), `공유 이름도 같은 규칙: ${s1.name} · ${og.name} · ${wv.name} · ${lgs.share.name}`);
     } finally {
       await ph.eval(`(async()=>{ for (const id of ${q(phIds)}) { try { await DB.del('recs', id); } catch {} } })()`).catch(() => {});
