@@ -472,9 +472,9 @@ body:has(#tv:not([hidden])) .toast{bottom:calc(var(--bar-h,80px) + 8px)}
 .remote-info b{color:var(--ink)}
 .remote-info .qr{width:5.5em;height:5.5em;border-radius:.3em;image-rendering:pixelated;background:#fff}
 #remoteSet .qr{width:120px;height:120px}
-/* TV 대기 화면 내 폰 리모컨 QR 글 (CR-228 ④ L6): QR 옆에 제목 · 한 줄 · 옛 길 안내(작게) 세 줄 */
+/* TV 대기 화면 내 폰 리모컨 QR 글 (CR-228 ④ L6): QR 옆에 제목 · 한 줄 · 옛 길 안내(2줄) */
 .remote-info .my-tv{display:flex;flex-direction:column;gap:.2em;min-width:0;flex:1 1 9em;word-break:keep-all;text-wrap:pretty}   /* 낱말 가운데서 끊기거나 끝 글자 하나만 넘어가지 않게 (#hubSec .hint와 같은 방법) */
-.remote-info .my-tv-old{font-size:.85em;line-height:1.35}
+.remote-info .my-tv-old{font-size:1em;margin-top:.25em;line-height:1.35}   /* 위 줄과 같은 크기 (<small> 기본 smaller를 막음), 조금 띄워 따로 읽히게 (디자인실 K1) */
 @media (hover:hover){.song .acts .more{display:none}.song:hover .acts .more,.song:focus-within .acts .more,.song .acts .more[data-armed]{display:inline-flex}}
 .song .acts{gap:0}
 .icon-btn.fav-btn{font-size:16px;line-height:16px;width:24px;justify-content:center}

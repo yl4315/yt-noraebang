@@ -79,8 +79,8 @@ function renderRemoteInfo() {
   $('#advSubRemote').hidden = false;   // "더 보기 (고급)" 작은 글에도 그때만 (디자인 확인 CR-229 #1)
   for (const box of [$('#remoteInfo'), $('#remoteSet')]) {
     box.hidden = false; box.textContent = '';
-    if (i.url) box.append(el('b', '', '휴대폰 리모컨'), el('span', '', `같은 와이파이에서 ${i.url.replace(/\?.*$/, '')} · 코드 ${i.pin}`));
-    else box.append(el('b', '', '휴대폰 리모컨'), el('span', '', '꺼져 있어요. "YT 노래방 켜기"로 서버를 켜면 같은 와이파이의 휴대폰에서 쓸 수 있어요'));
+    if (i.url) box.append(el('b', '', '옛 폰 리모컨'), el('span', '', `같은 와이파이에서 ${i.url.replace(/\?.*$/, '')} · 코드 ${i.pin}`));
+    else box.append(el('b', '', '옛 폰 리모컨'), el('span', '', '꺼져 있어요. "YT 노래방 켜기"로 서버를 켜면 같은 와이파이의 폰에서 쓸 수 있어요'));
   }
   renderRemoteCtl();
   if (!i.url) return;
@@ -90,7 +90,7 @@ function renderRemoteInfo() {
     if (Remote.info !== i) return;
     for (const box of [$('#remoteInfo'), $('#remoteSet')]) {
       box.querySelector('.qr')?.remove();
-      box.prepend(qrImage(i.url, '휴대폰 리모컨 QR 코드'));
+      box.prepend(qrImage(i.url, '옛 폰 리모컨 QR 코드'));
     }
   }).catch(() => {});
 }

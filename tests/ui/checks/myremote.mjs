@@ -120,8 +120,8 @@ export default async function myremote(ctx) {
       `TV 대기 화면: "${st.title}" · "${st.line}" · QR ${st.qr}개${st.same ? ' (= 같은 곳 remote.html)' : ''}`);
     ok('L6', st.url === want && !/[?#]/.test(st.url) && !/remote\.html|https?:|nbm-/.test(st.html) && !/remote\.html|https?:/.test(st.t) && st.alt === st.T.alt,
       `QR 주소 = 같은 곳 remote.html (?·# 없음 = 방 이름·코드 0) · 화면 글·HTML에 주소 없음 · 그림 설명 "${st.alt}"`);
-    ok('L6', oldVis && st.old === st.T.old && /YT 노래방 켜기/.test(st.old) && /같은 와이파이 옛 리모컨 QR/.test(st.old),
-      `옛 길 안내 한 줄 보임: "${st.old}"`);
+    ok('L6', oldVis && st.old === st.T.old && /YT\s노래방\s켜기/.test(st.old) && /옛\s폰\s리모컨\sQR/.test(st.old),
+      `옛 길 안내 보임: "${st.old.replace(/\u00a0/g, ' ')}"`);
     await shot(host, 'x-my-tv-qr.png');
     // 손님 QR을 켜면 리모컨 칸은 숨김 (css .tv-idle.guest-on .remote-info) → 손님 방을 닫으면 다시 보임
     await host.eval('guestOpen()');
