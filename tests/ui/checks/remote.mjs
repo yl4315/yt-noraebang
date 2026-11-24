@@ -69,7 +69,8 @@ export default async function remote(ctx) {
       const b = await ph.eval(`(()=>{const t=document.querySelector('#toast'); if(t.hidden) return null; const r=t.getBoundingClientRect(), rg=document.createRange(); rg.selectNodeContents(t);
         const tops=new Set([...rg.getClientRects()].filter(x=>x.width>0).map(x=>Math.round(x.top))), cs=getComputedStyle(t);
         return {vw:innerWidth, w:Math.round(r.width), lines:tops.size, l:Math.round(r.left), r:Math.round(innerWidth-r.right), over:t.scrollWidth>t.clientWidth+1,
-          need:Math.ceil(rg.getBoundingClientRect().width+parseFloat(cs.paddingLeft)+parseFloat(cs.paddingRight)+parseFloat(cs.borderLeftWidth)+parseFloat(cs.borderRightWidth))}})()`);
+          need:Math.ceil(rg.getBoundingClientRect().width+parseFloat(cs.paddingLeft)+parseFloat(cs.paddingRight)+parseFloat(cs.borderLeftWidth)+parseFloat(cs.borderRightWidth)),
+          pad:cs.padding, sh:cs.boxShadow, bot:cs.bottom, gap:Math.round(innerHeight-r.bottom)}})()`);
       if (shot) await ph.shot(path.join(n242, shot));
       return b;
     };
@@ -78,12 +79,20 @@ export default async function remote(ctx) {
       R.short = await at('예약했어요 · 3번째', 'remote-360-toast-short.png');
       R.long = await at(LONG, 'remote-360-toast-long.png');
       R.nospace = await at(NOSPACE, 'remote-360-toast-nospace.png');
+      // CR-243 ②: 여백·그림자 (사진 cr243/remote-360-toast.png)
+      R.c243 = await at(LONG, null); await ph.shot(path.join(ctx.OUT, 'cr243', 'remote-360-toast.png')).catch(() => {});
     } finally { await ph.emulate(PHONE); await ph.eval(`(()=>{const t=document.querySelector('#toast'); t.hidden=true})()`).catch(() => {}); }
     const side = b => !!b && !b.over && b.l >= 15.5 && b.r >= 15.5;
     const f = b => b ? `${b.w}px ${b.lines}줄 (좌 ${b.l}·우 ${b.r}${b.over ? ' 넘침' : ''})` : '안 뜸';
     ok('N12', side(R.short) && R.short.lines === 1 && Math.abs(R.short.w - R.short.need) <= 2
       && side(R.long) && R.long.lines >= 2 && R.long.w >= R.long.vw - 32 - 2 && side(R.nospace) && R.nospace.lines >= 2,
       `CR-242 N3 리모컨 알림 360: 짧은 글 ${f(R.short)} (글 길이 ${R.short?.need}px) · 긴 글 ${f(R.long)} (화면 - 32 = ${(R.long?.vw ?? 360) - 32}px) · 띄어쓰기 없는 글 ${f(R.nospace)}`);
+    // CR-243 ②: 리모컨 알림 여백·그림자도 앱 알림과 같게 (10px 16px · 0 10px 30px), 자리(아래 84px)·폭(글 길이만큼, 화면 - 32px까지)은 그대로
+    const app = await p.eval(`(()=>{const cs=getComputedStyle(document.querySelector('#toast')); return {pad:cs.padding, sh:cs.boxShadow}})()`).catch(() => null);
+    const c = R.c243;
+    ok('N12', !!c && c.pad === '10px 16px' && c.sh === 'rgba(0, 0, 0, 0.4) 0px 10px 30px 0px' && !!app && c.pad === app.pad && c.sh === app.sh
+      && c.bot === '84px' && side(c) && c.w >= c.vw - 32 - 2,
+      `CR-243 ② 리모컨 알림 360: 여백 ${c?.pad} · 그림자 ${c?.sh} (앱 알림 ${app?.pad} · ${app?.sh}) · 아래 ${c?.bot} (화면 아래 끝과 ${c?.gap}px) · 긴 글 ${f(c)}`);
   });
 
   await step('리모컨 탭 버튼 11개 → PC가 그대로 실행, 진동·안내, 지금 곡 카드', ['N7', 'N12', 'N6', 'N13'], async () => {
