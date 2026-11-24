@@ -42,6 +42,33 @@
     getPlayerState() { return this.st; }
     destroy() {}
   }
+  // CR-244 재생목록 (열쇠 없이 목록 읽기, js/ytlist.js): cuePlaylist · getPlaylist · getPlaylistIndex · destroy.
+  // 점검이 정하는 것: window.__ytLists[목록 번호] = { ids: [영상 번호…], err(첫 영상 오류 번호, 그래도 목록 번호는 줌), late(ms, 목록 번호가 늦게 옴) } ·
+  // 없는 목록은 오류 100 (비공개·없는 목록 흉내). 200개까지만 준다 (진짜와 같음).
+  // 진짜와 같이 (11-24 ⓪ 확인): 같은 플레이어에 둘째 목록을 객체 꼴({ list })로 올리면 첫 목록이 그대로 남는다 (글자 꼴은 바뀜) → ytlist.js는 목록마다 새 플레이어.
+  // 목록을 올린 플레이어의 destroy는 플레이어 칸도 없앤다 (진짜도 iframe을 없앰). 원래 destroy(다른 곳에서 고칠 수 있음)는 그대로 부른다
+  const LISTS = id => (window.__ytLists || {})[id];
+  Object.assign(Player.prototype, {
+    cuePlaylist(arg) {
+      const obj = !!arg && typeof arg === 'object', id = String((obj ? arg.list : arg) ?? '');
+      log.calls.push(['cueList', id, obj ? 'obj' : 'str']);
+      if (this.gone) return;
+      if (obj && this.list != null) { log.calls.push(['cueList-kept', this.list]); setTimeout(() => { if (!this.gone) this._emit(5); }, 10); return; }
+      this.list = id; this.plist = null; this.pidx = -1;
+      const d = LISTS(id);
+      if (!d) { setTimeout(() => { if (!this.gone) this.o.events?.onError?.({ data: 100, target: this }); }, 20); return; }
+      setTimeout(() => {
+        if (this.gone) return;
+        const ids = (d.ids || []).slice(0, 200);
+        Object.assign(this, { plist: ids, pidx: ids.length ? 0 : -1, id: ids[0] || null, t: 0 });
+        if (d.err) this.o.events?.onError?.({ data: d.err, target: this }); else this._emit(5);
+      }, d.late || 10);
+    },
+    getPlaylist() { return this.plist ? [...this.plist] : null; },
+    getPlaylistIndex() { return this.pidx ?? -1; },
+  });
+  const destroy0 = Player.prototype.destroy;
+  Player.prototype.destroy = function () { if (this.list != null && !this.gone) { log.calls.push(['destroyList', this.list]); this.gone = true; this.el.remove(); } return destroy0.call(this); };
   setInterval(() => { for (const p of log.players) if (p.st === 1 && p._now() >= p.getDuration()) { p.t = p.getDuration(); p._emit(0); } }, 100);
   window.YT = { Player, PlayerState: { UNSTARTED: -1, ENDED: 0, PLAYING: 1, PAUSED: 2, BUFFERING: 3, CUED: 5 } };
   setTimeout(() => { if (typeof window.onYouTubeIframeAPIReady === 'function') window.onYouTubeIframeAPIReady(); }, 0);
