@@ -100,3 +100,13 @@ test('손님 QR 바탕 주소 (YT-06): localhost·사설 IP·http 방장 → QR 
   assert.equal(guestUrl('file:///C:/x/index.html', room, code, PUB), null);
   assert.equal(guestUrl('http://localhost:5173/', 'nbr-짧음', code, PUB), null);
 });
+
+test('손님 방 저절로 닫기 (YT-19): 손님 0명으로 2시간이면 닫음, 손님이 오면 시계를 되돌림', () => {
+  const { guestIdleStep } = load(['guestIdleStep']);
+  const H2 = 2 * 3600e3, t0 = 1_000_000;
+  assert.deepEqual(plain(guestIdleStep(0, 0, t0, H2)), { emptySince: t0, close: false });             // 지금 0명이 됨
+  assert.deepEqual(plain(guestIdleStep(t0, 0, t0 + H2 - 1, H2)), { emptySince: t0, close: false });   // 2시간 안
+  assert.deepEqual(plain(guestIdleStep(t0, 0, t0 + H2, H2)), { emptySince: t0, close: true });        // 2시간 → 닫음
+  assert.deepEqual(plain(guestIdleStep(t0, 2, t0 + H2 * 3, H2)), { emptySince: 0, close: false });    // 손님이 있으면 안 닫음 · 시계 0
+  assert.deepEqual(plain(guestIdleStep(0, 0, t0 + H2 * 3, H2)), { emptySince: t0 + H2 * 3, close: false });   // 손님이 다 나간 때부터 다시 셈
+});

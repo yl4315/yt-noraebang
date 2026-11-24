@@ -855,6 +855,13 @@ function guestUrl(base, room, code, pub) {
   }
   return b + 'guest.html#r=' + room + '&c=' + code;
 }
+// 손님 방 저절로 닫기 (CR-251 YT-19): 손님이 0명인 채로 ms(2시간)가 지나면 닫는다. 손님이 있으면 시계를 0으로 되돌린다.
+// emptySince = 손님이 0명이 된 시각 (0 = 지금 손님 있음). 돌려줌 { emptySince, close }
+function guestIdleStep(emptySince, guests, now, ms) {
+  if (guests > 0) return { emptySince: 0, close: false };
+  const since = emptySince > 0 ? emptySince : now;
+  return { emptySince: since, close: now - since >= ms };
+}
 // 손님 폰: 주소의 # 읽기. 맞으면 { ok:true, room, u, k }, 아니면 { ok:false } (틀린 값은 돌려주지 않는다)
 function guestUrlParse(hash) {
   const h = String(hash ?? '').replace(/^#/, '');

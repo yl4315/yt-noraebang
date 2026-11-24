@@ -111,7 +111,7 @@ export default async function guest(ctx) {
     await host.until(`!$('#hubLoginBtn').disabled && !/로그인 중|맞추는 중/.test($('#hubMsg').textContent)`, 20000);
     ok('X3', await host.eval('hubOn()'), '허브 연결 있음');
     await host.click('#cloudClose'); await sleep(200);
-    ok('X3', await host.eval(`!$('#guestCard').hidden && !$('#guestCardBtn').hidden && $('#guestCardQr').hidden`), 'TV 대기 카드 [손님 QR 켜기] 단추 (설정 창을 닫으면 다시 그림)');
+    ok('X3', await host.eval(`!$('#guestCard').hidden && !$('#guestCardBtn').hidden && $('#guestCardQr').hidden && $('#guestCardClose').hidden`), 'TV 대기 카드 [손님 QR 켜기] 단추 (설정 창을 닫으면 다시 그림 · 닫힌 방은 [방 닫기] 없음)');
   });
 
   // X3·X4·X1: 방 열기
@@ -363,6 +363,7 @@ export default async function guest(ctx) {
       await host.emulate(TV); await sleep(400);
       await host.eval('applyAdv(false)'); await sleep(150);
       tv = await measure();
+      tv.close = await visible(host, '#guestCardClose');     // CR-251 YT-19: 카드에 [방 닫기]
       await shot(host, 'x-guest-tv-card-1920.png');
       await host.eval('applyAdv(true)'); await sleep(150);
       tvAdv = await measure();
@@ -393,6 +394,7 @@ export default async function guest(ctx) {
       `TV 1920: 점수 ${tv && tv.lines}줄 시계 옆 ${tv && tv.bestBeside} · 카드가 덮는 넓이 점수 ${tv && over(tv.card, tv.best)} · 사용자 줄 ${tv && over(tv.card, tv.user)} · QR ${tv && tv.qr.w}px = 그림 ${qpx}px × ${tv && tv.qr.w / qpx} (무대 ${tv && tv.stage}px의 16% = ${tv && qrWant(tv.stage)}px 안쪽 배수)`);
     ok('X3', tvAdv && tvAdv.tipFull === 'none' && tvAdv.tipShort !== 'none' && over(tvAdv.card, tvAdv.user) === 0 && over(tvAdv.card, tvAdv.best) === 0,
       `TV 1920 고급 켬: 팁 ${tvAdv && tvAdv.tipFull === 'none' ? '한 줄(짧은 글)' : '예전 3줄'} · 카드가 덮는 넓이 사용자 줄 ${tvAdv && over(tvAdv.card, tvAdv.user)} · 점수 ${tvAdv && over(tvAdv.card, tvAdv.best)}`);
+    ok('X3', tv && tv.close, `TV 1920 손님 카드에 [방 닫기] ${tv && tv.close ? '보임' : '안 보임'} (CR-251 YT-19)`);
     ok('X3', over(pc.card, pc.user) === 0 && over(pc.card, pc.best) === 0 && qrOk(pc, pc.stage), `PC 1280 (점수 없음): 카드가 덮는 넓이 사용자 줄 ${over(pc.card, pc.user)} · 점수 ${over(pc.card, pc.best)} · QR ${pc.qr.w}px = ${qpx}px × ${pc.qr.w / qpx} (무대 ${pc.stage}px, 최소 96px)`);
     await host.eval(`$('#guestTvQr').click()`); await sleep(150);
     ok('X3', await host.eval(`$('#guestCard').hidden && !$('#tvIdle').classList.contains('guest-on') && localStorage.getItem('nb-guest-tv')==='0'`), 'TV에 QR 끄기 → 카드 숨김 (nb-guest-tv=0)');
@@ -444,6 +446,21 @@ export default async function guest(ctx) {
     await host.click('#guestNewBtn');
     const r3 = await roomOpen();
     ok('X8', r3.okOpen && r3.tag !== r2.tag && await A.p.until(`/방이 닫혔어요/.test($('#msgBig').textContent)`, 5000), '[새 QR 만들기] → 새 방 · 옛 손님은 "방이 닫혔어요"');
+    // CR-251 YT-19: 손님 0명으로 2시간 → 저절로 닫힘 (시계는 흉내: 0명이 된 시각을 2시간 앞으로) · TV 카드 [방 닫기] → 닫힘 · 카드 [손님 QR 켜기] → 새 방
+    const idle0 = await host.until(`Guest.on && Guest.guests.size===0 && Guest.empty>0`, 3000), mkI = await marks(host);
+    await host.eval(`Guest.empty = Date.now() - GUEST_IDLE_MS - 1000`);
+    const auto = await host.until(`!Guest.on && /손님이 2시간 동안 없어서/.test($('#guestMsg').textContent)`, 4000);
+    ok('X8', idle0 && auto && await sawToast(host, /손님이 2시간 동안 없어서 손님 방을 닫았어요/, mkI, 2000) && await waitNode(() => R.subs(host) === 0, 3000),
+      `손님 0명으로 2시간 → 방이 저절로 닫힘 · 알림 "${await host.eval(`$('#guestMsg').textContent`)}" · 방 채널에서 나감`);
+    await host.click('#guestOpenBtn');
+    const r4 = await roomOpen();
+    await closeDialogs();
+    const cardClose = r4.okOpen && await host.until(`!$('#guestCardClose').hidden`, 3000);
+    await host.eval(`$('#guestCardClose').click()`);
+    ok('X8', cardClose && await host.until(`!Guest.on && !$('#guestCardBtn').hidden && $('#guestCardClose').hidden`, 4000), 'TV 카드 [방 닫기] → 방 닫힘 · 카드는 [손님 QR 켜기]로');
+    await host.eval(`$('#guestCardBtn').click()`);
+    const r5 = await roomOpen();
+    ok('X8', r5.okOpen && r5.tag !== r4.tag, 'TV 카드 [손님 QR 켜기] → 새 방');
     await closeDialogs();
     await host.eval('hubDisconnect()');
     ok('X8', await host.until(`!Guest.on`, 4000) && await host.eval(`$('#guestCard').hidden`), '허브 연결 끊기 → 방도 닫힘 · TV 카드 없음');
