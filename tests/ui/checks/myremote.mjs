@@ -282,6 +282,22 @@ export default async function myremote(ctx) {
   });
 
   let room2 = '';
+  // CR-251 YT-r4: 폰 화면이 30초 넘게 꺼졌다 켜져도(PC는 그대로) "꺼져 있어요"로 굳지 않고 저절로 다시 이어진다.
+  // 폰 페이지의 시계만 31초 앞으로 돌려 "30초 소식 없음"을 만든다 (PC·가짜 허브는 그대로)
+  await step('폰 30초 소식 없음 (화면 꺼짐 흉내) → 끝난 방으로 적지 않고 같은 방에 저절로 다시 이어짐', ['X11'], async () => {
+    const before = await ph.until(APP_ON, 8000);
+    const l0 = R.log.length;
+    await ph.eval(`(() => { const o = Date.now.bind(Date); window.__dn = o; Date.now = () => o() + 31000; })()`);
+    const waitSeen = await ph.until(`!$('#hubView').hidden || !(${APP_ON})`, 5000);
+    const back = await ph.until(APP_ON, 15000);
+    const hellos = R.log.slice(l0).filter(e => e.op === 'broadcast' && e.event === 'p' && e.t === 'hello').length;
+    await sleep(1500);
+    const still = await ph.eval(APP_ON);
+    await ph.eval(`if (window.__dn) { Date.now = window.__dn; delete window.__dn; }`);
+    ok('X11', before && back && still && hellos >= 1 && await host.until('My.phones.size===1', 5000),
+      `30초 소식 없음 → ${waitSeen ? '"연결하는 중"을 거쳐 ' : ''}같은 방에 다시 hello ${hellos}번 → 다시 "연결됨"${back ? '' : ' (안 됨)'} · "꺼져 있어요"로 굳지 않음`);
+  });
+
   await step('끄기 → 폰 "[폰 리모컨 받기]를 켜 주세요" · 열쇠 칸 비움 · 다시 켜면 새 방 (옛 방 이름은 안 통함) · [다시 해 보기]', ['X9', 'X11'], async () => {
     await host.eval(`$('#myRemoteOn').click()`);
     const off = await host.until(`!My.on && !My.busy && !$('#myRemoteOn').checked`, 6000);
@@ -317,14 +333,16 @@ export default async function myremote(ctx) {
     await ph.eval(`Object.defineProperty(document,'visibilityState',{configurable:true,get:()=>'hidden'})`);
     const t0 = Date.now(), reload = host.goto(base + '/index.html', READY_DEMO, 150000);
     // 닫히는 페이지가 pagehide에서 보내는 "closed"는 가짜 점검 다리(CDP)가 못 받는다 → 그때는 폰의 30초 끊김 길(LOST_MS)로 꺼짐. 바로 뜨는지는 기기 확인(X10)
-    const seen = await ph.until(VIEW(H_OFF), 45000), seenS = ((Date.now() - t0) / 1000).toFixed(1);
+    // CR-251 YT-r4: 30초 끊김 뒤 폰은 열쇠 칸을 다시 읽는다 → PC가 그사이 새 방을 열었으면 새 방에 저절로 이어지고, 아니면 "꺼져 있어요"
+    const seen = await ph.until(`(${VIEW(H_OFF)}) || (${APP_ON})`, 45000), seenS = ((Date.now() - t0) / 1000).toFixed(1);
+    const autoBack = seen && await ph.eval(APP_ON);
     const closedN = R.log.filter(e => e.op === 'broadcast' && e.t === 'closed' && e.from === 'page').length - closed0;
     await reload;
     const on = await host.until(`My.on && !My.busy`, 20000);
     const room3 = on ? await host.eval('My.room') : '';
     if (room3) secrets.add(room3);
     const why = [!seen && `폰 꺼짐 안내 안 보임(PC closed ${closedN}개)`, !on && 'PC가 다시 안 켬', on && !ROOM_RE.test(room3) && '이름 모양 틀림', on && room3 === room2 && '옛 방 이름', on && slot() !== room3 && '열쇠 칸 ≠ 새 방'].filter(Boolean);
-    ok('X9', !why.length, `새로 고침: 폰 "${H_OFF}" (${seen ? seenS + '초 · ' + (closedN ? 'PC closed 받음' : '30초 끊김 길 — 가짜 다리는 닫히는 페이지 메시지를 못 받음, 바로 뜨는지 기기 확인') : '못 봄'}) → 다시 연 화면은 로그인한 채라 새 방으로 저절로 켬 (열쇠 칸 = 새 방)${why.length ? ' · 틀림: ' + why.join(', ') : ''}`);
+    ok('X9', !why.length, `새로 고침: 폰 ${autoBack ? '새 방에 저절로 다시 이어짐' : '"' + H_OFF + '"'} (${seen ? seenS + '초 · ' + (closedN ? 'PC closed 받음' : '30초 끊김 길 — 가짜 다리는 닫히는 페이지 메시지를 못 받음, 바로 뜨는지 기기 확인') : '못 봄'}) → 다시 연 화면은 로그인한 채라 새 방으로 저절로 켬 (열쇠 칸 = 새 방)${why.length ? ' · 틀림: ' + why.join(', ') : ''}`);
     // 폰 화면을 다시 보이게 하고 [다시 해 보기] → 새 방 (열쇠 칸에서 새 이름을 읽음)
     await ph.eval(`delete document.visibilityState`);
     const still = await ph.eval(VIEW(H_OFF));
