@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<!-- 허브 길(예나 폰 리모컨, CR-228 ③)은 로그인 세션을 쓴다: 주고받는 곳은 이 주소(server.py 옛 길)와 회사 허브(*.supabase.co)만 -->
+<!-- 허브 길(내 폰 리모컨, CR-228 ③)은 로그인 세션을 쓴다: 주고받는 곳은 이 주소(server.py 옛 길)와 회사 허브(*.supabase.co)만 -->
 <meta http-equiv="Content-Security-Policy" content="connect-src 'self' https://*.supabase.co wss://*.supabase.co; object-src 'none'; base-uri 'self'">
 <title>예태 노래방 리모컨</title>
 <meta name="theme-color" content="#121316">
@@ -102,7 +102,7 @@ nav .cnt{font-size:10px;background:var(--color-danger);color:#fff;border-radius:
 
 .pin{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;text-align:center;padding:24px}
 .pin h1{margin:0;font:var(--font-title-screen)}
-.pin p{margin:0;color:var(--muted);font-size:14px;max-width:30ch}
+.pin p{margin:0;color:var(--muted);font-size:14px;max-width:30ch;text-wrap:balance}
 .pin input{text-align:center;font:var(--font-display);letter-spacing:.3em;max-width:220px;font-variant-numeric:tabular-nums}
 .pin .go{background:var(--amber);border:0;border-radius:var(--radius-lg);padding:12px 30px;min-height:48px;font-weight:700;color:var(--color-accent-on)}
 .err{color:var(--rec);font-size:14px;min-height:1.4em;word-break:keep-all}
@@ -130,7 +130,7 @@ nav .cnt{font-size:10px;background:var(--color-danger);color:#fff;border-radius:
   <div class="err" id="pinErr"></div>
 </section>
 
-<!-- 예나 폰 리모컨 (CR-228 ③): server.py 없이 열었을 때 허브 길 안내 (붙는 중·로그인 필요·노래방에서 꺼짐·못 닿음·폰 많음). 글은 아래 HUB_VIEW -->
+<!-- 내 폰 리모컨 (CR-228 ③): server.py 없이 열었을 때 허브 길 안내 (붙는 중·로그인 필요·노래방에서 꺼짐·못 닿음·폰 많음). 글은 아래 HUB_VIEW -->
 <section class="pin" id="hubView" hidden>
   <h1 id="hubH"></h1>
   <p id="hubP"></p>
@@ -183,7 +183,7 @@ nav .cnt{font-size:10px;background:var(--color-danger);color:#fff;border-radius:
   </main>
   <div class="pad" id="a2hs" hidden>
     <div class="a2hs">
-      <span>크롬 메뉴(⋮) → <b>홈 화면에 추가</b> 하면 다음부터 아이콘으로 바로 열려요</span>
+      <span>크롬 메뉴(⋮) → <b>홈 화면에 추가</b>하면 다음부터 아이콘으로 바로 열려요</span>
       <button class="sb p" id="a2hsAdd" type="button" hidden>홈 화면에 추가</button>
       <button class="sb" id="a2hsClose" type="button">닫기</button>
     </div>
@@ -398,15 +398,17 @@ $('#a2hsAdd').onclick = async () => {
 };
 addEventListener('appinstalled', closeA2hs);
 
-/* ---- 예나 폰 리모컨 (CR-228 ③): 허브 길 ---- */
+/* ---- 내 폰 리모컨 (CR-228 ③): 허브 길 ---- */
 const HUB_VIEW = {
   wait: ['노래방에 연결하는 중…', '잠깐만 기다려 주세요'],
-  login: ['허브 로그인이 필요해요', '노래방 앱에서 허브에 먼저 로그인해 주세요. 로그인한 뒤 이 화면으로 돌아오면 바로 이어져요.', 'open'],
-  off: ['노래방 리모컨이 꺼져 있어요', '노래방에서 [예나 폰 리모컨]을 켜 주세요 (설정 › 더 보기 (고급)). 켜면 여기가 저절로 이어져요.', 'retry'],
+  login: ['허브 로그인이 필요해요', '노래방 설정 › 허브\u00a0연결에서 로그인하고 돌아오면 바로 이어져요.', 'open'],
+  off: ['폰 리모컨이 꺼져 있어요', '노래방 PC의 설정 › 더\u00a0보기에서 [폰\u00a0리모컨\u00a0받기]를 켜\u00a0주세요. 켜면 저절로 이어져요.', 'retry'],
   err: ['허브에 못 닿았어요', '인터넷을 확인하고 다시 해 주세요.', 'retry'],
   full: ['이어진 폰이 너무 많아요', '노래방에는 폰 4대까지 이어져요. 다른 폰의 리모컨을 닫고 다시 해 주세요.', 'retry'],
 };
+// \u00a0(줄이 안 바뀌는 칸)은 한 덩어리 말에만: 단추·스위치 이름 · "켜 주세요" · "더 보기" · "허브 연결" (디자인실 K1)
 function hubShow(kind) {
+  $('#conn').hidden = kind !== 'app';   // 안내 화면에서는 큰 제목이 상태를 말한다. 들어가면 "연결됨" 다시 보임 (디자인실 R1)
   if (kind === 'app') { $('#hubView').hidden = true; $('#pinView').hidden = true; $('#app').hidden = false; showA2hs(); return; }
   const v = HUB_VIEW[kind] || HUB_VIEW.err;
   $('#app').hidden = true; $('#pinView').hidden = true; $('#who').hidden = true; $('#hubView').hidden = false;

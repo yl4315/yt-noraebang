@@ -1229,15 +1229,15 @@ test('QR 크기: 1칸 = 정수 px가 되게 내린다 (CR-228 L2)', () => {
   for (const t of [96, 150, 220, 333]) assert.equal(C.qrFitPx(t, 37) % 37, 0);
 });
 
-/* ---------------- 예나 폰 리모컨 (CR-228 ③) ---------------- */
+/* ---------------- 내 폰 리모컨 (CR-228 ③) ---------------- */
 const PID = 'p'.repeat(22);
-test('예나 방 이름: nbm- + 43자(256비트) · 켤 때마다 새 이름 · 손님 방 이름(nbr-)과 다른 모양', () => {
+test('내 폰 방 이름: nbm- + 43자(256비트) · 켤 때마다 새 이름 · 손님 방 이름(nbr-)과 다른 모양', () => {
   const a = C.myRoomName(), b = C.myRoomName();
   assert.match(a, C.MY_ROOM_RE); assert.match(a, /^nbm-[A-Za-z0-9_-]{43}$/);
   assert.notEqual(a, b);
   assert.equal(new Set(Array.from({ length: 200 }, () => C.myRoomName())).size, 200);
   assert.notEqual(C.myRoomName(seqRng(1)), C.myRoomName(seqRng(2)));
-  // 서로 섞이지 않는다: 예나 방 이름은 손님 QR 주소가 안 되고, 손님 방 이름은 예나 방 모양이 아니다
+  // 서로 섞이지 않는다: 내 폰 방 이름은 손님 QR 주소가 안 되고, 손님 방 이름은 내 폰 방 모양이 아니다
   assert.equal(C.guestUrl('https://example.test/', a, HCODE), null);
   assert.equal(C.MY_ROOM_RE.test(C.guestRoomName()), false);
   assert.equal(C.guestUrlParse('#r=' + a + '&c=' + HCODE).ok, false);
@@ -1245,7 +1245,7 @@ test('예나 방 이름: nbm- + 43자(256비트) · 켤 때마다 새 이름 · 
   assert.match(C.MY_HUB_NAME, /^[a-z][a-z0-9_]{0,39}$/);   // 0008 hub_secret_set 이름 규칙 안 (새 SQL 없음)
 });
 
-test('예나 폰 메시지 모양: 명령 16가지만 · 칸 모양 · 4KB 넘으면 버림', () => {
+test('내 폰 메시지 모양: 명령 16가지만 · 칸 모양 · 4KB 넘으면 버림', () => {
   assert.equal(C.MY_CMDS.length, 16);
   const cmd = (c, args, more) => ({ v: 1, t: 'cmd', pid: PID, seq: 1, cmd: c, ...(args === undefined ? {} : { args }), ...more });
   const good = [
@@ -1265,7 +1265,7 @@ test('예나 폰 메시지 모양: 명령 16가지만 · 칸 모양 · 4KB 넘�
     cmd('reserveMany', { ids: Array.from({ length: 101 }, (_, i) => 's' + i) }), cmd('reserveMany', { ids: ['a', 3] }),
     cmd('mr', { delta: 21 }), cmd('mr', { delta: '5' }), cmd('mr', { delta: NaN }), cmd('key', { delta: 3 }), cmd('key', {}), cmd('profile', { id: 'p', name: 'x' }),
     { v: 1, t: 'hello', pid: PID, have: 'BAD!' }, { v: 1, t: 'hello', gid: PID },
-    // 손님 방 메시지 모양은 예나 방에서 안 통한다 (그 반대도)
+    // 손님 방 메시지 모양은 내 폰 방에서 안 통한다 (그 반대도)
     { v: 1, t: 'reserve', gid: GID, no: 1 }, { v: 1, t: 'search', gid: GID, q: 'a' },
   ];
   for (const m of bad) assert.equal(C.myMsgOk(m), false, JSON.stringify(m));
@@ -1278,7 +1278,7 @@ test('예나 폰 메시지 모양: 명령 16가지만 · 칸 모양 · 4KB 넘�
   assert.equal(C.myMsgOk(cmd('reserveMany', { ids: ['a'], label: '가'.repeat(201) })), false);
 });
 
-test('예나 폰이 받는 메시지: 내 표의 답만 · 아는 종류만', () => {
+test('내 폰이 받는 메시지: 내 표의 답만 · 아는 종류만', () => {
   const sig = C.mySig([]);
   assert.equal(C.myInOk({ v: 1, t: 'welcome', to: PID }, PID), true);
   assert.equal(C.myInOk({ v: 1, t: 'welcome', to: GID }, PID), false);

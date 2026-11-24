@@ -1,4 +1,4 @@
-// YT 노래방 · 예나 폰 리모컨 (폰 쪽, CR-228 ③): remote.html이 server.py 없이(GitHub Pages) 열렸을 때 허브 길로 잇는다
+// YT 노래방 · 내 폰 리모컨 (폰 쪽, CR-228 ③): remote.html이 server.py 없이(GitHub Pages) 열렸을 때 허브 길로 잇는다
 // - 같은 주소의 노래방 앱이 이 폰에 저장한 허브 연결(nb-hub)·로그인 세션(nb-hub-auth)을 그대로 쓴다. 로그인은 노래방 앱에서만.
 // - 방 이름은 허브 열쇠 칸 remote_room(0008 hub_secret)에서 읽는다 = 예나 계정만. 주소·QR·화면·콘솔에 쓰지 않는다.
 // - 폰 → PC 이벤트 'p' {hello·cmd·bye}, PC → 폰 이벤트 'm' {welcome·songs·state·ok·no·full·closed}. 모양 확인은 core.js (myInOk·myClean*).

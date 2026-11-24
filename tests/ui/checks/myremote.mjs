@@ -1,4 +1,4 @@
-// 예나 폰 리모컨 (CR-228 ③, X9~X11): 노래방 PC 1 + 예나 폰 1을 따로 켠 Edge 둘로 본다 (따로 켠 Edge = 따로 저장소 = 다른 기기).
+// 내 폰 리모컨 (CR-228 ③, X9~X11): 노래방 PC 1 + 내 폰 1을 따로 켠 Edge 둘로 본다 (따로 켠 Edge = 따로 저장소 = 다른 기기).
 // 가짜 허브(fakehub.mjs)의 가짜 Realtime 공개 broadcast만 쓰고 진짜 허브에는 연결 0. 둘 다 정적 서버(= GitHub Pages와 같은 상태, server.py 없음)에서 연다.
 // 폰은 같은 주소의 노래방 앱(index.html)에서 허브에 로그인한 뒤 remote.html을 연다 (실제 쓰는 순서 그대로).
 // 방 이름·허브 주소·키는 이 점검의 기록·결과표에도 쓰지 않는다: Node 변수에만 두고 "몇 개 보였나"만 센다.
@@ -17,9 +17,9 @@ const CONS = `(() => { if (window.__cons) return; const c = window.__cons = [];
 // PC가 받은 명령 기록 (remoteRun을 감싸서 이름만 적고 그대로 실행, remote.mjs와 같은 방법)
 const SPY_CMDS = `if(!window.__cmds){ window.__cmds=[]; const o=remoteRun; remoteRun=c=>{ __cmds.push(c.cmd); return o(c); }; }`;
 const ROOM_RE = /^nbm-[A-Za-z0-9_-]{43}$/;
-const APP_ON = `!$('#app').hidden && $('#hubView').hidden && $('#pinView').hidden && $('#conn span').textContent==='연결됨'`;
+const APP_ON = `!$('#app').hidden && $('#hubView').hidden && $('#pinView').hidden && !$('#conn').hidden && $('#conn span').textContent==='연결됨'`;
 const VIEW = h => `!$('#hubView').hidden && $('#app').hidden && $('#hubH').textContent===${q(h)}`;
-const H_LOGIN = '허브 로그인이 필요해요', H_OFF = '노래방 리모컨이 꺼져 있어요';
+const H_LOGIN = '허브 로그인이 필요해요', H_OFF = '폰 리모컨이 꺼져 있어요';
 
 export default async function myremote(ctx) {
   const { ok, step } = ctx, H = ctx.hub;
@@ -59,9 +59,9 @@ export default async function myremote(ctx) {
   const slot = () => H.secrets.get([uid, 'noraebang', 'remote_room'].join('|'));
   let room = '', phonePid = '';
 
-  await step('노래방 PC 준비 (정적 서버 = Pages): 시험 곡 2개 · 허브 로그인 전에는 예나 폰 리모컨 칸 없음', ['X9'], async () => {
-    songs.push(await seedSong(host, { title: 'QA 예나폰 첫곡', artist: 'QA가수', wav: mk('QA 예나폰 첫곡.wav', 90, 262, 392) }));
-    songs.push(await seedSong(host, { title: 'QA 예나폰 둘째곡', artist: 'QA가수B', wav: mk('QA 예나폰 둘째곡.wav', 90, 294, 440) }));
+  await step('노래방 PC 준비 (정적 서버 = Pages): 시험 곡 2개 · 허브 로그인 전에는 내 폰 리모컨 칸 없음', ['X9'], async () => {
+    songs.push(await seedSong(host, { title: 'QA 내폰 첫곡', artist: 'QA가수', wav: mk('QA 내폰 첫곡.wav', 90, 262, 392) }));
+    songs.push(await seedSong(host, { title: 'QA 내폰 둘째곡', artist: 'QA가수B', wav: mk('QA 내폰 둘째곡.wav', 90, 294, 440) }));
     await host.eval(SPY_CMDS);
     await openSettings();
     const st = await host.eval(`({sec:$('#myRemoteSec').hidden, sub:$('#advSubMy').hidden, on:My.on, old:$('#remoteSec').hidden})`);
@@ -70,7 +70,7 @@ export default async function myremote(ctx) {
     await closeDialogs();
   });
 
-  await step('노래방 PC: 허브 코드 저장 · 가짜 계정 로그인 → 설정 › 더 보기 (고급)에 "예나 폰 리모컨 (허브)" 칸 (처음엔 꺼짐)', ['X9'], async () => {
+  await step('노래방 PC: 허브 코드 저장 · 가짜 계정 로그인 → 설정 › 더 보기 (고급)에 "내 폰 리모컨 (허브)" 칸 (처음엔 꺼짐)', ['X9'], async () => {
     await openSettings(); await host.scrollTo('#hubSec');
     await typeInto(host, '#hubCode', hubCode()); await host.click('#hubCodeSave'); await sleep(300);
     await typeInto(host, '#hubEmail', email); await typeInto(host, '#hubPw', pw);
@@ -78,11 +78,11 @@ export default async function myremote(ctx) {
     await host.until(`!$('#hubLoginBtn').disabled && !/로그인 중|맞추는 중/.test($('#hubMsg').textContent)`, 20000);
     const shown = await host.until(`!$('#myRemoteSec').hidden && !$('#advSubMy').hidden`, 5000);
     const st = await host.eval(`({inAdv:$('#advBox').contains($('#myRemoteSec')), next:($('#myRemoteSec').nextElementSibling||{}).id, h3:$('#myRemoteSec h3').textContent,
-      on:$('#myRemoteOn').checked, role:$('#myRemoteOn').getAttribute('role'), sub:$('#myRemoteSub').textContent, link:$('#myRemoteLink').href, pref:localStorage.getItem('nb-myremote'), my:My.on})`);
-    ok('X9', shown && st.inAdv && st.next === 'remoteSec' && st.h3 === '예나 폰 리모컨 (허브)', `로그인하면 보임 · 고급 안 · 옛 휴대폰 리모컨 칸 바로 위 · 제목 "${st.h3}"`);
-    ok('X9', !st.on && !st.my && st.role === 'switch' && st.sub === '꺼짐 · 켜면 내 폰에서 바로 이어져요' && st.pref === null && slot() === undefined && R.joins.length === 0,
+      on:$('#myRemoteOn').checked, role:$('#myRemoteOn').getAttribute('role'), sub:$('#myRemoteSub').textContent, link:$('#myRemoteLink').href, linkRow:!$('#myRemoteLink').parentElement.hidden, pref:localStorage.getItem('nb-myremote'), my:My.on})`);
+    ok('X9', shown && st.inAdv && st.next === 'remoteSec' && st.h3 === '내 폰 리모컨 (허브)', `로그인하면 보임 · 고급 안 · 옛 휴대폰 리모컨 칸 바로 위 · 제목 "${st.h3}"`);
+    ok('X9', !st.on && !st.my && st.role === 'switch' && st.sub === '꺼짐 · 노래방을 띄운 PC에서 켜요' && st.pref === null && slot() === undefined && R.joins.length === 0,
       `처음엔 꺼짐: "${st.sub}" · 열쇠 칸 ${slot() === undefined ? '비어 있음' : '있음'} · 채널 ${R.joins.length}개`);
-    ok('X9', st.link === base + '/remote.html', '[이 기기에서 리모컨 열기] = 같은 주소의 remote.html');
+    ok('X9', st.link === base + '/remote.html' && st.linkRow, '[이 기기에서 리모컨 열기] = 같은 주소의 remote.html (꺼져 있을 때 보임)');
   });
 
   await step('켜기: 새 256비트 방(손님 방과 다른 모양) → 열쇠 칸 remote_room → 듣기 · 켜 둔 것을 이 기기에 기억', ['X9'], async () => {
@@ -91,22 +91,22 @@ export default async function myremote(ctx) {
     room = on ? await host.eval('My.room') : '';
     if (room) secrets.add(room);
     const j = R.joins[R.joins.length - 1] || {};
-    const st = await host.eval(`({sub:$('#myRemoteSub').textContent, sw:$('#myRemoteOn').checked, pref:localStorage.getItem('nb-myremote')})`);
+    const st = await host.eval(`({sub:$('#myRemoteSub').textContent, sw:$('#myRemoteOn').checked, pref:localStorage.getItem('nb-myremote'), linkHid:$('#myRemoteLink').parentElement.hidden})`);
     ok('X9', on && ROOM_RE.test(room) && slot() === room && (room.length - 4) * 6 >= 256, `켜짐 · 방 이름 nbm- + ${room.length - 4}자 (base64url, 32바이트 = 256비트 난수) · 열쇠 칸 = 이 방`);
     ok('X9', j.room === tagOf(room) && j.private === false && j.self === false && j.presence === false && j.pg === 0 && R.badKey === 0 && R.badUrl === 0,
       `채널: 공개 broadcast (private ${j.private} · self ${j.self} · presence ${j.presence} · 표 변경 ${j.pg}) · 공개 키만`);
-    ok('X9', st.sw && st.sub === '켜짐 · 폰 0대 이어짐' && st.pref === '1', `"${st.sub}" · 기억 nb-myremote=${st.pref}`);
+    ok('X9', st.sw && st.sub === '켜짐 · 폰 0대' && st.pref === '1' && st.linkHid, `"${st.sub}" · 기억 nb-myremote=${st.pref} · 받는 기기에는 [이 기기에서 리모컨 열기] ${st.linkHid ? '숨김' : '보임'}`);
     const d = await dump(host);
     ok('X9', leaks(d.text) + leaks(d.html) + leaks(d.cons) + leaks(d.href) === 0, `PC 화면 글·HTML·콘솔·주소에 방 이름·허브 주소·키 ${leaks(d.text)}·${leaks(d.html)}·${leaks(d.cons)}·${leaks(d.href)}개`);
     await clipShot(host, ['#myRemoteSec'], path.join(shotDir, 'x-my-host-on.png'));
   });
 
-  await step('폰: 허브 로그인 안 한 폰 → "노래방 앱에서 허브에 먼저 로그인해 주세요" + [노래방 열기] · server.py로 열면 옛 코드 화면 그대로', ['X11'], async () => {
+  await step('폰: 허브 로그인 안 한 폰 → "노래방 설정 › 허브 연결에서 로그인하고 돌아오면…" + [노래방 열기] · server.py로 열면 옛 코드 화면 그대로', ['X11'], async () => {
     await ph.s('Page.navigate', { url: base + '/remote.html' });
     const seen = await ph.until(`document.readyState==='complete' && (${VIEW(H_LOGIN)})`, 15000);
-    const st = await ph.eval(`({p:$('#hubP').textContent, open:!$('#hubOpen').hidden, href:$('#hubOpen').href, retry:!$('#hubRetry').hidden, pin:$('#pinView').hidden, ls:Object.keys(localStorage).filter(k=>k.startsWith('nb-hub')).length})`);
-    ok('X11', seen && /노래방 앱에서 허브에 먼저 로그인해 주세요/.test(st.p) && st.open && st.href === base + '/' && !st.retry && st.pin && st.ls === 0,
-      `"${H_LOGIN}" · [노래방 열기] → 노래방 첫 화면 · 코드 입력 화면 ${st.pin ? '없음' : '보임'}`);
+    const st = await ph.eval(`({p:$('#hubP').textContent, open:!$('#hubOpen').hidden, href:$('#hubOpen').href, retry:!$('#hubRetry').hidden, pin:$('#pinView').hidden, connHid:$('#conn').hidden, ls:Object.keys(localStorage).filter(k=>k.startsWith('nb-hub')).length})`);
+    ok('X11', seen && /노래방 설정 › 허브\s연결에서 로그인하고 돌아오면 바로 이어져요/.test(st.p) && st.open && st.href === base + '/' && !st.retry && st.pin && st.connHid && st.ls === 0,
+      `"${H_LOGIN}" · [노래방 열기] → 노래방 첫 화면 · 코드 입력 화면 ${st.pin ? '없음' : '보임'} · 연결 점 ${st.connHid ? '숨김' : '보임'}`);
     await shot(ph, 'x-my-phone-login.png');
     // 로그인 세션을 쓰는 화면이라 remote.html에도 CSP: 주고받는 곳은 같은 주소와 회사 허브(*.supabase.co)만
     const csp = await ph.eval(`document.querySelector('meta[http-equiv="Content-Security-Policy"]')?.content||''`);
@@ -133,7 +133,7 @@ export default async function myremote(ctx) {
     const hello = R.log.find(e => e.op === 'broadcast' && e.event === 'p' && e.from === 'page' && e.t === 'hello' && e.room === tagOf(room));
     phonePid = hello ? hello.pid : '';
     ok('X10', inOk && on && got && st.url === '', `로그인 뒤 remote.html → "연결됨" · 곡 ${st.n}개 (PC ${want}개) · 사용자 "${st.who}" · 주소 뒤 글 ${st.url ? '있음' : '없음'}`);
-    ok('X10', await host.until(`My.phones.size===1 && $('#myRemoteSub').textContent==='켜짐 · 폰 1대 이어짐'`, 5000) && toPid(phonePid, 'welcome').length >= 1, 'PC: "켜짐 · 폰 1대 이어짐" · 폰에 welcome');
+    ok('X10', await host.until(`My.phones.size===1 && $('#myRemoteSub').textContent==='켜짐 · 폰 1대'`, 5000) && toPid(phonePid, 'welcome').length >= 1, 'PC: "켜짐 · 폰 1대 이어짐" · 폰에 welcome');
     ok('X10', H.secretSets.length === sets0, `폰은 열쇠 칸을 읽기만 (쓰기 ${H.secretSets.length - sets0}번)`);
     await ph.eval('window.scrollTo(0,0)');
     await shot(ph, 'x-my-phone-app.png');
@@ -153,8 +153,8 @@ export default async function myremote(ctx) {
     const btn = sel => `document.querySelector(${q(sel)}).click()`;
     const send = (c, a, msg) => `send(${q(c)}, ${q(a)}${msg ? ', ' + q(msg) : ''})`;
     await ph.eval(`(()=>{ if (window.__toasts) return; const t=$('#toast'), a=window.__toasts=[]; new MutationObserver(()=>{ if(!t.hidden) a.push(t.textContent); }).observe(t,{attributes:true,childList:true,characterData:true,subtree:true}); })()`);
-    await run('reserve', send('reserve', { id: s1 }, '예약 · QA 예나폰 첫곡'), `state.queue.includes(${q(s1)})`);
-    const toastOk = await ph.until(`__toasts.includes('예약 · QA 예나폰 첫곡')`, 4000);
+    await run('reserve', send('reserve', { id: s1 }, '예약 · QA 내폰 첫곡'), `state.queue.includes(${q(s1)})`);
+    const toastOk = await ph.until(`__toasts.includes('예약 · QA 내폰 첫곡')`, 4000);
     const queueOk = await ph.until(`S && S.queue.includes(${q(s1)})`, 4000);
     await run('reserve 우선', send('reserve', { id: s2, priority: true }), `state.queue[0]===${q(s2)}`);
     await run('top', send('top', { id: s1 }), `state.queue[0]===${q(s1)}`);
@@ -182,7 +182,7 @@ export default async function myremote(ctx) {
     ok('X10', !miss.length && !bad.length, miss.length || bad.length ? `안 된 명령: ${[...miss, ...bad].join(',')}` : '16가지 다 PC remoteRun이 실행 (각각 PC 상태로 확인)');
     const oks = toPid(phonePid, 'ok').length, nos = toPid(phonePid, 'no').length;
     const toasts = await ph.eval('__toasts.join(" | ")'), nowT = await ph.eval(`document.querySelector('#now')?.textContent||''`);
-    ok('X10', toastOk && queueOk && nowOk && oks >= 18 && nos === 0, `폰: 알림 ${toastOk ? '"예약 · QA 예나폰 첫곡"' : '없음(' + toasts + ')'} · 예약 목록 ${queueOk ? '따라감' : '안 따라감'} · 지금 곡 ${nowOk ? '따라감(부르는 중)' : '안 따라감(PC "' + playT + '" · 폰 "' + nowT.slice(0, 40) + '")'} · PC 답 ok ${oks}개 · no ${nos}개`);
+    ok('X10', toastOk && queueOk && nowOk && oks >= 18 && nos === 0, `폰: 알림 ${toastOk ? '"예약 · QA 내폰 첫곡"' : '없음(' + toasts + ')'} · 예약 목록 ${queueOk ? '따라감' : '안 따라감'} · 지금 곡 ${nowOk ? '따라감(부르는 중)' : '안 따라감(PC "' + playT + '" · 폰 "' + nowT.slice(0, 40) + '")'} · PC 답 ok ${oks}개 · no ${nos}개`);
     await host.eval(`(async()=>{ cancelNext(); stopPlayback(); state.queue=[]; saveQueue(); renderQueue(); })()`);
   });
 
@@ -221,12 +221,12 @@ export default async function myremote(ctx) {
     await waitNode(() => toPid(C, 'welcome', l3).length === 1, 4000);
     say(D, { t: 'hello' });
     const full = await waitNode(() => toPid(D, 'full', l3).length === 1, 4000);
-    const four = await host.eval(`My.phones.size===4 && $('#myRemoteSub').textContent==='켜짐 · 폰 4대 이어짐'`);
+    const four = await host.eval(`My.phones.size===4 && $('#myRemoteSub').textContent==='켜짐 · 폰 4대'`);
     for (const p of [A, B, C]) say(p, { t: 'bye' });
     ok('X10', full && four && toPid(D, 'welcome', l3).length === 0 && await host.until('My.phones.size===1', 4000), '폰 4대까지 (5번째는 full) · bye → 나감');
   });
 
-  await step('손님 채널로 보낸 예나 명령은 안 됨 (방이 따로)', ['X10'], async () => {
+  await step('손님 채널로 보낸 내 폰 명령은 안 됨 (방이 따로)', ['X10'], async () => {
     await openSettings(); await host.scrollTo('#guestSec'); await host.click('#guestRow'); await host.until(`$('#guestDialog').open`, 3000);
     const gOpen = await host.until(`Guest.on && !!Guest.qr && !Guest.busy`, 20000);
     const gRoom = gOpen ? await host.eval('Guest.room') : '';
@@ -240,21 +240,21 @@ export default async function myremote(ctx) {
     await sleep(1000);
     const replies = R.log.slice(l0).filter(e => e.op === 'broadcast' && e.from === 'page' && (e.toGid === E || e.toGid === E.slice(0, 16) || (e.event === 'm' && e.room === tagOf(gRoom))));
     ok('X10', gOpen && subs >= 1 && (await cmds()) === n0 && !(await host.eval('state.playing')) && replies.length === 0 && toPid(E).length === 0,
-      `손님 방(PC가 듣는 중 ${subs}개)에 예나 모양 hello·명령 5개 → PC 실행 0 · 답 0 · 예나 방은 그대로 (${await host.eval('My.on') ? '켜짐' : '꺼짐'})`);
+      `손님 방(PC가 듣는 중 ${subs}개)에 내 폰 모양 hello·명령 5개 → PC 실행 0 · 답 0 · 내 폰 방은 그대로 (${await host.eval('My.on') ? '켜짐' : '꺼짐'})`);
     await host.click('#guestCloseBtn');
     await host.until(`!Guest.on`, 4000);
     await closeDialogs();
   });
 
   let room2 = '';
-  await step('끄기 → 폰 "노래방에서 [예나 폰 리모컨]을 켜 주세요" · 열쇠 칸 비움 · 다시 켜면 새 방 (옛 방 이름은 안 통함) · [다시 해 보기]', ['X9', 'X11'], async () => {
+  await step('끄기 → 폰 "[폰 리모컨 받기]를 켜 주세요" · 열쇠 칸 비움 · 다시 켜면 새 방 (옛 방 이름은 안 통함) · [다시 해 보기]', ['X9', 'X11'], async () => {
     await host.eval(`$('#myRemoteOn').click()`);
     const off = await host.until(`!My.on && !My.busy && !$('#myRemoteOn').checked`, 6000);
     const seen = await ph.until(VIEW(H_OFF), 8000);
-    const st = await ph.eval(`({p:$('#hubP').textContent, retry:!$('#hubRetry').hidden, open:!$('#hubOpen').hidden, conn:$('#conn span').textContent})`);
-    ok('X9', off && slot() === undefined && await host.eval(`localStorage.getItem('nb-myremote')===null && $('#myRemoteSub').textContent==='꺼짐 · 켜면 내 폰에서 바로 이어져요'`),
+    const st = await ph.eval(`({p:$('#hubP').textContent, retry:!$('#hubRetry').hidden, open:!$('#hubOpen').hidden, connHid:$('#conn').hidden})`);
+    ok('X9', off && slot() === undefined && await host.eval(`localStorage.getItem('nb-myremote')===null && $('#myRemoteSub').textContent==='꺼짐 · 노래방을 띄운 PC에서 켜요'`),
       `끄면: 열쇠 칸 ${slot() === undefined ? '비움' : '남음'} · 기억 지움 · "${await txt(host, '#myRemoteSub')}"`);
-    ok('X11', seen && /노래방에서 \[예나 폰 리모컨\]을 켜 주세요/.test(st.p) && st.retry && !st.open && st.conn === '연결 끊김', `폰: "${H_OFF}" · [다시 해 보기] · "${st.conn}"`);
+    ok('X11', seen && /\[폰\s리모컨\s받기\]를\s켜\s주세요/.test(st.p) && st.retry && !st.open && st.connHid, `폰: "${H_OFF}" · [다시 해 보기] · 연결 점 ${st.connHid ? '숨김' : '보임'}`);
     await shot(ph, 'x-my-phone-off.png');
     await ph.eval(`Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' })`);
     const A = fakePid(), l0 = R.log.length;

@@ -243,7 +243,7 @@ export function makeFakeRealtime({ onNet } = {}) {
       entry.t = typeof payload.t === 'string' ? payload.t.slice(0, 20) : undefined;
       if (typeof payload.to === 'string') entry.toGid = payload.to;
       if (typeof payload.gid === 'string') entry.gid = payload.gid;
-      if (typeof payload.pid === 'string') entry.pid = payload.pid;                       // 예나 폰 표 (CR-228 ③)
+      if (typeof payload.pid === 'string') entry.pid = payload.pid;                       // 내 폰 표 (CR-228 ③)
       if (typeof payload.cmd === 'string') entry.cmd = payload.cmd.slice(0, 20);
       if (typeof payload.seq === 'number') entry.seq = payload.seq;
       if (typeof payload.why === 'string') entry.why = payload.why.slice(0, 20);
@@ -322,7 +322,7 @@ export function makeFakeRealtime({ onNet } = {}) {
     for (const t of topics) fanout(null, t, event, payload, Buffer.byteLength(JSON.stringify(payload ?? null)));
     return topics.size;
   };
-  /** 방 하나에만 (CR-228 ③ 예나 방 점검: 같은 탭이 붙은 손님 방과 섞지 않으려고). 그 방에 붙은 연결 수를 돌려준다 */
+  /** 방 하나에만 (CR-228 ③ 내 폰 방 점검: 같은 탭이 붙은 손님 방과 섞지 않으려고). 그 방에 붙은 연결 수를 돌려준다 */
   R.injectRoom = (room, event, payload) => {
     const t = 'realtime:' + room, n = (R.topics.get(t) || new Set()).size;
     fanout(null, t, event, payload, Buffer.byteLength(JSON.stringify(payload ?? null)));

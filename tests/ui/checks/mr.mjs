@@ -126,7 +126,7 @@ export default async function mr(ctx) {
     await p.click('#cloudClose'); await p.click('#settingsBtn'); await openAddr();
     const reopened = await p.eval(`({val:document.querySelector('#mrServer').value, msg:document.querySelector('#mrSetMsg').hidden})`);
     await p.click('#cloudClose');
-    ok('U3', lay.i > 0 && lay.prev === '백업 파일' && lay.next === '예나 폰 리모컨 (허브)' && lay.next2 === '옛 휴대폰 리모컨 (PC에서 켰을 때만 보여요)' && lay.val === '' && lay.ph === 'http://(집 AI 이름):8765'
+    ok('U3', lay.i > 0 && lay.prev === '백업 파일' && lay.next === '내 폰 리모컨 (허브)' && lay.next2 === '옛 휴대폰 리모컨 (PC에서 켰을 때만 보여요)' && lay.val === '' && lay.ph === 'http://(집 AI 이름):8765'
       && lay.sum === '서버 주소 넣기·바꾸기' && lay.reset === '이 기기에서 지우기'
       && lay.hints.includes("주소창에 '안전하지 않음'이 보여도 집 Tailscale 안에서만 열리는 창이에요") && lay.hints.includes('이 기기에 저장돼요. 허브에 로그인해 있으면 내 다른 기기도 같이 써요. 집 밖에서는 Tailscale을 켜 주세요.'),
       `칸 자리 "${lay.prev}" 아래·"${lay.next}"(허브 로그인 때만 보임, CR-228 ③)·"${lay.next2}" 위, 처음 값 "${lay.val}"(빈 칸) · 예시 "${lay.ph}" · [${lay.reset}] · 안내 ${lay.hints.length}줄`);

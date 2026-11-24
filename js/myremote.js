@@ -1,4 +1,4 @@
-// YT 노래방 · 예나 폰 리모컨 (PC 쪽, CR-228 ③): 예나 계정으로 로그인한 폰이 다른 와이파이에서도 이 화면을 조작한다
+// YT 노래방 · 내 폰 리모컨 (PC 쪽, CR-228 ③): 예나 계정으로 로그인한 폰이 다른 와이파이에서도 이 화면을 조작한다
 'use strict';
 // 허브 Realtime 공개 broadcast 채널 하나. 손님 방(guesthost.js)과 따로: 방 이름 'nbm-' + 256비트 난수(core.js myRoomName),
 // 폰 → PC 이벤트 'p', PC → 폰 이벤트 'm'. 방 이름은 허브 열쇠 칸 remote_room(0008 hub_secret_set)에만 넣는다 — 예나 계정만 읽는다.
@@ -41,7 +41,7 @@ async function myOpen() {
   const gen = My.gen, live = () => gen === My.gen && Hub.sb === sb;
   const room = myRoomName();
   const ch = sb.channel(room, { config: { broadcast: { self: false, ack: false } } });
-  ch.on('broadcast', { event: 'p' }, m => { try { myOnMsg(m && m.payload); } catch (e) { console.warn('예나 폰 메시지 처리 실패', e && e.message); } });
+  ch.on('broadcast', { event: 'p' }, m => { try { myOnMsg(m && m.payload); } catch (e) { console.warn('내 폰 메시지 처리 실패', e && e.message); } });
   // 먼저 붙어서 듣고, 그다음 열쇠 칸에 쓴다 (폰이 이름을 읽었을 때 이 화면이 이미 듣고 있게)
   const ok = await new Promise(res => {
     const t = setTimeout(() => res(false), 15000);
@@ -137,8 +137,8 @@ function myCmd(m) {
   if (why) return myReply(m, { t: 'no', why });
   let r;
   try { r = remoteRun({ cmd: m.cmd, args: m.args || {} }); }
-  catch (e) { console.warn('예나 폰 명령 실패', m.cmd, e && e.message); return myReply(m, { t: 'no', why: 'fail' }); }
-  if (r && typeof r.catch === 'function') r.catch(e => console.warn('예나 폰 명령 실패', m.cmd, e && e.message));
+  catch (e) { console.warn('내 폰 명령 실패', m.cmd, e && e.message); return myReply(m, { t: 'no', why: 'fail' }); }
+  if (r && typeof r.catch === 'function') r.catch(e => console.warn('내 폰 명령 실패', m.cmd, e && e.message));
   myReply(m, { t: 'ok' });
   setTimeout(() => mySendState(true), 60);
 }
@@ -183,7 +183,7 @@ async function myTick() {
   My.slotAt = now;
   const sb = My.sb, room = My.room, cur = await mySlotGet(sb);
   if (!My.on || My.room !== room || !cur.ok) return;          // 못 닿음: 다음에 다시
-  if (cur.value !== room) { await myClose(true, true); myNote('다른 노래방 화면에서 예나 폰 리모컨을 켜서 여기는 껐어요', false); myRender(); }
+  if (cur.value !== room) { await myClose(true, true); myNote('다른 노래방 화면에서 내 폰 리모컨을 켜서 여기는 껐어요', false); myRender(); }
 }
 
 /* ---------------- 허브 로그인·로그아웃과 같이 (hub.js가 부름) ---------------- */
@@ -197,7 +197,7 @@ async function myHubLeaving() {
   if (My.on || My.busy) await Promise.race([myClose(true), new Promise(r => setTimeout(r, 4000))]);   // 허브가 느려도 로그아웃은 4초 안에
 }
 
-/* ---------------- 화면: 설정 › 더 보기 (고급) › 예나 폰 리모컨 (허브) ---------------- */
+/* ---------------- 화면: 설정 › 더 보기 (고급) › 내 폰 리모컨 (허브) ---------------- */
 function myNote(text, bad) {
   My.note = text; My.bad = !!bad;
   const m = $('#myRemoteMsg'); if (!m) return;
@@ -212,7 +212,9 @@ async function myRender() {
   const sub = $('#advSubMy'); if (sub) sub.hidden = !shown;
   const sw = $('#myRemoteOn'), n = My.phones.size;
   sw.checked = My.on || My.busy; sw.disabled = My.busy;
-  $('#myRemoteSub').textContent = My.busy ? '여는 중…' : My.on ? `켜짐 · 폰 ${n}대 이어짐` : '꺼짐 · 켜면 내 폰에서 바로 이어져요';
+  $('#myRemoteSub').textContent = My.busy ? '여는 중…' : My.on ? `켜짐 · 폰 ${n}대` : '꺼짐 · 노래방을 띄운 PC에서 켜요';
+  // 받는 기기(켜 둔 PC)에서는 [이 기기에서 리모컨 열기]를 숨긴다: 같은 탭 링크라 누르면 이 화면을 떠나 방이 끝난다 (디자인실 K2). 폰(꺼짐)에서는 보임
+  $('#myRemoteLink').parentElement.hidden = My.on || My.busy;
 }
 {
   const sw = $('#myRemoteOn');
