@@ -159,8 +159,10 @@ function renderRecs() {
       // Drive에만 있는 녹음: 받아야 들을 수 있다
       li.querySelector('.sub').append(' · ☁ Drive');
       mk('기기로 받기', 'primary', async b => {
-        b.disabled = true; b.textContent = '받는 중…';
+        // CR-242 N4: 받는 동안 눌림은 막고 흐리게 하지 않는다 (aria-busy, [WAV로 저장] "만드는 중…"과 같음). 실패해도 꼭 뺀다
+        b.disabled = true; b.setAttribute('aria-busy', 'true'); b.textContent = '받는 중…';
         try { await ensureRecMedia(r); } catch (e) { toast(mediaErrText(e), 5000); }
+        finally { b.disabled = false; b.removeAttribute('aria-busy'); b.textContent = '기기로 받기'; }
         renderRecs();
       });
     } else if (r.v === 2) {

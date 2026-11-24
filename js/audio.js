@@ -167,27 +167,30 @@ async function measureLatency() {
   if (!state.micOn && !(await enableMic())) return;
   if (state.playing) pause();
   pStop(true);
-  btn.disabled = true; btn.textContent = '측정 중…';
+  // CR-242 N4: 재는 동안 눌림은 막고 흐리게 하지 않는다 (aria-busy, [WAV로 저장] "만드는 중…"과 같음). 중간에 오류가 나도 꼭 뺀다
+  btn.disabled = true; btn.setAttribute('aria-busy', 'true'); btn.textContent = '측정 중…';
   const M = MEASURE;
-  toast(`딸깍 소리가 ${M.clicks}번 나요. 조용히 기다려 주세요 (약 ${Math.round(M.lead + (M.clicks - 1) * M.gap + M.win + 0.3)}초)`, 4000);
-  const c = E.ctx, sr = c.sampleRate, target = { chunks: [] };
-  capOn(target);
-  // 딸깍 간격·기다리는 창은 core.js의 MEASURE (블루투스·무선 화면 복제처럼 지연이 길어도 앞 딸깍을 잡지 않게)
-  const t0 = c.currentTime + M.lead, clicks = [];
-  for (let i = 0; i < M.clicks; i++) {
-    const t = t0 + i * M.gap; clicks.push(t);
-    const o = c.createOscillator(), g = c.createGain(); o.frequency.value = 1500;
-    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.8, t + 0.001); g.gain.exponentialRampToValueAtTime(0.001, t + 0.03);
-    o.connect(g); g.connect(c.destination); o.start(t); o.stop(t + 0.05);
-  }
-  await sleep((clicks[clicks.length - 1] - c.currentTime + M.win + 0.3) * 1000);
-  await capOff(); if (capTarget === target) capTarget = null;
+  let r;
+  try {
+    toast(`딸깍 소리가 ${M.clicks}번 나요. 조용히 기다려 주세요 (약 ${Math.round(M.lead + (M.clicks - 1) * M.gap + M.win + 0.3)}초)`, 4000);
+    const c = E.ctx, sr = c.sampleRate, target = { chunks: [] };
+    capOn(target);
+    // 딸깍 간격·기다리는 창은 core.js의 MEASURE (블루투스·무선 화면 복제처럼 지연이 길어도 앞 딸깍을 잡지 않게)
+    const t0 = c.currentTime + M.lead, clicks = [];
+    for (let i = 0; i < M.clicks; i++) {
+      const t = t0 + i * M.gap; clicks.push(t);
+      const o = c.createOscillator(), g = c.createGain(); o.frequency.value = 1500;
+      g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.8, t + 0.001); g.gain.exponentialRampToValueAtTime(0.001, t + 0.03);
+      o.connect(g); g.connect(c.destination); o.start(t); o.stop(t + 0.05);
+    }
+    await sleep((clicks[clicks.length - 1] - c.currentTime + M.win + 0.3) * 1000);
+    await capOff(); if (capTarget === target) capTarget = null;
 
-  let total = 0; for (const ch of target.chunks) total += ch.data.length;
-  const pcm = new Float32Array(total); let o = 0;
-  for (const ch of target.chunks) { pcm.set(ch.data, o); o += ch.data.length; }
-  const r = summarizeDelays(findClickDelays(pcm, sr, target.chunks[0]?.frame ?? 0, clicks));
-  btn.disabled = false; btn.textContent = '자동 측정';
+    let total = 0; for (const ch of target.chunks) total += ch.data.length;
+    const pcm = new Float32Array(total); let o = 0;
+    for (const ch of target.chunks) { pcm.set(ch.data, o); o += ch.data.length; }
+    r = summarizeDelays(findClickDelays(pcm, sr, target.chunks[0]?.frame ?? 0, clicks));
+  } finally { btn.disabled = false; btn.removeAttribute('aria-busy'); btn.textContent = '자동 측정'; }
   if (!r.ok) {
     toast('딸깍 소리를 못 들었어요. 스피커 볼륨을 올리거나 이어폰을 마이크 가까이 대고 다시 해 보세요. "스피커로 반주 듣는 중"이 켜져 있으면 끄고 해 보세요.', 6000);
     return;

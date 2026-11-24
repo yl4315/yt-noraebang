@@ -110,8 +110,8 @@ npm run test:ui                  # 화면 자동 점검: 헤드리스 Edge가 �
 - 디자인실이 토큰을 바꾸면 두 파일을 다시 복사한다 (`cmp`로 같은지 확인).
 - 진동은 손가락 화면에서만(`haptic()`): 누르기 `tap`, 예약·저장 `success`, 취소 `warning` (한 번 누르면 하나만). 리모컨은 `remote.html` 안 `buzz()`.
 - 조작 막대가 가리는 높이는 `updateBarSpace()`가 문서 `--bar-h`로 둔다 → 대기 화면 아래쪽, 막대가 보이는 동안 가사 두 줄, TV 화면 알림이 그만큼 올라간다.
-- `.btn:hover`·`.btn.primary:hover`는 `@media (hover:hover)` 안에만 둔다 (CR-241): 손가락 화면은 누른 뒤 밝은 테두리가 남지 않고, 마우스 화면은 그대로. 키보드 윤곽 `:focus-visible`은 늘.
-- 아래 알림 `.toast`는 글 길이만큼 넓다 (`width:max-content`, 화면 폭 - 32px까지, 띄어쓰기 없는 긴 이름은 `overflow-wrap`으로 접음, CR-241). TV 화면이 열려 있으면 예전처럼 화면 반 폭까지 (가사를 덜 가리게, CR-241 K1). 알림 글에 단추 이름을 `[ ]`로 쓸 때는 그 단추가 그 화면에 있는지 본다.
+- `:hover` 모양은 모두 `@media (hover:hover)` 안에만 둔다: `.btn:hover`·`.btn.primary:hover`(CR-241)와 `.song`·`.icon-btn`·`.round`·`.sy-row`·`.nud`·`.lrc-results button`·`.mine-row`·`.guest-row`(CR-242, 줄마다 제자리에서 감쌈). 손가락 화면은 누른 뒤 밝은 테두리·배경이 남지 않고, 마우스 화면은 그대로. 키보드 윤곽 `:focus-visible`은 늘. 새 `:hover` 줄도 이렇게 쓴다 (`#guestSec .guest-row:hover` 덮어쓰기는 밖).
+- 아래 알림 `.toast`는 글 길이만큼 넓다 (`width:max-content`, 화면 폭 - 32px까지, 띄어쓰기 없는 긴 이름은 `overflow-wrap`으로 접음, CR-241). TV 화면이 열려 있으면 예전처럼 화면 반 폭까지 (가사를 덜 가리게, CR-241 K1). 창(dialog)이 열려 있으면 `toast()`가 알림을 그 창 안으로 옮겨 창 위쪽(창 위 끝 + 12px, 폭은 창 안)에 띄운다: 창은 맨 위 층이라 body 알림은 창 뒤로 숨고, 아래는 [닫기][저장] 자리 (`util.js` `toastPlace`, `dialog > .toast`, CR-242 N1). 창이 겹치면 손이 가 있는 창, 창이 닫히면 남은 창이나 body로 돌아간다 (`open` 속성을 보는 MutationObserver). 그래서 TV용 알림 줄은 `body:has(…) > .toast`. 옛 폰 리모컨 `remote.html` 알림도 글 길이만큼 (CR-242 N3). 알림 글에 단추 이름을 `[ ]`로 쓸 때는 그 단추가 그 화면에 있는지 본다.
 
 ## 꼭 지킬 것
 
@@ -255,7 +255,7 @@ npm run test:ui                  # 화면 자동 점검: 헤드리스 Edge가 �
 - 내 녹음 줄과 싱크·믹스 조절 창(`#mxShare`, [WAV로 내보내기] 앞)에 단추 하나. 손가락 화면(`isTouch`)이고 공유 창에 파일을 실을 수 있으면 [공유], 아니면 작은 파일을 만들 수 있을 때 [작은 파일 저장], 둘 다 아니면 단추 없음 (core `shareChoice`). [WAV로 저장]·[WAV로 내보내기]·예전 녹음 [다운로드]는 그대로.
 - 작은 파일 형식은 기기에서 고른다 (`AudioEncoder.isConfigSupported`, core `smallFormatPick`): AAC → m4a(`m4aParts`) · 안 되고 Opus → Ogg Opus(`oggOpusParts`) · 둘 다 안 되면 WAV + `WAV_NOTE` 안내. 128kbps(`SMALL_BITRATE`). 예전 방식 녹음은 파일 그대로.
 - 공유 종류는 m4a면 `audio/x-m4a` 먼저, 안 되면 `audio/mp4` (`canShare`로 확인). `navigator.share`에는 `files`·`title`만.
-- 공유 창은 누른 지 5초쯤 안에만 열린다: 만드는 데 4.5초가 넘으면(`shareNeedsTap`) 단추가 [보내기]로 바뀌고 한 번 더 누르면 다시 만들지 않고 바로 연다. 만드는 동안 단추는 "만드는 중 N초"(PC [작은 파일 저장]은 "저장 중 N초") · 눌림은 막고 흐리게 하지 않는다 (세는 동안 좌우 여백 8px: 손가락 되는 PC 옆 칸에서 "만드는 중 120초"가 넘어도 2줄, CR-241). [WAV로 저장]·[WAV로 내보내기]의 "만드는 중…"도 같다 (`aria-busy`, CR-241). 새 녹음 줄은 늘 2줄: [▶ 듣기][싱크·믹스 조절] / [공유·작은 파일 저장][WAV로 저장][삭제] (`.brk`). 폰 창은 1줄 [공유][WAV로 내보내기] · 2줄 [닫기][저장].
+- 공유 창은 누른 지 5초쯤 안에만 열린다: 만드는 데 4.5초가 넘으면(`shareNeedsTap`) 단추가 [보내기]로 바뀌고 한 번 더 누르면 다시 만들지 않고 바로 연다. 만드는 동안 단추는 "만드는 중 N초"(PC [작은 파일 저장]은 "저장 중 N초") · 눌림은 막고 흐리게 하지 않는다 (세는 동안 좌우 여백 8px: 손가락 되는 PC 옆 칸에서 "만드는 중 120초"가 넘어도 2줄, CR-241). [WAV로 저장]·[WAV로 내보내기]의 "만드는 중…"도 같다 (`aria-busy`, CR-241). [자동 측정] "측정 중…"·Drive 녹음 [기기로 받기] "받는 중…"도 `aria-busy`로 흐리지 않고, 끝나면(실패해도) `finally`에서 뺀다 (CR-242 N4). 새 녹음 줄은 늘 2줄: [▶ 듣기][싱크·믹스 조절] / [공유·작은 파일 저장][WAV로 저장][삭제] (`.brk`). 폰 창은 1줄 [공유][WAV로 내보내기] · 2줄 [닫기][저장].
 - 만든 파일은 **메모리에 하나만** (`Share.made`, 열쇠 = 녹음·종류·믹스 값 `shareKey`). 디스크·IndexedDB·Drive·허브에 저장하지 않고, `nb-` 키·IDB 칸·`library.json` 칸을 더하지 않는다. 공유 창을 닫으면(AbortError) 안내 없음. 그 밖 실패는 "보내지 못했어요 · 다시 눌러 보세요. 계속 안 되면 WAV로 저장해서 보내 주세요" (줄·창 어디서 나도 맞게 단추 이름 없이).
 - 파일 이름은 하나의 규칙 `recFileName` (`곡이름_YYYYMMDD-HHMM.확장자`)을 WAV·작은 파일·공유·다운로드가 같이 쓴다.
 
