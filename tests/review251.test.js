@@ -43,6 +43,23 @@ test('소리 메모리 비우기 (YT-r1): 지금 곡·다음 예약 곡·녹음 
   assert.equal(ids(songBuffersToFree(null, null)), '');
 });
 
+test('소리 메모리 비우기 크기 한도 (YT-08 보완): 최근에 고른 곡부터 한도 안이면 두고, 넘는 곡부터 오래된 곡은 놓음', () => {
+  const { songBuffersToFree } = load(['songBuffersToFree']);
+  const MB = 2 ** 20, buf = mb => ({ length: mb * MB / 8, numberOfChannels: 2 });   // 2채널 × 4바이트 → mb MB
+  const a = { id: 'a', buffer: buf(80) }, b = { id: 'b', buffer: buf(80) }, c = { id: 'c', buffer: buf(80) }, d = { id: 'd', buffer: buf(10) };
+  const demo = { id: 'demo', demo: true, buffer: buf(80) }, cur = { id: 'cur', buffer: buf(80) };
+  const used = new Map([[a, 4], [b, 3], [c, 2], [d, 1]]), at = s => used.get(s) || 0;
+  const ids = (list) => list.map(s => s.id).sort().join(',');
+  const all = [a, b, c, d, demo, cur];
+  assert.equal(ids(songBuffersToFree(all, [cur], 160 * MB, at)), 'c,d');              // a·b(160MB)까지 두고, 넘는 c와 그보다 오래된 d(작아도)는 놓음
+  assert.equal(ids(songBuffersToFree(all, [cur], 1000 * MB, at)), '');                // 한도 안이면 하나도 안 놓음 (짧은 곡 몇 개는 다시 풀지 않게)
+  assert.equal(ids(songBuffersToFree(all, [cur], 79 * MB, at)), 'a,b,c,d');           // 가장 최근 곡도 한도보다 크면 놓음
+  assert.equal(ids(songBuffersToFree(all, [cur, 'a'], 160 * MB, at)), 'd');            // 다음 예약 곡은 한도와 따로 늘 둠
+  assert.equal(ids(songBuffersToFree(all, [cur], 0, at)), 'a,b,c,d');                  // 한도 0 = 모두 놓음 (전과 같음)
+  assert.equal(ids(songBuffersToFree(all, [cur], 160 * MB)), 'c,d');                   // 고른 차례를 모르면 목록 순서대로
+  assert.equal(ids(songBuffersToFree(all, [cur], 160 * MB, () => NaN)), 'c,d');        // 이상한 차례 값도 목록 순서대로
+});
+
 test('최근 것만 두는 Map (YT-r1, 녹음 미리듣기 캐시): 넣거나 다시 쓰면 맨 뒤로, max개를 넘으면 가장 오래 안 쓴 것부터 뺀다', () => {
   const { lruSet } = load(['lruSet']);
   const m = new Map();

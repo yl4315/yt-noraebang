@@ -59,6 +59,9 @@ function confirmButton(btn, fn) {
   setTimeout(() => { if (btn.isConnected) { delete btn.dataset.armed; btn.innerHTML = old; btn.className = oldCls; } }, 3000);
 }
 
+// 다른 곡 반주를 풀어 둔 채로 둘 크기 (CR-251 YT-08): 최근에 고른 곡부터 160MB (4분 곡 2곡쯤)까지. 고른 차례는 곡 객체에 넣지 않고 따로 (저장·백업에 안 섞이게)
+let SONG_MEM_BUDGET = 160 * 2 ** 20;
+const songUsed = new WeakMap(); let songUseSeq = 0;
 async function loadSongBuffer(s) {
   if (s.buffer) return s.buffer;
   if (!s._loading) s._loading = (async () => {
@@ -81,8 +84,9 @@ async function selectSong(s) {
   $('#guideKnob').hidden = !s.demo;
   setupVideo(s);
   for (const x of state.songs) if (x !== s) x.keyCache = null;
-  // 다른 곡의 풀어 둔 반주는 놓는다 (CR-251 YT-r1, 다시 고르면 파일에서 다시 풀기). 다음 예약 곡·녹음 중인 곡은 둔다
-  if (typeof songBuffersToFree === 'function') for (const x of songBuffersToFree(state.songs, [s, state.queue[0], typeof take !== 'undefined' && take && take.song])) x.buffer = null;
+  // 다른 곡의 풀어 둔 반주는 최근에 고른 것부터 SONG_MEM_BUDGET까지만 두고 나머지는 놓는다 (CR-251 YT-08, 다시 고르면 파일에서 다시 풀기). 다음 예약 곡·녹음 중인 곡은 늘 둔다
+  songUsed.set(s, ++songUseSeq);
+  if (typeof songBuffersToFree === 'function') for (const x of songBuffersToFree(state.songs, [s, state.queue[0], typeof take !== 'undefined' && take && take.song], SONG_MEM_BUDGET, x => songUsed.get(x) || 0)) x.buffer = null;
   state.key = 0; state.keyBufs = null; keyJob++; updateKeyUI();
   $('#syncBtn').hidden = !!s.demo;
   if (typeof autoSyncUI === 'function') autoSyncUI();   // 자동 싱크 단추·한 줄 (autosync.js, CR-227)

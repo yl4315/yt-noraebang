@@ -1052,11 +1052,22 @@ function remoteModePick({ status, body } = {}) {
   if (status === 403 && obj && body.error === 'local only') return 'server';
   return 'hub';
 }
-// 소리 메모리 비우기 (CR-251 YT-r1): 곡을 고를 때마다 풀어 둔 반주(AudioBuffer, 4분 곡에 약 80MB)가 쌓이지 않게,
-// keep(지금 곡·다음 예약 곡·녹음 중인 곡, 곡 또는 곡 id)을 뺀 내 MR 곡 중 소리를 풀어 둔 곡을 돌려준다. 데모 곡은 늘 둔다 (만들기가 오래 걸려서)
-function songBuffersToFree(songs, keep) {
+// 소리 메모리 비우기 (CR-251 YT-r1 = YT-08): 곡을 고를 때마다 풀어 둔 반주(AudioBuffer, 4분 곡에 약 80MB)가 끝없이 쌓이지 않게,
+// keep(지금 곡·다음 예약 곡·녹음 중인 곡, 곡 또는 곡 id)과 데모 곡(만들기가 오래 걸려서)은 늘 두고, 나머지 풀어 둔 내 MR 곡은
+// 최근에 고른 것(usedAt 숫자가 큰 것)부터 합친 크기가 budget(바이트) 안이면 두고, 넘는 곡부터 그보다 오래된 곡은 모두 놓을 곡으로 돌려준다.
+// budget이 0·없음이면 모두 놓는다. 크기 = 길이 × 채널 수 × 4바이트 (AudioBuffer는 float32)
+function songBuffersToFree(songs, keep, budget, usedAt) {
   const k = new Set((keep || []).filter(Boolean));
-  return (songs || []).filter(s => s && s.buffer && !s.demo && !k.has(s) && !k.has(s.id));
+  const list = (songs || []).filter(s => s && s.buffer && !s.demo && !k.has(s) && !k.has(s.id));
+  const max = Number(budget) > 0 ? Number(budget) : 0;
+  if (!max) return list;
+  const at = s => { const n = typeof usedAt === 'function' ? Number(usedAt(s)) : 0; return Number.isFinite(n) ? n : 0; };
+  const bytes = b => Math.max(0, Number(b.length) || 0) * Math.max(1, Number(b.numberOfChannels) || 1) * 4;
+  const out = []; let used = 0, over = false;
+  for (const s of list.slice().sort((x, y) => at(y) - at(x))) {
+    if (!over && used + bytes(s.buffer) <= max) used += bytes(s.buffer); else { over = true; out.push(s); }
+  }
+  return out;
 }
 // 최근 것만 두는 Map (CR-251 YT-r1, 녹음 미리듣기 캐시): 넣은 것을 맨 뒤로, max개를 넘으면 가장 오래 안 쓴 것부터 뺀다
 function lruSet(map, key, value, max) {
