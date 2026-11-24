@@ -1,6 +1,6 @@
 // YT 노래방 서비스 워커: 앱 화면과 글꼴을 기기에 저장해서 인터넷 없이도 열리게 한다.
 // 곡(MR)과 녹음은 여기가 아니라 앱의 IndexedDB에 저장된다.
-const SHELL = 'yt-shell-v18', FONTS = 'yt-fonts-v1';
+const SHELL = 'yt-shell-v19', FONTS = 'yt-fonts-v1';
 const SHELL_FILES = ['./', './index.html', './css/tokens.css', './css/app.css', './manifest.webmanifest', './icon-192.png', './icon-512.png', './icon-maskable-512.png',
   './js/util.js', './js/haptics.js', './js/core.js', './js/store.js', './js/demo.js', './js/audio.js', './js/songs.js', './js/bulk.js', './js/mr.js', './js/playback.js', './js/recording.js', './js/syncedit.js', './js/karaoke.js', './js/profiles.js', './js/cloud.js', './js/key.js', './js/remote.js', './js/backup.js', './js/devsync.js',
   './js/vendor/supabase-2.117.1.js', './js/hub.js', './js/guesthost.js', './js/myremote.js', './js/vendor/toqr-0.1.1.mjs', './js/autosync.js', './js/yt.js', './js/main.js',

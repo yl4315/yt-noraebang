@@ -109,9 +109,9 @@ npm run test:ui                  # 화면 자동 점검: 헤드리스 Edge가 �
 - 다크 고정. `<html data-theme="light">`로 바꿔 보면 관리 화면에 남은 직접 색을 찾을 수 있다 (무대는 남색 그대로가 맞음).
 - 디자인실이 토큰을 바꾸면 두 파일을 다시 복사한다 (`cmp`로 같은지 확인).
 - 진동은 손가락 화면에서만(`haptic()`): 누르기 `tap`, 예약·저장 `success`, 취소 `warning` (한 번 누르면 하나만). 리모컨은 `remote.html` 안 `buzz()`.
-- 조작 막대가 가리는 높이는 `updateBarSpace()`가 문서 `--bar-h`로 둔다 → 대기 화면 아래쪽, 막대가 보이는 동안 가사 두 줄, TV 화면 알림이 그만큼 올라간다.
+- 조작 막대가 가리는 높이는 `updateBarSpace()`가 문서 `--bar-h`로 둔다 → 대기 화면 아래쪽, 막대가 보이는 동안 가사 두 줄, TV 화면 알림이 그만큼 올라간다 (TV 보통 무대에서는 알림이 가사 두 줄 바로 위라 가사와 같이 올라간다, CR-243).
 - `:hover` 모양은 모두 `@media (hover:hover)` 안에만 둔다: `.btn:hover`·`.btn.primary:hover`(CR-241)와 `.song`·`.icon-btn`·`.round`·`.sy-row`·`.nud`·`.lrc-results button`·`.mine-row`·`.guest-row`(CR-242, 줄마다 제자리에서 감쌈). 손가락 화면은 누른 뒤 밝은 테두리·배경이 남지 않고, 마우스 화면은 그대로. 키보드 윤곽 `:focus-visible`은 늘. 새 `:hover` 줄도 이렇게 쓴다 (`#guestSec .guest-row:hover` 덮어쓰기는 밖).
-- 아래 알림 `.toast`는 글 길이만큼 넓다 (`width:max-content`, 화면 폭 - 32px까지, 띄어쓰기 없는 긴 이름은 `overflow-wrap`으로 접음, CR-241). TV 화면이 열려 있으면 예전처럼 화면 반 폭까지 (가사를 덜 가리게, CR-241 K1). 창(dialog)이 열려 있으면 `toast()`가 알림을 그 창 안(DOM)으로 옮겨 창 바로 위(창 위 끝 - 8px, 자리가 없으면 화면 위 12px, 폭은 창 폭 - 24px까지)에 띄운다: 창은 맨 위 층이라 body 알림은 창 뒤로 숨고, 창 안 위쪽에 두면 짧은 창의 제목·[✕]를 가리고, 아래는 [닫기][저장] 자리 (`util.js` `toastPlace`, `dialog > .toast`, CR-242 N1·디자인 보기 K1). `toast()`는 글을 넣고 보인 뒤에 자리를 잡는다 (새 글 높이로 재야 해서). 창이 겹치면 손이 가 있는 창, 창이 닫히면 남은 창이나 body로 돌아간다 (`open` 속성을 보는 MutationObserver). 그래서 TV용 알림 줄은 `body:has(…) > .toast`. 옛 폰 리모컨 `remote.html` 알림도 글 길이만큼 (CR-242 N3). 알림 글에 단추 이름을 `[ ]`로 쓸 때는 그 단추가 그 화면에 있는지 본다.
+- 아래 알림 `.toast`는 글 길이만큼 넓다 (`width:max-content`, 화면 폭 - 32px까지, 띄어쓰기 없는 긴 이름은 `overflow-wrap`으로 접음, CR-241). TV 화면이 열려 있으면 예전처럼 화면 반 폭까지 (가사를 덜 가리게, CR-241 K1). 창(dialog)이 열려 있으면 `toast()`가 알림을 그 창 안(DOM)으로 옮겨 창 바로 위(창 위 끝 - 8px, 자리가 없으면 화면 위 12px, 폭은 창 폭 - 24px까지)에 띄운다: 창은 맨 위 층이라 body 알림은 창 뒤로 숨고, 창 안 위쪽에 두면 짧은 창의 제목·[✕]를 가리고, 아래는 [닫기][저장] 자리 (`util.js` `toastPlace`, `dialog > .toast`, CR-242 N1·디자인 보기 K1). `toast()`는 글을 넣고 보인 뒤에 자리를 잡는다 (새 글 높이로 재야 해서). 창이 겹치면 손이 가 있는 창, 창이 닫히면 남은 창이나 body로 돌아간다 (`open` 속성을 보는 MutationObserver). 그래서 TV용 알림 줄은 `body:has(…) > .toast`. 옛 폰 리모컨 `remote.html` 알림도 글 길이만큼 (CR-242 N3). 알림 글에 단추 이름을 `[ ]`로 쓸 때는 그 단추가 그 화면에 있는지 본다. TV 보통 무대(곡이 보일 때)에서는 가사 두 줄 바로 위 10px (막대가 보이면 가사와 같이 올라가고 숨으면 같이 내려감 0.2초, 자리가 모자라면 화면 위 8px에서 멈춤 · 대기 화면·무대 창 `.ov-panel`·번호 상자·유튜브 띠·창 안 알림은 그대로 · `app.css` CSS만, CR-243 디자인실 시안 A).
 
 ## 꼭 지킬 것
 
@@ -227,7 +227,7 @@ npm run test:ui                  # 화면 자동 점검: 헤드리스 Edge가 �
 - 예약 목록의 손님 이름은 `guestNickAt(i)`(karaoke.js `renderQueue`·`renderQueueList`가 `typeof`로 부름). 방이 닫혀 있으면 ''.
 - 이 기기 설정: `nb-guest-tv`(`'0'` = TV에 QR 안 보임) · `nb-guest-key`(`'0'` = 손님 키 바꾸기 끔). 기본은 둘 다 켬이라 키를 안 만든다.
 - TV 대기 카드 `#guestCard`: 방이 열려 있으면 QR(`#tvIdle.guest-on`이면 옛 리모컨 안내 `#remoteInfo`는 숨김), 닫혀 있으면 허브가 있을 때만 [손님 QR 켜기]. 카드가 보이면 점수 칸은 시계 옆(`.idle-right>.best` 1행 2열)·팁은 고급이어도 한 줄, QR은 `max(96px,16cqw)` (디자인 확인 CR-228 #1~#3). QR 이미지는 1칸 = 1px로 그리고(`guestQrMake` → `Guest.qrPx`), 보이는 크기는 `guestQrFit`가 그 배수로 내린다 (core.js `qrFitPx`, 카드는 최소 96px라 모자라면 한 배 위로, 창 `#guestQrImg`는 220px 안). 낮은 화면(높이 480px 이하)에서는 카드가 한 줄 `#guestCardMini` "손님 QR: 설정 › 손님"만 (CR-228 L1). 카드 바탕은 `--panel` (L8). `server.py` 휴대폰 리모컨(N1~N21)은 그대로.
-- 손님 화면 CSP는 `guest.html` `<meta>`에 따로: `default-src 'none'`, 스크립트·스타일은 `'self'`, 바깥은 `https://*.supabase.co`·`wss://*.supabase.co`만. `sw.js`는 손님 파일도 저장하지만 허브 요청은 저장하지 않는다 (`SHELL` 지금 v17).
+- 손님 화면 CSP는 `guest.html` `<meta>`에 따로: `default-src 'none'`, 스크립트·스타일은 `'self'`, 바깥은 `https://*.supabase.co`·`wss://*.supabase.co`만. `sw.js`는 손님 파일도 저장하지만 허브 요청은 저장하지 않는다 (`SHELL` 지금 v19).
 - 알려진 한계: 공개 broadcast라 방 이름을 아는 손님은 방장 답(`h`)을 흉내 낼 수 있다 (다른 손님 화면에 가짜 `closed`·목록). 손님 화면은 `textContent`로만 넣어서 스크립트는 못 넣는다.
 
 ## 내 폰 리모컨 (`js/myremote.js` · `js/myphone.js`, CR-228 ③)

@@ -110,7 +110,7 @@ nav .cnt{font-size:10px;background:var(--color-danger);color:#fff;border-radius:
 .a2hs{display:flex;align-items:center;gap:8px;background:var(--panel);border-radius:var(--radius-sm);padding:6px 6px 6px 10px;margin-bottom:8px;font-size:12px;color:var(--muted)}
 .a2hs span{flex:1;min-width:0}
 .a2hs b{color:var(--ink);font-weight:700}
-.toast{position:fixed;left:50%;bottom:calc(84px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--panel-2);padding:8px 14px;border-radius:var(--radius-sm);word-break:keep-all;overflow-wrap:break-word;font-size:14px;box-shadow:0 8px 24px rgba(0,0,0,.4);width:max-content;max-width:calc(100vw - 32px)}   /* CR-242 N3: 앱과 같게 글 길이만큼 (화면 반 폭으로 좁아지지 않음), 화면 폭 - 32px 안, 띄어쓰기 없는 긴 글도 접힘 */
+.toast{position:fixed;left:50%;bottom:calc(84px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--panel-2);padding:10px 16px;border-radius:var(--radius-sm);word-break:keep-all;overflow-wrap:break-word;font-size:14px;box-shadow:0 10px 30px rgba(0,0,0,.4);width:max-content;max-width:calc(100vw - 32px)}   /* CR-242 N3: 앱과 같게 글 길이만큼 (화면 반 폭으로 좁아지지 않음), 화면 폭 - 32px 안, 띄어쓰기 없는 긴 글도 접힘 · CR-243 ②: 여백·그림자도 앱 알림과 같게 (10px 16px · 0 10px 30px) */
 :focus-visible{outline:2px solid var(--amber);outline-offset:2px}
 </style>
 </head>
