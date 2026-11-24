@@ -110,14 +110,20 @@ export default async function myremote(ctx) {
     const want = base + '/remote.html';
     await closeDialogs();
     await host.eval('enterTV()');
-    const shown = await host.until(`state.tv && !$('#tvIdle').hidden && !$('#remoteInfo').hidden && (!!$('#remoteInfo img.qr') || ${ctx.conds.W === false})`, 10000);
-    const st = await host.eval(`(()=>{ const b=$('#remoteInfo'), img=b.querySelector('img.qr'); let same=false;
-      if (img && typeof qrcode==='function') { const g=qrcode(0,'M'); g.addData(${q(want)}); g.make(); same = img.src===g.createDataURL(4,2); }
+    const shown = await host.until(`state.tv && !$('#tvIdle').hidden && !$('#remoteInfo').hidden && !!$('#remoteInfo img.qr')`, 10000);   // CR-251 YT-r16: 앱 안 toqr라 인터넷 조건 없이 늘 나와야 함
+    // QR 그림을 칸마다 읽어 toqr(앱 안 사본)로 만든 같은 주소 무늬와 맞춰 본다 (cdnjs qrcode 라이브러리는 안 불러야 함)
+    const st = await host.eval(`(async()=>{ const b=$('#remoteInfo'), img=b.querySelector('img.qr'); let same=false;
+      if (img) { await img.decode().catch(()=>{}); const { toQR } = await import(new URL('js/vendor/toqr-0.1.1.mjs', document.baseURI).href);
+        const m = toQR(${q(want)}, 0), n = Math.round(Math.sqrt(m.length)), cell = img.naturalWidth / (n + 4);
+        const cv = document.createElement('canvas'); cv.width = cv.height = img.naturalWidth; const g = cv.getContext('2d'); g.drawImage(img, 0, 0);
+        const px = g.getImageData(0, 0, cv.width, cv.height).data; same = Number.isInteger(cell) && cell > 0;
+        for (let y = 0; same && y < n; y++) for (let x = 0; x < n; x++) { const i = (Math.floor((y + 2.5) * cell) * cv.width + Math.floor((x + 2.5) * cell)) * 4; if ((px[i] < 128) !== !!m[y * n + x]) { same = false; break; } } }
+      const cdn = [...document.scripts].some(x => /cdnjs/.test(x.src)) || typeof qrcode !== 'undefined';
       return { title:b.querySelector('.my-tv b')?.textContent||'', line:b.querySelector('.my-tv span')?.textContent||'', old:b.querySelector('.my-tv-old')?.textContent||'', T:MY_TV_TEXT,
-        t:b.textContent, qr:b.querySelectorAll('img.qr').length, same, alt:img?.alt||'', url:myRemoteUrl(location.href), html:b.innerHTML.replace(/ src="[^"]*"/g,'') }; })()`);
+        t:b.textContent, qr:b.querySelectorAll('img.qr').length, same, cdn, alt:img?.alt||'', url:myRemoteUrl(location.href), html:b.innerHTML.replace(/ src="[^"]*"/g,'') }; })()`);
     const oldVis = await visible(host, '#remoteInfo .my-tv-old');
-    ok('L6', shown && await visible(host, '#remoteInfo') && st.title === st.T.title && st.line === st.T.line && (st.qr === 1 || ctx.conds.W === false) && (st.same || ctx.conds.W === false),
-      `TV 대기 화면: "${st.title}" · "${st.line}" · QR ${st.qr}개${st.same ? ' (= 같은 곳 remote.html)' : ''}`);
+    ok('L6', shown && await visible(host, '#remoteInfo') && st.title === st.T.title && st.line === st.T.line && st.qr === 1 && st.same && !st.cdn,
+      `TV 대기 화면: "${st.title}" · "${st.line}" · QR ${st.qr}개${st.same ? ' (= 같은 곳 remote.html, 앱 안 toqr)' : ''}${st.cdn ? ' · cdnjs QR 라이브러리를 불렀음' : ''}`);
     ok('L6', st.url === want && !/[?#]/.test(st.url) && !/remote\.html|https?:|nbm-/.test(st.html) && !/remote\.html|https?:/.test(st.t) && st.alt === st.T.alt,
       `QR 주소 = 같은 곳 remote.html (?·# 없음 = 방 이름·코드 0) · 화면 글·HTML에 주소 없음 · 그림 설명 "${st.alt}"`);
     ok('L6', oldVis && st.old === st.T.old && /YT\s노래방\s켜기/.test(st.old) && /옛\s폰\s리모컨\sQR/.test(st.old),
