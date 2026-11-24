@@ -454,7 +454,7 @@ body:has(#tv:not([hidden])) > .toast{bottom:calc(var(--bar-h,80px) + 8px);width:
 }
 
 .toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--btn-bg);color:var(--ink);padding:10px 16px;border-radius:var(--r-in);word-break:keep-all;overflow-wrap:break-word;font-size:14px;box-shadow:0 10px 30px rgba(0,0,0,.4);z-index:30;width:max-content;max-width:calc(100vw - 32px);pointer-events:none}   /* CR-241 N1: 글 길이만큼 넓게 (화면 반 폭으로 좁아지지 않음), 화면 폭 - 32px 안에서. 띄어쓰기 없는 긴 이름도 안 넘침 */
-dialog > .toast{top:var(--toast-top,28px);bottom:auto;max-width:min(556px,calc(100vw - 56px))}   /* CR-242 N1: 창이 열려 있으면 알림은 창 안 위쪽 (js/util.js toastPlace가 창 위 끝 + 12px를 --toast-top에). 창은 맨 위 층이라 body 알림은 창 뒤로 숨음 · 아래는 [닫기][저장] 자리 · 폭은 창 안 (양옆 12px) */
+dialog > .toast{top:var(--toast-top,12px);bottom:auto;max-width:min(var(--toast-w,556px),calc(100vw - 56px))}   /* CR-242 N1·디자인 보기 K1: 창이 열려 있으면 알림은 창 바로 위(창 위 끝 - 8px), 자리가 없으면 화면 위 12px. 폭은 창 폭 - 24px까지 (js/util.js toastPlace가 --toast-top·--toast-w에). 창은 맨 위 층이라 body 알림은 창 뒤로 숨음 · 창 안 위쪽은 짧은 창의 제목·[✕], 아래는 [닫기][저장] 자리 */
 
 /* 사용자 · Drive · 내 목록 */
 .prof-chip{padding:5px 12px 5px 5px}

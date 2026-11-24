@@ -164,7 +164,7 @@ export const inkOk = (busy, ref) => !!busy && !!ref && busy.d && busy.op === 1 &
 export const fmtInk = (busy, ref) => busy && ref ? `"${busy.t}" 투명도 ${busy.op} · 대비 ${busy.ratio}:1 (눌림 막음 ${busy.d}) / [${ref.t}] ${ref.ratio}:1 · 글 색 같음 ${busy.color === ref.color}` : '못 잼';
 
 /** CR-242 N1: 창(dialog)이 열린 채 뜬 알림 재기. 알림이 그 창 안에 있는지, 정말 보이는지(알림 위 5점을 눌러 보면 알림 자신: 잠깐 pointer-events를 켜서 잼),
- *  창 단추와 겹치는지(겹친 단추 글), 창 위 끝과의 거리, 크기·줄 수·좌우 여백, 화면의 .toast 수 */
+ *  창 단추와 겹치는지(겹친 단추 글), 창 제목(h2)을 가리는지(ttl), 창 위 끝과의 거리(dTop: 알림 위 끝 - 창 위 끝, gap: 창 위 끝 - 알림 아래 끝), 크기·줄 수·좌우 여백, 화면의 .toast 수 */
 export const dlgToast = (p, dlg) => p.eval(`(()=>{const d=document.querySelector(${q(dlg)}), t=document.querySelector('#toast'); if(!t||t.hidden) return null;
   const r=t.getBoundingClientRect(), dr=d&&d.open?d.getBoundingClientRect():null;
   const sh=new CSSStyleSheet(); sh.replaceSync('#toast{pointer-events:auto!important}'); document.adoptedStyleSheets=[...document.adoptedStyleSheets, sh];
@@ -173,12 +173,13 @@ export const dlgToast = (p, dlg) => p.eval(`(()=>{const d=document.querySelector
   document.adoptedStyleSheets=document.adoptedStyleSheets.filter(s=>s!==sh);
   const hit=b=>{const a=b.getBoundingClientRect(); return a.width>0&&a.height>0&&a.left<r.right&&a.right>r.left&&a.top<r.bottom&&a.bottom>r.top};
   const name=b=>(b.textContent.trim()||b.title||b.getAttribute('aria-label')||b.id).slice(0,12);
-  const btns=d?[...d.querySelectorAll('button')].filter(hit).map(name):[], low=d?[...d.querySelectorAll('.dlg-btns button')].filter(hit).map(name):[];
+  const btns=d?[...d.querySelectorAll('button')].filter(hit).map(name):[], low=d?[...d.querySelectorAll('.dlg-btns button')].filter(hit).map(name):[], h2=d&&d.querySelector('h2');
   const rg=document.createRange(); rg.selectNodeContents(t); const lines=new Set([...rg.getClientRects()].filter(x=>x.width>0).map(x=>Math.round(x.top))).size;
   return {inDlg:!!d&&d.contains(t), home:t.parentElement===document.body?'body':'#'+t.parentElement.id, n:document.querySelectorAll('.toast').length, seen, vw:innerWidth, w:Math.round(r.width), h:Math.round(r.height),
-    top:Math.round(r.top), bottom:Math.round(innerHeight-r.bottom), l:Math.round(r.left), rr:Math.round(innerWidth-r.right), dTop:dr?Math.round(r.top-dr.top):null, dL:dr?Math.round(r.left-dr.left):null, dR:dr?Math.round(dr.right-r.right):null,
-    lines, over:t.scrollWidth>t.clientWidth+1, btns, low}})()`);
-/** 창 안 알림이 맞음: 창 안 · 다 보임 · [닫기][저장] 줄과 안 겹침 · 창 위 끝 바로 아래(위 끝에서 4~40px, 창이 화면 밖으로 길면 화면 위 12px) · 창 안 양옆 여백 · 넘침 없음 · 알림 하나 */
-export const dlgToastOk = b => !!b && b.inDlg && b.seen === 5 && b.low.length === 0 && (b.dTop == null || (b.dTop >= 4 && b.dTop <= 40) || b.top === 12)
+    top:Math.round(r.top), bottom:Math.round(innerHeight-r.bottom), l:Math.round(r.left), rr:Math.round(innerWidth-r.right), dTop:dr?Math.round(r.top-dr.top):null, gap:dr?Math.round(dr.top-r.bottom):null, dL:dr?Math.round(r.left-dr.left):null, dR:dr?Math.round(dr.right-r.right):null,
+    lines, over:t.scrollWidth>t.clientWidth+1, btns, low, ttl:!!h2&&hit(h2)}})()`);
+/** 창 안 알림이 맞음: 창 안 · 다 보임 · [닫기][저장] 줄과 안 겹침 · 창 바로 위(알림 아래 끝이 창 위 끝 - 8px, 창 위에 자리가 없으면 화면 위 12px: 디자인 보기 K1)
+ *  · 창 안 폭(창 좌·우 8px 이상 안쪽) · 넘침 없음 · 알림 하나 */
+export const dlgToastOk = b => !!b && b.inDlg && b.seen === 5 && b.low.length === 0 && (b.dTop == null || Math.abs(b.dTop + b.h + 8) <= 1 || b.top === 12)
   && (b.dL == null || (b.dL >= 8 && b.dR >= 8)) && !b.over && b.n === 1;
-export const fmtDT = b => b ? `${b.vw}폭 ${b.home} ${b.w}×${b.h}px ${b.lines}줄 · 창 위 끝+${b.dTop} (화면 위 ${b.top}) · 창 좌 ${b.dL}·우 ${b.dR} · 보임 ${b.seen}/5 · 겹친 단추 [${b.btns.join('][')}]${b.low.length ? ' 아래 단추 겹침 [' + b.low.join('][') + ']' : ''}${b.over ? ' 넘침' : ''} · 알림 ${b.n}개` : '안 뜸';
+export const fmtDT = b => b ? `${b.vw}폭 ${b.home} ${b.w}×${b.h}px ${b.lines}줄 · 창 위 끝${b.dTop >= 0 ? '+' : ''}${b.dTop} (창 위 끝과 ${b.gap}px 띔 · 화면 위 ${b.top}) · 창 좌 ${b.dL}·우 ${b.dR} · 보임 ${b.seen}/5 · 겹친 단추 [${b.btns.join('][')}]${b.ttl ? ' 제목 가림' : ''}${b.low.length ? ' 아래 단추 겹침 [' + b.low.join('][') + ']' : ''}${b.over ? ' 넘침' : ''} · 알림 ${b.n}개` : '안 뜸';

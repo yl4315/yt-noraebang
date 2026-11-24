@@ -12,19 +12,25 @@ let toastTimer;
 // 회사 진동 (js/haptics.js, 디자인실 복사본): 손가락으로 쓰는 화면에서만. tap 누르기 · success 예약·저장 · warning 취소 (CR-018)
 function haptic(kind = 'tap') { try { if (matchMedia('(hover:none)').matches) window.YenaHaptics?.play(kind); } catch {} }
 // CR-242 N1: 창(dialog)이 열려 있으면 알림을 그 창 안에 둔다. 창은 맨 위 층(showModal)이라 body에 있는 알림은 창 뒤로 숨는다.
-// 창 안 알림은 창 위쪽(창 위 끝 + 12px, css `dialog > .toast`)에 뜬다: 아래는 [닫기][저장] 자리.
+// 창 안 알림은 창 바로 위(창 위 끝 - 8px, 자리가 없으면 화면 위 12px, 폭은 창 폭 - 24px까지, css `dialog > .toast`)에 뜬다 (디자인 보기 K1):
+// 창 안 위쪽에 띄우면 짧은 창의 제목·[✕]를 3초 가리고, 아래는 [닫기][저장] 자리. 알림은 position:fixed라 창 안(DOM)에 있어도 창 위(어두운 막 위)에 그려진다.
 // 창이 겹치면(설정 위 손님 창) 손이 가 있는 창, 창이 닫히면 남은 창이나 body로 돌아간다 (같은 알림 하나라 사라지거나 두 번 뜨지 않음)
 function toastHome() {
   const open = [...document.querySelectorAll('dialog[open]')];
   return open.find(d => d.contains(document.activeElement)) || open[open.length - 1] || document.body;
 }
+// 폭(--toast-w)을 먼저 정한 뒤 그 폭으로 접힌 알림 높이를 재서 자리(--toast-top)를 정한다 (숨은 알림은 높이 0: 보일 때 toast()가 다시 잰다)
 function toastPlace(el) {
   const home = toastHome();
   if (el.parentNode !== home) home.append(el);
-  if (home !== document.body) home.style.setProperty('--toast-top', Math.max(12, Math.round(home.getBoundingClientRect().top) + 12) + 'px');
+  if (home === document.body) return;
+  const r = home.getBoundingClientRect();
+  home.style.setProperty('--toast-w', Math.round(r.width) - 24 + 'px');
+  home.style.setProperty('--toast-top', Math.max(12, Math.round(r.top) - el.offsetHeight - 8) + 'px');
 }
+// 글을 넣고 보인 뒤에 자리를 잡는다: 새 글의 높이로 재야 해서. 그리기 전에 한 번에 끝나서 깜빡이지 않는다
 function toast(msg, ms = 3000) {
-  const el = $('#toast'); toastPlace(el); el.textContent = msg; el.hidden = false;
+  const el = $('#toast'); el.textContent = msg; el.hidden = false; toastPlace(el);
   clearTimeout(toastTimer); toastTimer = setTimeout(() => el.hidden = true, ms);
 }
 // 창이 열리고 닫힐 때(open 속성) 알림 자리를 다시 고른다: 그리기 전에 옮겨져서 깜빡이지 않는다 (브라우저 밖 시험 tests/load-core.js에는 없어서 건너뜀)

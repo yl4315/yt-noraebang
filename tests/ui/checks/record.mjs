@@ -567,7 +567,7 @@ export default async function record(ctx) {
       await ph.tap('#mxShare');
       const mxFail = await sawToast(ph, FAIL_RE, m, 5000);
       await ph.shot(path.join(n241, 'phone-412-mix-fail-toast.png'));
-      // CR-242 N1: 창이 열린 채 뜬 알림은 창 안 위쪽에 보이고 [닫기][저장] 줄을 안 가림 — 412·360 (사진 cr242/)
+      // CR-242 N1·디자인 보기 K1: 창이 열린 채 뜬 알림은 창 바로 위(360은 자리가 없어 화면 위 12px)에 보이고 [닫기][저장] 줄을 안 가림 — 412·360 (사진 cr242/)
       const mxT = { 412: await dlgToast(ph, '#mixDialog') };
       await ph.shot(path.join(n242, 'phone-412-mix-fail-toast.png'));
       await ph.emulate(PHONE_360);

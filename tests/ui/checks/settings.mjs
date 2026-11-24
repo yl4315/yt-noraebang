@@ -1,5 +1,5 @@
 // 설정 창: 저장 공간 숫자·영구 저장, 저장 실패 경고(흉내), Drive 버튼 상태(연결 표시만 넣고 Google 없이), 인터넷 끊김
-// CR-242 N1: 창이 열린 채 뜬 알림은 창 안 위쪽 (PC 1280·폰 412·360 설정 창, 짧은 창들, 겹친 창, 창 닫은 뒤)
+// CR-242 N1·디자인 보기 K1: 창이 열린 채 뜬 알림은 창 바로 위, 자리가 없으면 화면 위 12px (PC 1280·폰 412·360 설정 창, 짧은 창들, 긴 안내, 130%, 겹친 창, 창 닫은 뒤)
 import path from 'node:path';
 import { PC, PHONE, openPage, txt, visible, isHidden, marks, sawToast, sleep, q, stopAll, dlgToast, dlgToastOk, fmtDT } from './_lib.mjs';
 export const areas = ['P', 'R', 'B', 'C'];
@@ -55,13 +55,28 @@ export default async function settings(ctx) {
       `연결 표시 → "${a.t}" · 끊김 "${b.t}" · 다시 "${c}" · 로그인 필요 "Drive 다시 연결"(빨간 점) · 연결 표시 지우면 "${back}"`);
     ok('C4', !on0.drive && off1.drive && !off1.local && !off1.demo && !off2.drive, '인터넷이 끊기면 Drive에만 있는 곡만 흐려짐, 연결되면 원래대로');
   });
-  // CR-242 N1: 창(dialog)은 맨 위 층(showModal)이라 예전엔 body에 있는 알림이 창 뒤로 숨었다. 이제 알림은 창 안 위쪽(창 위 끝 + 12px)에 보이고
-  // 아래 [닫기] 줄을 안 가림 (창을 맨 위·맨 아래로 굴려도). 겹친 창(설정 위 손님 창)은 위 창 → 닫으면 아래 창 → 다 닫으면 화면 아래 (하나, 같은 글, 다시 안 뜸)
-  await step('CR-242 N1 창이 열린 채 알림: 설정 창(PC 1280·폰 412·360)과 짧은 창들 안 위쪽에 보이고 [닫기]를 안 가림, 겹친 창, 창 닫으면 화면 아래', ['B4'], async () => {
+  // CR-242 N1: 창(dialog)은 맨 위 층(showModal)이라 예전엔 body에 있는 알림이 창 뒤로 숨었다. 이제 알림은 창 안(DOM)에 있고 창 바로 위(창 위 끝 - 8px,
+  // 자리가 없으면 화면 위 12px, 폭은 창 폭 - 24px까지: 디자인 보기 K1)에 보여 짧은 창의 제목·[✕]·단추와 아래 [닫기] 줄을 안 가림 (창을 맨 위·맨 아래로 굴려도).
+  // 겹친 창(설정 위 손님 창)은 위 창 → 닫으면 아래 창 → 다 닫으면 화면 아래 (하나, 같은 글, 다시 안 뜸)
+  await step('CR-242 N1·K1 창이 열린 채 알림: 설정 창(PC 1280·폰 412·360)과 짧은 창들 바로 위(자리가 없으면 화면 위 12px)에 보이고 제목·[✕]·[닫기]를 안 가림, 긴 안내는 창 폭 안, 겹친 창, 창 닫으면 화면 아래', ['B4'], async () => {
     const MSG = 'Drive 폴더에 직접 넣은 파일을 가져오려면, 연결할 때 "Drive 파일 보기" 권한도 허용해 주세요';
     const SHORT = '저장했어요 · QA 시험 알림';
     const n242 = path.join(ctx.OUT, 'cr242'), R = {}, short = {};
+    const SHORT_360 = ['ytShareDialog', 'profileDialog', 'plDialog', 'guestDialog', 'songDialog'];
     const PHONE_360 = { name: '360x800', width: 360, height: 800, mobile: true, touch: true };
+    const PHONE_360_130 = { name: '277x615@1.3', width: 277, height: 615, dsf: 1.3, mobile: true, touch: true };   // 폰 360에서 글·화면 130% (CSS 폭 360/1.3)
+    const OPEN = { songDialog: 'openSongDialog()', profileDialog: 'openProfiles()' };   // 앱이 여는 대로 (곡 추가 새 곡 · 사용자 목록 그림). 나머지는 창만 연다
+    // 디자인 보기 K1: 창의 [✕]·단추는 늘 안 가림. 제목은 창 위에 자리가 있으면(창 바로 위에 뜸) 안 가림.
+    // 창이 화면 높이만큼 길면(설정 창, 사용자가 많은 사용자 창) 자리가 없어 화면 위 12px에 뜨고 제목을 3초 가림: 디자인실이 받아들임
+    const noRoom = b => b.top === 12 && b.gap < 7;
+    const clean = b => !!b && b.btns.length === 0 && (!b.ttl || noRoom(b));
+    const shortDlg = async (pg, id, msg, shot) => {
+      await pg.eval(`${OPEN[id] || `document.querySelector('#${id}').showModal()`}; toast(${q(msg)}, 60000)`); await sleep(100);
+      const b = await dlgToast(pg, '#' + id);
+      if (shot) await pg.shot(path.join(n242, shot));
+      await pg.eval(`document.querySelector('#${id}').close()`); await sleep(60);
+      return b;
+    };
     const twoEnds = async (pg, k, shot) => {      // 창 맨 위·맨 아래로 굴린 채 각각 잰다 (알림은 창과 같이 굴러가지 않음)
       await pg.eval(`document.querySelector('#cloudDialog').scrollTop=0; toast(${q(MSG)}, 60000)`); await sleep(100);
       const o = { top: await dlgToast(pg, '#cloudDialog') };
@@ -88,6 +103,12 @@ export default async function settings(ctx) {
     const again = await p.eval(`__ui.toasts.slice(${m.t}).length`);
     await p.shot(path.join(n242, 'pc-1280-settings-closed-toast.png'));
     await p.eval(`clearTimeout(toastTimer); document.querySelector('#toast').hidden=true`);
+    // 디자인 보기 K1: PC 1280 짧은 창만 열고 긴 안내 — 손님 창(420px)은 알림 폭이 창 폭 - 24px까지라 창 밖으로 안 삐짐 (예전엔 556px로 양옆 68px씩 삐짐),
+    // 손님·사용자 창 모두 창 바로 위라 제목·[✕]·단추를 안 가림
+    const pcShort = {};
+    for (const id of ['guestDialog', 'profileDialog']) pcShort[id] = await shortDlg(p, id, MSG, `pc-1280-${id.replace('Dialog', '')}-long-toast.png`);
+    const pcHome = await p.eval(`document.querySelector('#toast').parentElement===document.body`);
+    await p.eval(`clearTimeout(toastTimer); document.querySelector('#toast').hidden=true`);
     // 폰 412·360 (손가락 화면, 새 탭)
     const ph = await openPage(ctx, PHONE, ctx.base + '/index.html');
     try {
@@ -96,22 +117,29 @@ export default async function settings(ctx) {
       await ph.emulate(PHONE_360); await sleep(150);
       R['phone-360'] = await twoEnds(ph, 'phone-360', true);
       await ph.tap('#cloudClose'); await sleep(150);
-      // 짧은 창들 (360, 긴 안내 2줄): 창 위 끝 바로 아래에 뜨고 아래 단추 줄을 안 가림. 창만 열고 닫는다 (속 내용은 비어 있어 실제보다 짧음)
-      for (const id of ['ytShareDialog', 'profileDialog', 'plDialog', 'guestDialog']) {
-        await ph.eval(`document.querySelector('#${id}').showModal(); toast(${q(MSG)}, 60000)`); await sleep(100);
-        short[id] = await dlgToast(ph, '#' + id);
-        if (id === 'guestDialog') await ph.shot(path.join(n242, 'phone-360-guest-toast.png'));
-        await ph.eval(`document.querySelector('#${id}').close()`); await sleep(60);
-      }
+      // 짧은 창들 (360, 긴 안내 2줄): 창 바로 위(자리가 없으면 화면 위 12px)에 뜨고 제목·[✕]·단추와 아래 단추 줄을 안 가림.
+      // 곡 추가·사용자 창은 앱이 여는 대로, 나머지는 창만 열고 닫는다 (속 내용은 비어 있어 실제보다 짧음)
+      for (const id of SHORT_360) short[id] = await shortDlg(ph, id, MSG, { guestDialog: 'phone-360-guest-toast.png', songDialog: 'phone-360-song-toast.png' }[id]);
       short.home = await ph.eval(`document.querySelector('#toast').parentElement===document.body`);
+      // 폰 360 글 130%: 손님 창 긴 안내 (알림이 4줄로 높아져도 창 바로 위)
+      await ph.emulate(PHONE_360_130); await sleep(150);
+      short.g130 = await shortDlg(ph, 'guestDialog', MSG, 'phone-360-130-guest-toast.png');
       await ph.eval(`clearTimeout(toastTimer); document.querySelector('#toast').hidden=true`);
     } finally { await ph.close().catch(() => {}); }
     for (const [k, v] of Object.entries(R)) ctx.log(`  CR-242 N1 ${k} 설정 창: 맨 위 ${fmtDT(v.top)} | 맨 아래 ${fmtDT(v.end)}`);
-    ctx.log(`  CR-242 N1 짧은 창 360: ${['ytShareDialog', 'profileDialog', 'plDialog', 'guestDialog'].map(id => id + ' ' + fmtDT(short[id])).join(' | ')}`);
+    ctx.log(`  CR-242 N1·K1 짧은 창 360: ${SHORT_360.map(id => id + ' ' + fmtDT(short[id])).join(' | ')} | 130% guestDialog ${fmtDT(short.g130)}`);
+    ctx.log(`  CR-242 K1 PC 1280 짧은 창 + 긴 안내: ${Object.entries(pcShort).map(([id, v]) => id + ' ' + fmtDT(v)).join(' | ')}`);
     ok('B4', Object.values(R).every(v => dlgToastOk(v.top) && dlgToastOk(v.end)),
-      `CR-242 N1 설정 창이 열린 채 알림 (창 안 위쪽, [닫기] 안 가림, 맨 위·맨 아래): ${Object.entries(R).map(([k, v]) => k + ' ' + fmtDT(v.top)).join(' / ')}`);
-    ok('B4', ['ytShareDialog', 'profileDialog', 'plDialog', 'guestDialog'].every(id => dlgToastOk(short[id])) && short.home,
-      `CR-242 N1 짧은 창 360 (아래 단추 줄 안 가림): ${['ytShareDialog', 'profileDialog', 'plDialog', 'guestDialog'].map(id => id.replace('Dialog', '') + ' 위 끝+' + short[id]?.dTop + ' 아래 단추 겹침 ' + (short[id]?.low.length ?? '안 뜸') + ' (겹친 단추 [' + (short[id]?.btns || []).join('][') + '])').join(' · ')} · 다 닫으면 화면으로 ${short.home}`);
+      `CR-242 N1·K1 설정 창이 열린 채 알림 (긴 창이라 화면 위 12px, [닫기] 안 가림, 맨 위·맨 아래): ${Object.entries(R).map(([k, v]) => k + ' ' + fmtDT(v.top)).join(' / ')}`);
+    const say = b => b ? `${b.w}×${b.h} 창 위 끝과 ${b.gap}px 띔(화면 위 ${b.top}${noRoom(b) ? ', 창 위에 자리 없음' : ''}) 겹친 단추 [${b.btns.join('][')}]${b.ttl ? ' 제목 가림' : ''} 아래 단추 겹침 ${b.low.length}` : '안 뜸';
+    // 곡 추가 창(360)은 자리가 없어 화면 위 12px이지만 창 위 끝과 거의 붙어 있어 제목·[파일 선택]을 안 가림 (디자인 보기 K1 표)
+    ok('B4', SHORT_360.every(id => dlgToastOk(short[id]) && clean(short[id])) && !short.songDialog?.ttl && short.home,
+      `CR-242 N1·K1 짧은 창 360 (창 바로 위, 제목·[✕]·단추·아래 단추 줄 안 가림): ${SHORT_360.map(id => id.replace('Dialog', '') + ' ' + say(short[id])).join(' · ')} · 다 닫으면 화면으로 ${short.home}`);
+    ok('B4', dlgToastOk(short.g130) && clean(short.g130),
+      `CR-242 K1 폰 360 글 130% 손님 창 긴 안내 (창 바로 위, 제목·[✕] 안 가림): ${fmtDT(short.g130)}`);
+    const pcg = pcShort.guestDialog;
+    ok('B4', dlgToastOk(pcg) && pcg.dL >= 8 && pcg.dR >= 8 && Object.values(pcShort).every(v => dlgToastOk(v) && clean(v)) && pcHome,
+      `CR-242 K1 PC 1280 손님 창 + 긴 안내 (폭은 창 안: 창 좌 ${pcg?.dL}·우 ${pcg?.dR}px, 창 바로 위, 제목·[✕] 안 가림): ${fmtDT(pcg)} · 사용자 창 ${say(pcShort.profileDialog)} · 다 닫으면 화면으로 ${pcHome}`);
     ok('B4', dlgToastOk(g) && back?.home === '#cloudDialog' && dlgToastOk(back) && out.home && out.shown && out.text === SHORT && out.n === 1 && Math.abs(out.bottom - 24) <= 1 && Math.abs(out.mid) <= 1 && again === 0,
       `CR-242 N1 겹친 창: 손님 창 ${g?.home} → 손님 창 닫음 ${back?.home} → 설정 창 닫음: 화면 아래 ${out.bottom}px 가운데 ${out.w}px "${out.text}" 보임 ${out.shown} · 알림 ${out.n}개 · 다시 뜸 ${again}번`);
   });
