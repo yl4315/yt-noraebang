@@ -530,7 +530,7 @@
       <p class="hint">연결 코드와 로그인은 이 기기에만 저장돼요. 백업 파일과 Drive에는 안 들어가요. 비밀번호는 저장하지 않아요.</p>
     </section>
     <!-- 더 보기 (고급) (CR-229, W13): 처음엔 접힘, 한 번 펴면 이 기기(nb-advanced)에 기억. 켜면 앱의 다른 숨긴 칸(소리 설정 세부·가사 타이밍·클라이언트 ID 등)도 예전처럼 보인다 -->
-    <button class="set-adv-btn" id="advBtn" type="button" aria-expanded="false" aria-controls="advBox"><span><b>더 보기 (고급)</b><small id="advSub">여행 준비 · 백업 파일 · MR 만들기 서버<span id="advSubMy" hidden> · 내 폰 리모컨</span><span id="advSubRemote" hidden> · 옛 휴대폰 리모컨</span></small></span><i aria-hidden="true">›</i></button>
+    <button class="set-adv-btn" id="advBtn" type="button" aria-expanded="false" aria-controls="advBox"><span><b>더 보기 (고급)</b><small id="advSub">여행 준비 · 백업 파일 · MR 만들기 서버<span id="advSubMy" hidden> · 내 폰 리모컨</span><span id="advSubRemote" hidden> · 옛 폰 리모컨</span></small></span><i aria-hidden="true">›</i></button>
     <div class="adv-box adv-only" id="advBox">
     <section class="set-sec travel" id="travelSec">
       <h3>여행 준비</h3>
@@ -573,8 +573,9 @@
       <p class="hint" id="myRemoteMsg" role="status" hidden></p>
     </section>
     <section class="set-sec" id="remoteSec" hidden>
-      <h3>옛 휴대폰 리모컨 (PC에서 켰을 때만 보여요)</h3>
-      <div class="remote-info" id="remoteSet">"YT 노래방 켜기"로 연 화면에서만 쓸 수 있어요. 같은 와이파이의 휴대폰으로 예약·검색·시작·취소를 할 수 있어요.</div>
+      <h3>옛 폰 리모컨 (같은 와이파이)</h3>
+      <p class="hint" id="remoteOldHint">기본은 '내 폰 리모컨 (허브)'이에요: 허브에 로그인하면 바로 위에 보이고, 다른 와이파이에서도 돼요. 이 칸은 같은 와이파이에서만 되는 옛 리모컨이에요.</p>
+      <div class="remote-info" id="remoteSet">"YT 노래방 켜기"로 연 화면에서만 쓸 수 있어요. 같은 와이파이의 폰으로 예약·검색·시작·취소를 할 수 있어요.</div>
       <div id="remoteCtl" hidden style="display:contents">
         <label class="set-row chk"><input type="checkbox" id="remoteNewEach"> 켤 때마다 새 코드 만들기</label>
         <div class="set-row"><button class="btn small" id="remoteNewPin" type="button">새 코드 만들기</button><span class="hint" id="remotePinMsg"></span></div>

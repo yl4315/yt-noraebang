@@ -1,4 +1,4 @@
-// 내 폰 리모컨 (CR-228 ③, X9~X11): 노래방 PC 1 + 내 폰 1을 따로 켠 Edge 둘로 본다 (따로 켠 Edge = 따로 저장소 = 다른 기기).
+// 내 폰 리모컨 (CR-228 ③, X9~X11 · ④ 기본 길 TV QR L6): 노래방 PC 1 + 내 폰 1을 따로 켠 Edge 둘로 본다 (따로 켠 Edge = 따로 저장소 = 다른 기기).
 // 가짜 허브(fakehub.mjs)의 가짜 Realtime 공개 broadcast만 쓰고 진짜 허브에는 연결 0. 둘 다 정적 서버(= GitHub Pages와 같은 상태, server.py 없음)에서 연다.
 // 폰은 같은 주소의 노래방 앱(index.html)에서 허브에 로그인한 뒤 remote.html을 연다 (실제 쓰는 순서 그대로).
 // 방 이름·허브 주소·키는 이 점검의 기록·결과표에도 쓰지 않는다: Node 변수에만 두고 "몇 개 보였나"만 센다.
@@ -66,8 +66,12 @@ export default async function myremote(ctx) {
     await openSettings();
     const st = await host.eval(`({sec:$('#myRemoteSec').hidden, sub:$('#advSubMy').hidden, on:My.on, old:$('#remoteSec').hidden})`);
     ok('X9', songs.length === 2 && st.sec && st.sub && !st.on && R.opens === 0,
-      `로그인 전: 칸 ${st.sec ? '숨김' : '보임'} · "더 보기 (고급)" 작은 글 ${st.sub ? '없음' : '있음'} · Realtime 연결 ${R.opens} · 옛 휴대폰 리모컨 칸 ${st.old ? '숨김(정적 서버)' : '보임'}`);
+      `로그인 전: 칸 ${st.sec ? '숨김' : '보임'} · "더 보기 (고급)" 작은 글 ${st.sub ? '없음' : '있음'} · Realtime 연결 ${R.opens} · 옛 폰 리모컨 칸 ${st.old ? '숨김(정적 서버)' : '보임'}`);
     await closeDialogs();
+    await host.eval('enterTV()');
+    const tv0 = await host.until(`state.tv && !$('#tvIdle').hidden`, 4000) && await isHidden(host, '#remoteInfo') && await host.eval(`!$('#remoteInfo').childElementCount`);
+    await host.eval('exitTV()');
+    ok('L6', tv0, `정적 서버(Pages) · 내 폰 리모컨 꺼짐: TV 대기 화면 리모컨 칸 ${tv0 ? '없음' : '있음'} (예전처럼 숨김)`);
   });
 
   await step('노래방 PC: 허브 코드 저장 · 가짜 계정 로그인 → 설정 › 더 보기 (고급)에 "내 폰 리모컨 (허브)" 칸 (처음엔 꺼짐)', ['X9'], async () => {
@@ -79,7 +83,7 @@ export default async function myremote(ctx) {
     const shown = await host.until(`!$('#myRemoteSec').hidden && !$('#advSubMy').hidden`, 5000);
     const st = await host.eval(`({inAdv:$('#advBox').contains($('#myRemoteSec')), next:($('#myRemoteSec').nextElementSibling||{}).id, h3:$('#myRemoteSec h3').textContent,
       on:$('#myRemoteOn').checked, role:$('#myRemoteOn').getAttribute('role'), sub:$('#myRemoteSub').textContent, link:$('#myRemoteLink').href, linkRow:!$('#myRemoteLink').parentElement.hidden, pref:localStorage.getItem('nb-myremote'), my:My.on})`);
-    ok('X9', shown && st.inAdv && st.next === 'remoteSec' && st.h3 === '내 폰 리모컨 (허브)', `로그인하면 보임 · 고급 안 · 옛 휴대폰 리모컨 칸 바로 위 · 제목 "${st.h3}"`);
+    ok('X9', shown && st.inAdv && st.next === 'remoteSec' && st.h3 === '내 폰 리모컨 (허브)', `로그인하면 보임 · 고급 안 · 옛 폰 리모컨 칸 바로 위 · 제목 "${st.h3}"`);
     ok('X9', !st.on && !st.my && st.role === 'switch' && st.sub === '꺼짐 · 노래방을 띄운 PC에서 켜요' && st.pref === null && slot() === undefined && R.joins.length === 0,
       `처음엔 꺼짐: "${st.sub}" · 열쇠 칸 ${slot() === undefined ? '비어 있음' : '있음'} · 채널 ${R.joins.length}개`);
     ok('X9', st.link === base + '/remote.html' && st.linkRow, '[이 기기에서 리모컨 열기] = 같은 주소의 remote.html (꺼져 있을 때 보임)');
@@ -101,6 +105,37 @@ export default async function myremote(ctx) {
     await clipShot(host, ['#myRemoteSec'], path.join(shotDir, 'x-my-host-on.png'));
   });
 
+  // CR-228 ④ 기본 길 (L6): 켜 둔 동안 server.py 없는 화면의 TV 대기 화면에 내 폰 리모컨 QR + 글 + 옛 길 안내 한 줄. 손님 QR이 보이면 숨김
+  await step('TV 대기 화면 (기본 길): 내 폰 리모컨 QR = 같은 곳 remote.html(?·# 없음) · 글 · 옛 길 안내 한 줄 · 주소 글 없음 · 손님 QR이 보이면 숨김', ['L6'], async () => {
+    const want = base + '/remote.html';
+    await closeDialogs();
+    await host.eval('enterTV()');
+    const shown = await host.until(`state.tv && !$('#tvIdle').hidden && !$('#remoteInfo').hidden && (!!$('#remoteInfo img.qr') || ${ctx.conds.W === false})`, 10000);
+    const st = await host.eval(`(()=>{ const b=$('#remoteInfo'), img=b.querySelector('img.qr'); let same=false;
+      if (img && typeof qrcode==='function') { const g=qrcode(0,'M'); g.addData(${q(want)}); g.make(); same = img.src===g.createDataURL(4,2); }
+      return { title:b.querySelector('.my-tv b')?.textContent||'', line:b.querySelector('.my-tv span')?.textContent||'', old:b.querySelector('.my-tv-old')?.textContent||'', T:MY_TV_TEXT,
+        t:b.textContent, qr:b.querySelectorAll('img.qr').length, same, alt:img?.alt||'', url:myRemoteUrl(location.href), html:b.innerHTML.replace(/ src="[^"]*"/g,'') }; })()`);
+    const oldVis = await visible(host, '#remoteInfo .my-tv-old');
+    ok('L6', shown && await visible(host, '#remoteInfo') && st.title === st.T.title && st.line === st.T.line && (st.qr === 1 || ctx.conds.W === false) && (st.same || ctx.conds.W === false),
+      `TV 대기 화면: "${st.title}" · "${st.line}" · QR ${st.qr}개${st.same ? ' (= 같은 곳 remote.html)' : ''}`);
+    ok('L6', st.url === want && !/[?#]/.test(st.url) && !/remote\.html|https?:|nbm-/.test(st.html) && !/remote\.html|https?:/.test(st.t) && st.alt === st.T.alt,
+      `QR 주소 = 같은 곳 remote.html (?·# 없음 = 방 이름·코드 0) · 화면 글·HTML에 주소 없음 · 그림 설명 "${st.alt}"`);
+    ok('L6', oldVis && st.old === st.T.old && /YT 노래방 켜기/.test(st.old) && /같은 와이파이 옛 리모컨 QR/.test(st.old),
+      `옛 길 안내 한 줄 보임: "${st.old}"`);
+    await shot(host, 'x-my-tv-qr.png');
+    // 손님 QR을 켜면 리모컨 칸은 숨김 (css .tv-idle.guest-on .remote-info) → 손님 방을 닫으면 다시 보임
+    await host.eval('guestOpen()');
+    const g = await host.until(`Guest.on && !!Guest.qr && !Guest.busy && $('#tvIdle').classList.contains('guest-on') && !$('#guestCardQr').hidden`, 20000);
+    const gRoom = g ? await host.eval('Guest.room') : '';
+    if (gRoom) secrets.add(gRoom);
+    const gHid = g && await isHidden(host, '#remoteInfo') && await host.eval('My.on && !$("#remoteInfo").hidden');
+    await shot(host, 'x-my-tv-guest.png');
+    await host.eval('guestClose()');
+    const back = await host.until(`!Guest.on && !Guest.busy && !$('#tvIdle').classList.contains('guest-on')`, 8000) && await visible(host, '#remoteInfo');
+    await host.eval('exitTV()');
+    ok('L6', gHid && back, `손님 QR 켬 → 리모컨 칸 ${gHid ? '숨김' : '안 숨음'} (켜 둔 그대로) · 손님 방 닫음 → ${back ? '다시 보임' : '안 보임'}`);
+  });
+
   await step('폰: 허브 로그인 안 한 폰 → "노래방 설정 › 허브 연결에서 로그인하고 돌아오면…" + [노래방 열기] · server.py로 열면 옛 코드 화면 그대로', ['X11'], async () => {
     await ph.s('Page.navigate', { url: base + '/remote.html' });
     const seen = await ph.until(`document.readyState==='complete' && (${VIEW(H_LOGIN)})`, 15000);
@@ -115,7 +150,7 @@ export default async function myremote(ctx) {
     // server.py(이 PC 127.0.0.1)로 열면: /api/remote/info가 답하니 옛 길 = 4자리 코드 화면
     await ph.s('Page.navigate', { url: ctx.base + '/remote.html' });
     const old = await ph.until(`document.readyState==='complete' && !$('#pinView').hidden && $('#hubView').hidden && $('#app').hidden`, 10000);
-    ok('X11', old && /노래방 코드 입력/.test(await txt(ph, '#pinView h1')), 'server.py 주소: 옛 휴대폰 리모컨 코드 입력 화면 그대로 (허브 길 안 씀)');
+    ok('X11', old && /노래방 코드 입력/.test(await txt(ph, '#pinView h1')), 'server.py 주소: 옛 폰 리모컨 코드 입력 화면 그대로 (허브 길 안 씀)');
   });
 
   await step('폰: 같은 주소의 노래방 앱에서 허브 로그인 → remote.html = 바로 이어짐 · 곡·예약·사용자 보임', ['X10'], async () => {
@@ -139,7 +174,7 @@ export default async function myremote(ctx) {
     await shot(ph, 'x-my-phone-app.png');
   });
 
-  await step('폰 → PC 명령 16가지: 옛 휴대폰 리모컨과 같은 remoteRun이 실행 · 폰 화면이 PC 상태를 따라감', ['X10'], async () => {
+  await step('폰 → PC 명령 16가지: 옛 폰 리모컨과 같은 remoteRun이 실행 · 폰 화면이 PC 상태를 따라감', ['X10'], async () => {
     const [s1, s2] = songs.map(s => s.id);
     const v0 = await host.eval('settings.mrVol'), meId = await host.eval('me().id');
     const bad = [];
@@ -254,6 +289,7 @@ export default async function myremote(ctx) {
     const st = await ph.eval(`({p:$('#hubP').textContent, retry:!$('#hubRetry').hidden, open:!$('#hubOpen').hidden, connHid:$('#conn').hidden})`);
     ok('X9', off && slot() === undefined && await host.eval(`localStorage.getItem('nb-myremote')===null && $('#myRemoteSub').textContent==='꺼짐 · 노래방을 띄운 PC에서 켜요'`),
       `끄면: 열쇠 칸 ${slot() === undefined ? '비움' : '남음'} · 기억 지움 · "${await txt(host, '#myRemoteSub')}"`);
+    ok('L6', off && await host.eval(`$('#remoteInfo').hidden && !$('#remoteInfo').childElementCount`), '끄면 TV 대기 화면 내 폰 리모컨 QR 바로 숨김 (새로 고침 없이)');
     ok('X11', seen && /\[폰\s리모컨\s받기\]를\s켜\s주세요/.test(st.p) && st.retry && !st.open && st.connHid, `폰: "${H_OFF}" · [다시 해 보기] · 연결 점 ${st.connHid ? '숨김' : '보임'}`);
     await shot(ph, 'x-my-phone-off.png');
     await ph.eval(`Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' })`);
@@ -267,6 +303,7 @@ export default async function myremote(ctx) {
     await sleep(600);
     ok('X9', on && ROOM_RE.test(room2) && room2 !== room && slot() === room2 && deadSubs === 0 && oldSubs === 0 && toPid(A, '', l0).length === 0,
       `다시 켜면 새 방 이름 · 열쇠 칸 = 새 방 · 옛 방 이름으로 hello → 듣는 곳 ${oldSubs}개 · 답 0`);
+    ok('L6', on && await host.until(`!$('#remoteInfo').hidden && !!$('#remoteInfo .my-tv') && (!!$('#remoteInfo img.qr') || ${ctx.conds.W === false})`, 8000), '다시 켜면 TV 대기 화면 QR 다시 보임');
     const still = await ph.eval(VIEW(H_OFF));
     await ph.tap('#hubRetry');
     const back = await ph.until(APP_ON, 15000);
@@ -310,6 +347,7 @@ export default async function myremote(ctx) {
     await host.eval('hubLogout()');
     const done = await host.until(`!My.on && $('#myRemoteSec').hidden && $('#advSubMy').hidden`, 8000);
     ok('X9', done && slot() === undefined && await host.eval(`localStorage.getItem('nb-myremote')==='1'`), 'PC 로그아웃 → 방 끝 · 열쇠 칸 비움 · 칸 숨김 (켜 둔 설정은 이 기기에 그대로)');
+    ok('L6', done && await host.eval(`$('#remoteInfo').hidden`), '로그아웃(방 끝) → TV 대기 화면 QR 숨김');
   });
 
   await step('방 이름·허브 주소·키: PC·폰 화면 글·HTML·콘솔·주소에 0 · 가짜 허브가 아닌 WebSocket 0', ['X9', 'X10'], async () => {

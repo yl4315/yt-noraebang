@@ -31,6 +31,19 @@ export default async function remote(ctx) {
     ok('N18', set.ctl && r.status === 403 && still === pin, `같은 와이파이로 켠 서버(lan): 코드 버튼 보임 · 다른 사이트의 코드 바꾸기 → ${r.status} (코드 그대로)`);
   });
 
+  // CR-228 ④ 기본 길: 내 폰 리모컨 TV QR은 server.py 없이 연 화면(Pages)에서만. server.py로 연 이 화면은 켜도 옛 QR(주소·코드) 그대로 (옛 길 보존)
+  await step('server.py로 연 화면: 내 폰 리모컨을 켜도 TV 대기 화면은 옛 QR·주소·코드 그대로', ['L6'], async () => {
+    const box = `(()=>{const b=document.querySelector('#remoteInfo'); return {h:b.hidden, t:b.textContent, qr:b.querySelectorAll('img.qr').length, my:!!b.querySelector('.my-tv')}})()`;
+    const b0 = await p.eval(box);
+    await p.eval(`(()=>{ window.__myOn=My.on; My.on=true; myTvRender(); })()`);       // 허브 없이 켠 것처럼만 (방은 안 엶)
+    await sleep(400);
+    const b1 = await p.eval(box);
+    await p.eval(`(()=>{ My.on=window.__myOn; myTvRender(); })()`);
+    const b2 = await p.eval(box);
+    ok('L6', !b0.h && !b1.h && !b2.h && !b1.my && b1.t === b0.t && b1.t.includes(`코드 ${pin}`) && b1.qr === b0.qr && b2.t === b0.t,
+      `켬: 옛 글 그대로("${b1.t.slice(0, 16)}…" · 코드 ${pin}) · QR ${b1.qr}개 · 내 폰 리모컨 글 ${b1.my ? '있음' : '없음'} · 다시 끔: 옛 QR 그대로 보임`);
+  });
+
   await step('휴대폰 탭: ?pin= 주소로 열면 바로 연결, 주소에서 코드 지움, 연결·사용자 표시, 홈 화면 추가 안내', ['N20', 'N5', 'N3', 'N21'], async () => {
     ph = await openPage(ctx, PHONE, null);
     await ph.goto(`${ctx.base}/remote.html?pin=${pin}`, `!document.querySelector('#app').hidden`);

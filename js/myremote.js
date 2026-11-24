@@ -3,7 +3,7 @@
 // 허브 Realtime 공개 broadcast 채널 하나. 손님 방(guesthost.js)과 따로: 방 이름 'nbm-' + 256비트 난수(core.js myRoomName),
 // 폰 → PC 이벤트 'p', PC → 폰 이벤트 'm'. 방 이름은 허브 열쇠 칸 remote_room(0008 hub_secret_set)에만 넣는다 — 예나 계정만 읽는다.
 // 켤 때마다 새 이름 → 채널에 붙어 듣고 → 열쇠 칸에 씀. 끄면 "닫힘"을 보내고 칸을 비운다. 이 화면을 닫으면 방도 끝난다.
-// 명령은 옛 휴대폰 리모컨과 같은 16가지를 remote.js remoteRun이 그대로 실행한다 (먼저 core.js myMsgOk로 모양, 여기서 곡·사용자가 있는지).
+// 명령은 옛 폰 리모컨과 같은 16가지를 remote.js remoteRun이 그대로 실행한다 (먼저 core.js myMsgOk로 모양, 여기서 곡·사용자가 있는지).
 // 상태는 remote.js remoteState() 그대로 (폰 remote.html이 이미 읽는 모양). 곡 목록은 바뀔 때만 조각으로 보낸다.
 // 방 이름·허브 주소·키·계정은 콘솔·기록·화면 글에 찍지 않는다. 폰 화면은 remote.html + js/myphone.js.
 // 지키는 것: 폰 4대까지 · 한 대 1초 8개 · 방 전체 1초 20개 · 4KB 넘는 메시지 버림 · 모르는 종류·명령 버림.
@@ -14,6 +14,14 @@ const MY_EVERY_MS = 10000;            // 상태가 안 바뀌어도 10초마다 
 const MY_SLOT_MS = 60000;             // 1분마다 열쇠 칸이 아직 이 방인지 본다 (다른 노래방 화면에서 켜면 여기는 끈다)
 const MY_SONGS_GAP_MS = 2000;         // 곡 목록 다시 보내기는 2초에 한 번까지
 const MY_PART_GAP_MS = 150;           // 곡 목록 조각 사이
+// TV 대기 화면 내 폰 리모컨 QR 글 (CR-228 ④ L6, 기본 길). 디자인실이 다듬는 곳은 여기 한 곳.
+// old = 옛 길(같은 와이파이 server.py 리모컨)로 가는 방법 한 줄 (팀장 11-24)
+const MY_TV_TEXT = {
+  title: '내 폰 리모컨',
+  line: '허브에 로그인한 내 폰으로 찍어요',
+  old: "안 되면: PC에서 'YT 노래방 켜기'로 열면 같은 와이파이 옛 리모컨 QR이 나와요",
+  alt: '내 폰 리모컨 QR 코드',
+};
 
 const My = {
   on: false, busy: false, want: lsGet(MY_LS) === '1', sb: null, ch: null, room: null,
@@ -197,14 +205,38 @@ async function myHubLeaving() {
   if (My.on || My.busy) await Promise.race([myClose(true), new Promise(r => setTimeout(r, 4000))]);   // 허브가 느려도 로그아웃은 4초 안에
 }
 
+/* ---------------- TV 대기 화면 QR (CR-228 ④ L6: 기본 길) ---------------- */
+// 켜 둔 동안(My.on), server.py 없이 연 화면(GitHub Pages·정적 서버)의 대기 화면 #remoteInfo에 내 폰 리모컨 QR + 글 + 옛 길 안내 한 줄.
+// server.py로 연 화면(Remote.info 있음)은 옛 QR(주소·코드) 그대로 — 내 폰 리모컨을 켜도 건드리지 않는다 (옛 길 보존).
+// QR에는 같은 곳의 remote.html 주소만 (core.js myRemoteUrl, `?`·`#` 없음 = 방 이름·코드·계정 0). 주소 글은 화면에 쓰지 않는다.
+// 끄기·방 끝·로그아웃이면 바로 숨김 (myRender가 부름). 손님 QR이 보이면 숨는 것은 css `.tv-idle.guest-on .remote-info` 그대로.
+let myTvShown = false;
+function myTvRender() {
+  if (typeof qrLoad !== 'function' || typeof myRemoteUrl !== 'function') return;   // 배포 직후 캐시로 옛 remote.js·core.js가 섞이면 QR 없이 (설정 칸은 그대로)
+  const box = $('#remoteInfo'); if (!box || Remote.info) return;
+  if (!My.on) { if (myTvShown) { myTvShown = false; box.hidden = true; box.textContent = ''; } return; }
+  if (myTvShown) return;
+  myTvShown = true; box.hidden = false; box.textContent = '';
+  const t = el('div', 'my-tv');
+  t.append(el('b', '', MY_TV_TEXT.title), el('span', '', MY_TV_TEXT.line), el('small', 'my-tv-old', MY_TV_TEXT.old));
+  box.append(t);
+  const url = myRemoteUrl(location.href);
+  qrLoad().then(() => {
+    if (!My.on || !myTvShown || Remote.info) return;   // 그사이 끔·server.py 옛 QR
+    box.querySelector('.qr')?.remove();
+    box.prepend(qrImage(url, MY_TV_TEXT.alt));
+  }).catch(() => {});   // QR 라이브러리를 못 불러오면 글만 (인터넷이 없으면 방도 못 씀)
+}
+
 /* ---------------- 화면: 설정 › 더 보기 (고급) › 내 폰 리모컨 (허브) ---------------- */
 function myNote(text, bad) {
   My.note = text; My.bad = !!bad;
   const m = $('#myRemoteMsg'); if (!m) return;
   m.textContent = text; m.hidden = !text; m.classList.toggle('err', !!bad);
 }
-// 허브에 로그인해 있을 때만 보인다 (고급 안, 옛 휴대폰 리모컨 바로 위)
+// 허브에 로그인해 있을 때만 보인다 (고급 안, 옛 폰 리모컨 바로 위)
 async function myRender() {
+  myTvRender();
   const sec = $('#myRemoteSec'); if (!sec) return;
   const shown = My.on || (await myLoggedIn());
   My.shown = shown;

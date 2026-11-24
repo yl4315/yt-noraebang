@@ -133,7 +133,7 @@ npm run test:ui                  # 화면 자동 점검: 헤드리스 Edge가 �
   - 설정 창 `더 보기 (고급)`(`#advBtn`) → `nb-advanced`='1'이면 `<html class="adv">` = 숨기기 전 화면. 끄면(기본) `.adv-only`·`.adv-full`이 숨고 `.adv-short`가 보인다 (`css/app.css` "숨김 정리").
   - 그 자리에서 펴는 칸: `.fold` 안 `.fold-btn`("더 보기 ›")을 누르면 `.unfold` → `.fold-more`가 보인다 (음향 설정 세부, "가사 맞추기 ›", 설정 창 "이 기기에 저장된 곡"). 고급이면 늘 펴져 있다.
   - 음향 설정(`#deckMore`): 고급 꺼짐이면 사람이 펴고 접은 상태를 `nb-deck`에 기억 (처음엔 접힘). 고급 켬이면 예전 규칙 (PC 펼침, ≤560 접힘) — core.js `deckOpenAtStart`.
-  - 설정 창 차례: 손님(`#guestSec`, 맨 위 묶음 — 고급 밖, 디자인 확인 CR-228 2장) → 곡 창고(Drive · 이 기기에 저장된 곡 · 허브 연결 `#hubSec` — 고급 밖, 디자인 확인 CR-229 #2) → `더 보기 (고급)` 안에 여행 준비 · 백업 파일 · MR 만들기(주소는 `#mrAddr` 안) · 내 폰 리모컨(`#myRemoteSec`, 허브에 로그인해 있을 때만 `myRender`가 보이게 함, `#advBtn` 작은 글 "내 폰 리모컨"(`#advSubMy`)도 그때만, CR-228 ③) · 옛 휴대폰 리모컨(`#remoteSec`, 서버로 켰을 때만 `renderRemoteInfo`가 보이게 함 — Pages에서는 고급을 켜도 안 보임, `#advBtn` 작은 글 끝 "옛 휴대폰 리모컨"(`#advSubRemote`)도 그때만).
+  - 설정 창 차례: 손님(`#guestSec`, 맨 위 묶음 — 고급 밖, 디자인 확인 CR-228 2장) → 곡 창고(Drive · 이 기기에 저장된 곡 · 허브 연결 `#hubSec` — 고급 밖, 디자인 확인 CR-229 #2) → `더 보기 (고급)` 안에 여행 준비 · 백업 파일 · MR 만들기(주소는 `#mrAddr` 안) · 내 폰 리모컨(`#myRemoteSec`, 허브에 로그인해 있을 때만 `myRender`가 보이게 함, `#advBtn` 작은 글 "내 폰 리모컨"(`#advSubMy`)도 그때만, CR-228 ③) · 옛 폰 리모컨 (같은 와이파이)(`#remoteSec`, 서버로 켰을 때만 `renderRemoteInfo`가 보이게 함 — Pages에서는 고급을 켜도 안 보임, `#advBtn` 작은 글 끝 "옛 폰 리모컨"(`#advSubRemote`)도 그때만. 칸 맨 위 `#remoteOldHint` "기본은 '내 폰 리모컨 (허브)'이에요…"는 `renderRemoteInfo`가 덮어쓰는 `#remoteSet` 밖, CR-228 ④).
   - 새 칸을 숨길 때는 위 클래스만 쓰고, 그 칸을 보는 화면 점검은 고급 켠 화면에서 그대로 돌게 둔다 (`tests/ui/checks/_lib.mjs` `openPage`가 탭마다 `nb-advanced`='1'). 숨김 자체는 `checks/hide.mjs`(W13).
 
 ## 유튜브 곡 (`js/yt.js`, CR-030)
@@ -225,12 +225,13 @@ npm run test:ui                  # 화면 자동 점검: 헤드리스 Edge가 �
 - 예약 목록의 손님 이름은 `guestNickAt(i)`(karaoke.js `renderQueue`·`renderQueueList`가 `typeof`로 부름). 방이 닫혀 있으면 ''.
 - 이 기기 설정: `nb-guest-tv`(`'0'` = TV에 QR 안 보임) · `nb-guest-key`(`'0'` = 손님 키 바꾸기 끔). 기본은 둘 다 켬이라 키를 안 만든다.
 - TV 대기 카드 `#guestCard`: 방이 열려 있으면 QR(`#tvIdle.guest-on`이면 옛 리모컨 안내 `#remoteInfo`는 숨김), 닫혀 있으면 허브가 있을 때만 [손님 QR 켜기]. 카드가 보이면 점수 칸은 시계 옆(`.idle-right>.best` 1행 2열)·팁은 고급이어도 한 줄, QR은 `max(96px,16cqw)` (디자인 확인 CR-228 #1~#3). QR 이미지는 1칸 = 1px로 그리고(`guestQrMake` → `Guest.qrPx`), 보이는 크기는 `guestQrFit`가 그 배수로 내린다 (core.js `qrFitPx`, 카드는 최소 96px라 모자라면 한 배 위로, 창 `#guestQrImg`는 220px 안). 낮은 화면(높이 480px 이하)에서는 카드가 한 줄 `#guestCardMini` "손님 QR: 설정 › 손님"만 (CR-228 L1). 카드 바탕은 `--panel` (L8). `server.py` 휴대폰 리모컨(N1~N21)은 그대로.
-- 손님 화면 CSP는 `guest.html` `<meta>`에 따로: `default-src 'none'`, 스크립트·스타일은 `'self'`, 바깥은 `https://*.supabase.co`·`wss://*.supabase.co`만. `sw.js`는 손님 파일도 저장하지만(`SHELL` v14) 허브 요청은 저장하지 않는다.
+- 손님 화면 CSP는 `guest.html` `<meta>`에 따로: `default-src 'none'`, 스크립트·스타일은 `'self'`, 바깥은 `https://*.supabase.co`·`wss://*.supabase.co`만. `sw.js`는 손님 파일도 저장하지만 허브 요청은 저장하지 않는다 (`SHELL` 지금 v15).
 - 알려진 한계: 공개 broadcast라 방 이름을 아는 손님은 방장 답(`h`)을 흉내 낼 수 있다 (다른 손님 화면에 가짜 `closed`·목록). 손님 화면은 `textContent`로만 넣어서 스크립트는 못 넣는다.
 
 ## 내 폰 리모컨 (`js/myremote.js` · `js/myphone.js`, CR-228 ③)
 
-- 옛 휴대폰 리모컨(`server.py` `/api/remote/*`, N1~N21)은 그대로 두고, `server.py` 없이(GitHub Pages) **내 폰이 허브로** 같은 16가지 명령을 보내는 길을 더했다. TV QR·안내 글을 이 길로 바꾸는 것(기본 길 바꾸기)은 ④.
+- 옛 폰 리모컨(`server.py` `/api/remote/*`, N1~N21)은 그대로 두고, `server.py` 없이(GitHub Pages) **내 폰이 허브로** 같은 16가지 명령을 보내는 길을 더했다.
+- **기본 길 (④)**: 켜 둔 동안(`My.on`) `server.py` 없이 연 화면(`Remote.info` 없음)의 TV 대기 화면 `#remoteInfo`에 내 폰 리모컨 QR + 글 + 옛 길 안내 한 줄 (`myTvRender`, `myRender`가 부름 → 켜기·끄기·방 끝·로그아웃을 새로 고침 없이 따라감). 글은 `myremote.js` 맨 위 `MY_TV_TEXT` 한 곳 (디자인실이 다듬음). QR 주소는 core.js `myRemoteUrl` = 같은 곳의 `remote.html`(`?`·`#`·계정 없음), 주소 글은 화면에 안 씀. QR 라이브러리는 옛 QR과 같은 `qrLoad`·`qrImage`(remote.js, cdnjs qrcode-generator 1.4.4). `server.py`로 연 화면은 켜도 옛 QR·주소·코드 그대로. 손님 QR이 보이면 둘 다 숨김(`.tv-idle.guest-on .remote-info`). 스위치는 그대로 켜야 켜짐(기본 꺼짐: 폰에서 기본으로 켜면 방을 뺏음).
 - 방 = 회사 허브 Realtime **공개 broadcast** 채널 하나 (`private`·presence·표 변경 0, 손님 방과 따로). 이름은 켤 때마다 새 256비트 난수 `nbm-…`(core.js `myRoomName`, 손님 방 `nbr-…`과 모양이 달라 섞이지 않음). 폰 → PC 이벤트 `p`(`hello`·`cmd`·`bye`), PC → 폰 `m`(`welcome`·`songs`·`state`·`ok`·`no`·`full`·`closed`).
 - 방 이름 건네기 = 허브 열쇠 칸 `hub_secret_set`/`hub_secret('noraebang','remote_room')` (키트 0008, 새 SQL 없음) = 예나 계정만 읽는다. **방 이름은 주소(`?`·`#`)·QR·화면 글·콘솔·기록에 쓰지 않는다.**
 - PC(`myOpen`): 채널에 먼저 붙고 → 열쇠 칸에 쓰고 → 듣기. 여는 사이 로그아웃·끄기가 오면(`My.gen`) 붙은 채널을 떼고 칸도 되돌린다.

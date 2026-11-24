@@ -59,10 +59,23 @@ function remoteRun(c) {
     case 'rec': return setArmed(!state.armed);
   }
 }
+// QR 그림 (cdnjs qrcode-generator 1.4.4): 옛 리모컨 QR과 TV 대기 화면 내 폰 리모컨 QR(myremote.js, CR-228 ④)이 같이 쓴다.
+// 한 번만 불러온다 (못 불러오면 다음에 다시)
 let qrLib = null;
+function qrLoad() {
+  return (qrLib ||= new Promise((res, rej) => {
+    const sc = document.createElement('script'); sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js';
+    sc.onload = res; sc.onerror = rej; document.head.append(sc);
+  }).catch(e => { qrLib = null; throw e; }));
+}
+function qrImage(text, alt) {
+  const q = qrcode(0, 'M'); q.addData(text); q.make();
+  const img = new Image(); img.src = q.createDataURL(4, 2); img.alt = alt; img.className = 'qr';
+  return img;
+}
 function renderRemoteInfo() {
   const i = Remote.info; if (!i) return;
-  $('#remoteSec').hidden = false;   // 설정 창 "옛 휴대폰 리모컨"은 PC 서버로 켰을 때만 (GitHub Pages에서는 아예 안 보임, CR-229)
+  $('#remoteSec').hidden = false;   // 설정 창 "옛 폰 리모컨"은 PC 서버로 켰을 때만 (GitHub Pages에서는 아예 안 보임, CR-229)
   $('#advSubRemote').hidden = false;   // "더 보기 (고급)" 작은 글에도 그때만 (디자인 확인 CR-229 #1)
   for (const box of [$('#remoteInfo'), $('#remoteSet')]) {
     box.hidden = false; box.textContent = '';
@@ -72,16 +85,12 @@ function renderRemoteInfo() {
   renderRemoteCtl();
   if (!i.url) return;
   // QR 코드: 휴대폰 카메라로 찍으면 코드까지 자동으로 들어간다 (인터넷이 안 되면 주소만 보여 준다)
-  (qrLib ||= new Promise((res, rej) => {
-    const sc = document.createElement('script'); sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js';
-    sc.onload = res; sc.onerror = rej; document.head.append(sc);
-  })).then(() => {
+  qrLoad().then(() => {
     // 그사이 "새 코드 만들기"로 다시 그렸으면 옛 코드 QR은 넣지 않는다
     if (Remote.info !== i) return;
-    const q = qrcode(0, 'M'); q.addData(i.url); q.make();
     for (const box of [$('#remoteInfo'), $('#remoteSet')]) {
       box.querySelector('.qr')?.remove();
-      const img = new Image(); img.src = q.createDataURL(4, 2); img.alt = '휴대폰 리모컨 QR 코드'; img.className = 'qr'; box.prepend(img);
+      box.prepend(qrImage(i.url, '휴대폰 리모컨 QR 코드'));
     }
   }).catch(() => {});
 }

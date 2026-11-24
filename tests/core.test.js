@@ -1341,3 +1341,15 @@ test('리모컨 길 고르기: server.py 답이면 옛 길(코드), 아니면 �
   assert.equal(C.remoteModePick({ status: 0 }), 'hub');                                         // 못 닿음
   assert.equal(C.remoteModePick(), 'hub');
 });
+
+test('내 폰 리모컨 TV QR 주소: 같은 곳의 remote.html · ?·# 없음 (방 이름·코드·계정 0)', () => {
+  assert.equal(C.myRemoteUrl('https://example.test/app/'), 'https://example.test/app/remote.html');                 // GitHub Pages 프로젝트 주소
+  assert.equal(C.myRemoteUrl('https://example.test/app/index.html?tv=1#x'), 'https://example.test/app/remote.html'); // TV로 켜기·# 버림
+  assert.equal(C.myRemoteUrl('https://example.test/app/?title=a&url=b'), 'https://example.test/app/remote.html');   // 폰 [공유] 주소
+  assert.equal(C.myRemoteUrl('http://127.0.0.1:5199/'), 'http://127.0.0.1:5199/remote.html');                         // 정적 서버
+  assert.equal(C.myRemoteUrl('https://who:pw@example.test/app/'), 'https://example.test/app/remote.html');           // 주소 안 계정도 버림
+  for (const h of ['https://example.test/app/?pin=1234', 'https://example.test/app/#nbm-room', 'http://localhost:5173/index.html?tv=1&x=%23']) {
+    const u = C.myRemoteUrl(h);
+    assert.ok(u.endsWith('/remote.html') && !/[?#@]/.test(u), u);
+  }
+});

@@ -1,6 +1,6 @@
 // CR-229 숨김 정리 (W13): 기본 화면(고급 꺼짐)에서는 복잡한 칸이 안 보이고, 설정 창 "더 보기 (고급)"을 켜면 예전처럼 모두 보인다.
 // 다른 점검들은 고급을 켠 화면(_lib.mjs openPage)에서 전처럼 돌고, 이 점검만 { ...ctx, adv: false }로 새 탭을 연다 (허브 점검 바로 앞에 돎).
-// 숨기는 것은 화면 칸뿐: 저장된 설정 값(nb-…)이 안 바뀌는지도 본다. 서버 없는 정적(Pages 흉내)에서는 옛 휴대폰 리모컨이 아예 안 보이고,
+// 숨기는 것은 화면 칸뿐: 저장된 설정 값(nb-…)이 안 바뀌는지도 본다. 서버 없는 정적(Pages 흉내)에서는 옛 폰 리모컨이 아예 안 보이고,
 // PC 서버(리모컨 켜짐)에서는 고급 안에만 보인다. 폰 412×915에서 설정 창 길이가 줄었는지 잰다. 디자인실·검수용 사진 cr229-*.png.
 // "새 코드 만들기"는 누르지 않는다. 끝나면 nb-advanced를 다른 점검과 같은 '1'로, nb-deck은 처음 값으로 돌린다.
 import path from 'node:path';
@@ -90,9 +90,9 @@ export default async function hide(ctx) {
       // 허브 연결 칸 자리 (디자인 확인 CR-229 #2): 곡 창고 안 "이 기기에 저장된 곡" 바로 아래, "더 보기 (고급)" 단추 위, 고급 밖 · 연결 안 됨
       const hs = await h.eval(`(()=>{const hb=document.querySelector('#hubSec'); return {prev:hb.previousElementSibling&&hb.previousElementSibling.id, next:hb.nextElementSibling&&hb.nextElementSibling.id, inAdv:document.querySelector('#advBox').contains(hb), state:document.querySelector('#hubState').textContent}})()`);
       ok('W13', hs.prev === 'storeSec' && hs.next === 'advBtn' && !hs.inAdv && /연결 안 됨/.test(hs.state), `허브 연결 칸: 앞 #${hs.prev} · 뒤 #${hs.next} · 고급 ${hs.inAdv ? '안' : '밖'} · "${hs.state}"`);
-      // 고칠 것 1 (디자인 확인 CR-229 #1): PC 서버(리모컨 켜짐)에서는 작은 글 끝에 "옛 휴대폰 리모컨"이 있음 (정적 Pages 흉내에서는 없음 — 맨 아래 단계)
+      // 고칠 것 1 (디자인 확인 CR-229 #1): PC 서버(리모컨 켜짐)에서는 작은 글 끝에 "옛 폰 리모컨"이 있음 (정적 Pages 흉내에서는 없음 — 맨 아래 단계)
       const sub = await h.eval(`document.querySelector('#advSub').innerText`);
-      ok('W13', sub === '여행 준비 · 백업 파일 · MR 만들기 서버 · 옛 휴대폰 리모컨', `PC 서버: "더 보기 (고급)" 작은 글 "${sub}"`);
+      ok('W13', sub === '여행 준비 · 백업 파일 · MR 만들기 서버 · 옛 폰 리모컨', `PC 서버: "더 보기 (고급)" 작은 글 "${sub}"`);
       await shot(h, 'cr229-04-settings-default-1280x800.png');
       // 곡 창고 한 줄 → 그 자리에서 펴짐
       await h.click('#storeSec .fold-btn'); await sleep(120);
@@ -105,7 +105,7 @@ export default async function hide(ctx) {
       const on = await hiddenAll(h, ['#advBox', '#travelSec', '#bkExport', '#mrSec', '#remoteSec', '#storeTxt']);
       const onH = await hiddenAll(h, ['#storeSec .fold-btn', '.set-foot']);
       const a = await h.eval(`({adv:document.documentElement.classList.contains('adv'), ls:localStorage.getItem('nb-advanced'), aria:document.querySelector('#advBtn').getAttribute('aria-expanded'), h3:document.querySelector('#remoteSec h3').textContent, first:document.querySelector('#advBox .set-sec').id, cadv:getComputedStyle(document.querySelector('#clientAdv')).display, addr:document.querySelector('#mrAddr').open})`);
-      ok('W13', a.adv && a.ls === '1' && a.aria === 'true' && on.every(x => !x[1]) && onH.every(x => x[1]) && a.first === 'travelSec' && a.cadv !== 'none' && a.h3 === '옛 휴대폰 리모컨 (PC에서 켰을 때만 보여요)' && !a.addr,
+      ok('W13', a.adv && a.ls === '1' && a.aria === 'true' && on.every(x => !x[1]) && onH.every(x => x[1]) && a.first === 'travelSec' && a.cadv !== 'none' && a.h3 === '옛 폰 리모컨 (같은 와이파이)' && !a.addr,
         `"더 보기 (고급)" 누름 → nb-advanced ${a.ls}, aria-expanded ${a.aria} · 보임 ${list(on)} · 숨음 ${list(onH)} · 첫 구역 ${a.first} · PC 서버라 "${a.h3}" 보임 · 서버 주소 칸은 접힌 채`);
       await h.eval(`document.querySelector('#advBtn').scrollIntoView({block:'start'})`);
       await shot(h, 'cr229-05-settings-adv-1280x800.png');
@@ -180,7 +180,7 @@ export default async function hide(ctx) {
       await tv.close(); tv = null;
     });
 
-    await step('서버 없는 정적(Pages 흉내): 옛 휴대폰 리모컨이 고급을 켜도 안 보임', ['W13'], async () => {
+    await step('서버 없는 정적(Pages 흉내): 옛 폰 리모컨이 고급을 켜도 안 보임', ['W13'], async () => {
       st = await open(PC, ctx.staticBase + '/index.html');
       await st.click('#settingsBtn');
       const s0 = await st.eval(`({on:Remote.on, hid:document.querySelector('#remoteSec').hidden, sub:document.querySelector('#advSub').innerText})`);

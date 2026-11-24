@@ -915,7 +915,7 @@ function qrFitPx(target, px, min = 0) {
 /* ---------------- 내 폰 리모컨 (CR-228 ③): 예나 계정만 아는 허브 Realtime 방 ----------------
    손님 방과 따로: 방 이름 'nbm-' + 256비트 난수 (손님 방은 'nbr-'), 폰 → PC 이벤트 'p', PC → 폰 이벤트 'm' (손님 방은 'g'·'h').
    방 이름은 QR·주소·화면·콘솔에 쓰지 않고 허브 열쇠 칸(0008 hub_secret, 이름 remote_room)으로만 건넨다 = 예나 계정으로 로그인한 기기만 읽음.
-   명령은 옛 휴대폰 리모컨(N13)과 같은 16가지. PC(js/myremote.js)가 확인한 뒤 remote.js remoteRun이 그대로 실행한다.
+   명령은 옛 폰 리모컨(N13)과 같은 16가지. PC(js/myremote.js)가 확인한 뒤 remote.js remoteRun이 그대로 실행한다.
    상태는 remoteState() 그대로 (곡 목록은 바뀔 때만 조각으로, 나머지는 바뀔 때·10초마다). 폰 화면은 remote.html + js/myphone.js. */
 const MY_V = 1;
 const MY_HUB_NAME = 'remote_room';
@@ -1028,4 +1028,11 @@ function remoteModePick({ status, body } = {}) {
   if (status === 200 && obj) return 'server';
   if (status === 403 && obj && body.error === 'local only') return 'server';
   return 'hub';
+}
+// TV 대기 화면 내 폰 리모컨 QR 주소 (CR-228 ④ L6): 노래방을 연 곳과 같은 곳의 remote.html.
+// 방 이름·코드·계정은 넣지 않는다 (`?`·`#`·사용자 이름 없음). 방 이름은 폰이 허브 열쇠 칸에서 읽는다
+function myRemoteUrl(href) {
+  const u = new URL('remote.html', href);
+  u.search = ''; u.hash = ''; u.username = ''; u.password = '';
+  return u.href;
 }

@@ -41,6 +41,10 @@ export default async function basics(ctx) {
     const st = await p.eval(`({t:document.querySelector('#storeTxt').textContent, w:document.querySelector('#storeBar').style.width, c:document.querySelector('#storeCounts').textContent})`);
     ok('P1', /사용 중/.test(st.t) && /남은 공간/.test(st.t) && parseFloat(st.w) > 0, `"${st.t}" 막대 ${st.w}`);
     ok('P5', (await visible(p, '#remoteSet')) && (await txt(p, '#remoteSet')).includes('휴대폰 리모컨'), '설정 창 휴대폰 리모컨 칸');
+    // CR-228 ④: 옛 칸 이름 "옛 폰 리모컨 (같은 와이파이)" · 맨 위에 "기본은 내 폰 리모컨 (허브)" 안내 한 줄 (renderRemoteInfo가 덮어쓰지 않는 칸)
+    const oldSec = await p.eval(`({h3:document.querySelector('#remoteSec h3').textContent, hint:document.querySelector('#remoteOldHint')?.textContent||'', next:document.querySelector('#remoteOldHint')?.nextElementSibling?.id})`);
+    ok('P5', oldSec.h3 === '옛 폰 리모컨 (같은 와이파이)' && (await visible(p, '#remoteOldHint')) && /기본은 '내 폰 리모컨 \(허브\)'/.test(oldSec.hint) && /같은 와이파이에서만 되는 옛 리모컨/.test(oldSec.hint) && oldSec.next === 'remoteSet',
+      `옛 칸 "${oldSec.h3}" · 안내 "${oldSec.hint.slice(0, 24)}…" (리모컨 칸 위)`);
     ok('O1', (await txt(p, '#cloudStatus')).includes('Google 계정 연결'), `연결 전 상태 글 "${await txt(p, '#cloudStatus')}"`);
     // 클라이언트 ID: 들어 있음 → 틀린 값 안내 → 바꾸기 → 원래대로
     const cid = await p.eval(`document.querySelector('#gClientId').value`);
