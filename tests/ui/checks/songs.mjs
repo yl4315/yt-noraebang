@@ -110,6 +110,28 @@ export default async function songs(ctx) {
     ok('C7', fav.t === '♥' && fav.f && unfav === '♡', `♡ → ${fav.t} → ${unfav}`);
   });
 
+  // CR-251 YT-r1: 곡을 바꿔 고르면 앞 곡의 풀어 둔 반주(AudioBuffer)는 놓는다. 다음 예약 곡·데모는 둔다. 녹음 미리듣기 캐시는 최근 2개만
+  await step('CR-251 YT-r1 다른 곡을 고르면 앞 곡 반주 메모리를 놓음 (다음 예약 곡·데모는 둠) · 녹음 미리듣기 캐시 최근 2개', ['C5'], async () => {
+    const demoHad = await p.eval(`!!songById('demo')?.buffer`);
+    await selectById(p, ids.long);
+    await selectById(p, ids.short);
+    const a = await p.eval(`({ long: !!songById(${q(ids.long)}).buffer, short: !!state.song.buffer, demo: !!songById('demo')?.buffer })`);
+    // 다음 예약 곡이면 둔다 (예약은 원래대로 돌려 둠)
+    await selectById(p, ids.long);
+    await p.eval(`window.__q251 = state.queue.slice(); state.queue = [${q(ids.long)}]`);
+    await selectById(p, ids.short);
+    const b = await p.eval(`(()=>{ const r = { long: !!songById(${q(ids.long)}).buffer }; state.queue = window.__q251; delete window.__q251; saveQueue(); renderQueue(); return r; })()`);
+    // 녹음 미리듣기: 만든 녹음 3개를 차례로 풀면 캐시에는 마지막 2개만 (시험 녹음은 목록·DB에 넣지 않고, 끝나면 캐시에서 뺌)
+    const c = await p.eval(`(async()=>{ const made = [1,2,3].map(i => ({ id: 'qa-r1-rec' + i, v: 2, sr: 44100, vocal: new Blob([new Int16Array(4410).buffer]), parts: [], songId: ${q(ids.short)} }));
+      for (const r of made) await loadRecAudio(r);
+      await loadRecAudio(made[1]);   // 다시 쓰면 맨 뒤로 → 1번이 아니라 3번이 남고 2번은 살아 있음
+      const keys = [...recCache.keys()].filter(k => k.startsWith('qa-r1-rec'));
+      for (const r of made) recCache.delete(r.id);
+      return { size: keys.length, keys: keys.join(',') }; })()`);
+    ok('C5', !a.long && a.short && (!demoHad || a.demo) && b.long && c.size === 2 && c.keys === 'qa-r1-rec3,qa-r1-rec2',
+      `앞 곡 반주 ${a.long ? '그대로 (안 놓음)' : '놓음'} · 지금 곡 ${a.short ? '있음' : '없음'} · 데모 ${demoHad ? (a.demo ? '둠' : '놓음') : '(안 풀림)'} · 다음 예약 곡 ${b.long ? '둠' : '놓음'} · 녹음 캐시 ${c.size}개 (${c.keys})`);
+  });
+
   await step('가사 타이밍 ±0.1초·±1초가 곡에 저장', ['F5'], async () => {
     await selectById(p, ids.long);
     await p.click('[data-lyr="0.1"]'); await p.click('[data-lyr="0.1"]');

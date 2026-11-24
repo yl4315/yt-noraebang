@@ -81,6 +81,8 @@ async function selectSong(s) {
   $('#guideKnob').hidden = !s.demo;
   setupVideo(s);
   for (const x of state.songs) if (x !== s) x.keyCache = null;
+  // 다른 곡의 풀어 둔 반주는 놓는다 (CR-251 YT-r1, 다시 고르면 파일에서 다시 풀기). 다음 예약 곡·녹음 중인 곡은 둔다
+  if (typeof songBuffersToFree === 'function') for (const x of songBuffersToFree(state.songs, [s, state.queue[0], typeof take !== 'undefined' && take && take.song])) x.buffer = null;
   state.key = 0; state.keyBufs = null; keyJob++; updateKeyUI();
   $('#syncBtn').hidden = !!s.demo;
   if (typeof autoSyncUI === 'function') autoSyncUI();   // 자동 싱크 단추·한 줄 (autosync.js, CR-227)

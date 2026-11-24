@@ -1029,6 +1029,18 @@ function remoteModePick({ status, body } = {}) {
   if (status === 403 && obj && body.error === 'local only') return 'server';
   return 'hub';
 }
+// 소리 메모리 비우기 (CR-251 YT-r1): 곡을 고를 때마다 풀어 둔 반주(AudioBuffer, 4분 곡에 약 80MB)가 쌓이지 않게,
+// keep(지금 곡·다음 예약 곡·녹음 중인 곡, 곡 또는 곡 id)을 뺀 내 MR 곡 중 소리를 풀어 둔 곡을 돌려준다. 데모 곡은 늘 둔다 (만들기가 오래 걸려서)
+function songBuffersToFree(songs, keep) {
+  const k = new Set((keep || []).filter(Boolean));
+  return (songs || []).filter(s => s && s.buffer && !s.demo && !k.has(s) && !k.has(s.id));
+}
+// 최근 것만 두는 Map (CR-251 YT-r1, 녹음 미리듣기 캐시): 넣은 것을 맨 뒤로, max개를 넘으면 가장 오래 안 쓴 것부터 뺀다
+function lruSet(map, key, value, max) {
+  map.delete(key); map.set(key, value);
+  while (map.size > Math.max(1, max | 0)) map.delete(map.keys().next().value);
+  return map;
+}
 // 옛 폰 리모컨 받아 오기 (server.py /api/remote/poll, CR-251 YT-r12): 검은 서버 창을 껐다 켜면 명령 번호가 0부터 다시 시작한다.
 // prev = 화면이 가진 { since, boot }, res = 서버 답 { last, boot }. 서버 표(boot)가 바뀌었거나 번호가 줄었으면 restarted:
 // 그 답의 명령은 실행하지 않고 since = 0으로 돌려 다음 번에 새 서버의 명령을 처음부터 받는다 (화면은 상태도 다시 올림)

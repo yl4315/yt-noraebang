@@ -31,3 +31,26 @@ test('옛 폰 리모컨 받아 오기 (YT-r12): 서버를 껐다 켜면 번호�
   assert.deepEqual(plain(C.remotePollNext({ since: 7, boot: 'aaaa0001' }, { last: 'x' })), { since: 7, boot: 'aaaa0001', restarted: false });
   assert.deepEqual(plain(C.remotePollNext(null, null)), { since: 0, boot: null, restarted: false });
 });
+
+test('소리 메모리 비우기 (YT-r1): 지금 곡·다음 예약 곡·녹음 중인 곡·데모를 뺀, 소리를 풀어 둔 곡만 놓을 곡으로', () => {
+  const { songBuffersToFree } = load(['songBuffersToFree']);
+  const buf = {}, a = { id: 'a', buffer: buf }, b = { id: 'b', buffer: buf }, c = { id: 'c', buffer: buf }, d = { id: 'demo', demo: true, buffer: buf }, e = { id: 'e', buffer: null };
+  const ids = (list) => list.map(s => s.id).join(',');
+  assert.equal(ids(songBuffersToFree([a, b, c, d, e], [a])), 'b,c');               // 데모·안 풀린 곡은 빼고
+  assert.equal(ids(songBuffersToFree([a, b, c, d, e], [a, 'b'])), 'c');            // 다음 예약 곡은 id로
+  assert.equal(ids(songBuffersToFree([a, b, c, d, e], [a, 'b', c])), '');          // 녹음 중인 곡
+  assert.equal(ids(songBuffersToFree([a, b], [a, undefined, false, null])), 'b');  // 예약이 비었음·녹음 안 함
+  assert.equal(ids(songBuffersToFree(null, null)), '');
+});
+
+test('최근 것만 두는 Map (YT-r1, 녹음 미리듣기 캐시): 넣거나 다시 쓰면 맨 뒤로, max개를 넘으면 가장 오래 안 쓴 것부터 뺀다', () => {
+  const { lruSet } = load(['lruSet']);
+  const m = new Map();
+  lruSet(m, 'r1', 1, 2); lruSet(m, 'r2', 2, 2); lruSet(m, 'r3', 3, 2);
+  assert.deepEqual([...m.keys()], ['r2', 'r3']);
+  lruSet(m, 'r2', 2, 2); lruSet(m, 'r4', 4, 2);                                   // r2를 다시 썼으니 r3이 빠짐
+  assert.deepEqual([...m.keys()], ['r2', 'r4']);
+  assert.equal(m.get('r4'), 4);
+  lruSet(m, 'r5', 5, 0);                                                           // 0·이상한 값이어도 1개는 둔다
+  assert.deepEqual([...m.keys()], ['r5']);
+});

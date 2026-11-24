@@ -63,9 +63,9 @@ async function setArmed(on) {
 $('#recBtn').onclick = () => setArmed(!state.armed);
 
 /* 녹음 믹스: 목소리 + 반주를 지정한 타이밍·볼륨으로 다시 합친다 (미리듣기와 WAV 내보내기 공용) */
-const recCache = new Map();
+const recCache = new Map(), REC_CACHE_MAX = 2;   // 미리듣기용으로 푼 녹음은 최근 2개만 (CR-251 YT-r1, 메모리)
 async function loadRecAudio(rec) {
-  if (recCache.has(rec.id)) return recCache.get(rec.id);
+  if (recCache.has(rec.id)) { const hit = recCache.get(rec.id); if (typeof lruSet === 'function') lruSet(recCache, rec.id, hit, REC_CACHE_MAX); return hit; }
   ensureCtx();
   await ensureRecMedia(rec);
   const i16 = new Int16Array(await rec.vocal.arrayBuffer());
@@ -76,7 +76,7 @@ async function loadRecAudio(rec) {
   const out = { vocalBuf: vb, mrBuf: mr, mrKeys: {} };
   // 키를 바꿔 부른 부분은 그 키의 반주로 섞는다
   if (mr) for (const k of new Set(rec.parts.map(p => p.key || 0))) if (k) { try { out.mrKeys[k] = (await keyBuffer(song, k)).mr; } catch {} }
-  recCache.set(rec.id, out);
+  if (typeof lruSet === 'function') lruSet(recCache, rec.id, out, REC_CACHE_MAX); else recCache.set(rec.id, out);
   return out;
 }
 function buildMix(c, out, data, parts, mix, from, when) {
