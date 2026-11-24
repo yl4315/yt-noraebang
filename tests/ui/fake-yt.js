@@ -40,7 +40,7 @@
     getVideoData() { const v = V(this.id); return { video_id: this.id, title: v.title || '', author: v.author || '' }; }
     setPlaybackRate(r) { log.calls.push(['rate', r]); this.t = this._now(); this.at = performance.now(); this.rate = r; }
     getPlayerState() { return this.st; }
-    destroy() {}
+    destroy() { log.calls.push(['destroy']); this.dead = true; }
   }
   setInterval(() => { for (const p of log.players) if (p.st === 1 && p._now() >= p.getDuration()) { p.t = p.getDuration(); p._emit(0); } }, 100);
   window.YT = { Player, PlayerState: { UNSTARTED: -1, ENDED: 0, PLAYING: 1, PAUSED: 2, BUFFERING: 3, CUED: 5 } };

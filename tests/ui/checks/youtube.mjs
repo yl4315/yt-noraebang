@@ -1,5 +1,5 @@
 // CR-030: 유튜브 곡 (V 구역). 검색 창 탭 둘 · 링크 붙여넣기 · 폰 [공유] 받기 · 유튜브에서 열어 찾기 · 열쇠 검색 · IFrame 재생·조작 ·
-// 재생 못 하는 영상 안내 · 곡 목록·예약·♡·차트 · 가사(LRCLIB)·싱크 편집 · 키·녹음 끔 · 눌러서 시작 · TV 띠.
+// 재생 못 하는 영상 안내(CR-251: 101·150 큰 단추·TV QR) · 프리미엄 계정으로 틀기 설정(V13) · 곡 목록·예약·♡·차트 · 가사(LRCLIB)·싱크 편집 · 키·녹음 끔 · 눌러서 시작 · TV 띠.
 // 진짜 유튜브에 닿지 않는다: IFrame API는 tests/ui/fake-yt.js(가짜 플레이어), 열쇠 검색은 ctx.ytRules 가짜 답, 썸네일은 회색 그림 (run.mjs 길 가로채기).
 // 열쇠는 가짜(ctx.ytFakeKey)만 쓰고, 화면·저장소·기록에 그 글자가 없는지도 본다. window.open(유튜브 결과 열기)은 막고 주소만 적는다.
 // 만든 유튜브 곡·예약·♡·부른 횟수는 끝에 지운다.
@@ -10,11 +10,12 @@ import { PC, PHONE, READY_DEMO, q, txt, marks, sawToast, sawFlash, sleep, stopAl
 import { cand } from '../fixtures.mjs';
 export const areas = ['V'];
 
-const ID = { A: 'QAyt0000001', B: 'QAyt0000002', C: 'QAyt0000003', D: 'QAyt0000004', L: 'QAyt0000005', S: 'QAyt0000006', P: 'QAyt0000007', X: 'QAyt0000008' };
+const ID = { A: 'QAyt0000001', B: 'QAyt0000002', C: 'QAyt0000003', D: 'QAyt0000004', L: 'QAyt0000005', S: 'QAyt0000006', P: 'QAyt0000007', X: 'QAyt0000008', N: 'QAyt0000009' };
 // 가짜 플레이어가 알려 줄 영상 정보 (제목·채널·길이·오류)
 const VIDEOS = {
   [ID.A]: { title: 'QA 시험 유튜브 하나 - QA가수Y', author: 'QA 채널', dur: 8 },
   [ID.B]: { err: 150 },
+  [ID.N]: { err: 100 },   // 지워짐·비공개 (CR-251: 큰 단추 없이 예전 그대로)
   [ID.C]: { title: '[TJ노래방] QA 시험 유튜브 둘 - QA가수Y / TJ Karaoke', author: 'TJ KARAOKE', dur: 30 },
   [ID.L]: { title: '[TJ노래방] QA 시험 가사곡 - QA가수L / TJ Karaoke', author: 'TJ KARAOKE', dur: 95 },
   [ID.P]: { title: 'QA 시험 링크곡 - QA가수P', author: 'QA 채널', dur: 30 },
@@ -283,6 +284,79 @@ export default async function youtube(ctx) {
       ok('V7', off && back, `인터넷 끊김 → "인터넷이 끊겨서 유튜브 곡을 틀 수 없어요" ${off} · 다시 되면 안내 사라짐 ${back}`);
     });
 
+    await step('퍼가기 막힌 영상(150, CR-251 ①) 폰 390: 큰 [유튜브 앱으로 열기] + 한 줄 · 누르면 3초 뒤 다음 곡 멈춤 · 오류 100은 예전 작은 단추 · 글자 130%', ['V7'], async () => {
+      await stopAll(p); await clearQueue(p);
+      await p.emulate({ name: '390x844', width: 390, height: 844, mobile: true, touch: true });
+      await p.eval(`(async()=>{ if(!findYtSong(state.songs, ${q(ID.B)})) await ytAdd(${q(ID.B)}, {title:'QA 시험 막힌 영상 - QA가수B'});
+        if(!findYtSong(state.songs, ${q(ID.N)})) await ytAdd(${q(ID.N)}, {title:'QA 시험 지워진 영상 - QA가수N'}); return true })()`);
+      const card = () => p.eval(`(()=>{const a=document.querySelector('#ytErrLink'), n=document.querySelector('#ytErrNote'), c=document.querySelector('#ytErr'), st=document.querySelector('#stage');
+        const r=c.getBoundingClientRect(), s=st.getBoundingClientRect(), ar=a.getBoundingClientRect();
+        return {shown:!c.hidden, link:!a.hidden && ar.width>0, app:a.classList.contains('yt-err-app'), primary:a.classList.contains('primary'), small:a.classList.contains('small'), label:a.innerText.trim(), href:a.href, target:a.target,
+          bh:Math.round(ar.height), bw:Math.round(ar.width), clip:a.scrollWidth>a.clientWidth+1, note:!n.hidden && n.getBoundingClientRect().height>0, nt:n.textContent, tv:!document.querySelector('#ytErrTv').hidden,
+          inside: r.top>=s.top-1 && r.bottom<=s.bottom+1 && r.left>=s.left-1 && r.right<=s.right+1, ch:Math.round(r.height), sh:Math.round(s.height), cw:Math.round(r.width), sw:Math.round(s.width)}})()`);
+      const sel1 = await selYt(p, ID.B);
+      await p.until(`Yt.err===150 && !document.querySelector('#ytErr').hidden`, 4000);
+      await sleep(250);
+      const a = await card(), h1 = await noHScroll(p);
+      ok('V7', sel1 && a.shown && a.link && a.app && a.primary && !a.small && a.label === '유튜브 앱으로 열기' && a.href === 'https://www.youtube.com/watch?v=' + ID.B && a.target === '_blank' && a.bh >= 48 && !a.clip && a.note && /녹음·점수·예약곡 이어 부르기는 안 돼요/.test(a.nt) && !a.tv && a.inside && h1,
+        `폰 390: 큰 [${a.label}] ${a.bw}×${a.bh} 새 창 ${a.href.replace('https://www.youtube.com', '')} · 한 줄 "${a.nt}" · 카드 ${a.cw}×${a.ch} 무대 ${a.sw}×${a.sh} 안 ${a.inside} · 가로 스크롤 ${h1 ? '없음' : '있음!'}`);
+      await p.eval(`(()=>{ const t=document.querySelector('#toast'); if(t) t.hidden=true; return true })()`);   // 디자인 사진: 곡 넣기 알림 없이
+      await shot('cr251-blocked-phone-390x844.png');
+      // 예약곡이 있을 때: 3초 안내가 도는 중에 큰 단추를 누르면 다음 곡으로 넘어가지 않는다 (예약은 그대로). 링크 열기는 막고 누름만 본다
+      await stopAll(p); await clearQueue(p);
+      await p.eval(`(()=>{ const b=findYtSong(state.songs, ${q(ID.B)}), x=findYtSong(state.songs, ${q(ID.A)}); state.queue.push(b.id, x.id); saveQueue(); renderQueue(); startNext(); return true })()`);
+      const counting = await p.until(`state.song && state.song.ytId===${q(ID.B)} && !document.querySelector('#ytErr').hidden && !document.querySelector('#nextCard').hidden`, 8000);
+      await p.eval(`(()=>{ const l=document.querySelector('#ytErrLink'); l.addEventListener('click', e=>e.preventDefault(), {once:true}); l.click(); return true })()`);
+      await sleep(3800);
+      const c = await p.eval(`({id:state.song && state.song.ytId, playing:state.playing, card:!document.querySelector('#nextCard').hidden, q:state.queue.map(id=>(state.songs.find(s=>s.id===id)||{}).ytId), err:!document.querySelector('#ytErr').hidden})`);
+      ok('V7', counting && c.id === ID.B && !c.playing && !c.card && c.q.includes(ID.A) && c.err,
+        `3초 안내 중 큰 단추를 누름 → 3.8초 뒤에도 그 곡 (다음 곡 카드 ${c.card ? '그대로!' : '닫힘'}, 예약 ${c.q.length}곡 그대로, 안내 ${c.err ? '보임' : '숨음'})`);
+      await clearQueue(p);
+      // 오류 100(지워짐·비공개)은 예전 그대로: 작은 [유튜브에서 열기], 한 줄 없음
+      const sel2 = await selYt(p, ID.N);
+      await p.until(`Yt.err===100 && !document.querySelector('#ytErr').hidden`, 4000);
+      const b = await card();
+      ok('V7', sel2 && b.shown && b.link && !b.app && b.small && !b.primary && b.label === '유튜브에서 열기' && !b.note && !b.tv,
+        `오류 100: 작은 [${b.label}] ${b.bw}×${b.bh} · 큰 단추 ${b.app ? '있음!' : '없음'} · 한 줄 ${b.note ? '있음!' : '없음'}`);
+      // 글자 130% (폰 390을 CSS 300 + 화면 배율 1.3으로): 카드가 무대 안, 단추 글이 잘리지 않음
+      await p.emulate({ name: '300x649@1.3', width: 300, height: 649, dsf: 1.3, mobile: true, touch: true });
+      await selYt(p, ID.B);
+      await p.until(`Yt.err===150 && !document.querySelector('#ytErr').hidden`, 4000);
+      await sleep(250);
+      const d = await card(), h2 = await noHScroll(p);
+      ok('V7', d.shown && d.app && d.note && d.inside && !d.clip && h2, `글자 130%: 카드 ${d.cw}×${d.ch} 무대 ${d.sw}×${d.sh} 안 ${d.inside} · [${d.label}] ${d.bw}×${d.bh} 잘림 ${d.clip ? '있음!' : '없음'} · 가로 스크롤 ${h2 ? '없음' : '있음!'}`);
+      await shot('cr251-blocked-phone-130pct.png');
+      await stopAll(p);
+      await p.emulate(PC);
+      await sleep(300);
+    });
+
+    await step('퍼가기 막힌 영상(150, CR-251 ①) TV 1920: 링크 대신 "TV 유튜브 앱에서 이 곡 찾기" + 찾을 말 + 영상 QR(앱 안 toqr) · 나가면 큰 단추로', ['V7'], async () => {
+      await stopAll(p); await clearQueue(p);
+      await p.emulate({ name: '1920x1080', width: 1920, height: 1080 });
+      await selYt(p, ID.B);
+      await p.until(`Yt.err===150`, 4000);
+      const opened0 = await p.eval(`window.__ytOpened.length`);
+      await enterTVNoFs(p);
+      const qr = await p.until(`!document.querySelector('#ytErr').hidden && !document.querySelector('#ytErrTv').hidden && !document.querySelector('#ytErrQr').hidden && document.querySelector('#ytErrQr').naturalWidth>0`, 6000);
+      await sleep(300);
+      const t = await p.eval(`(()=>{const c=document.querySelector('#ytErr'), r=c.getBoundingClientRect(), img=document.querySelector('#ytErrQr'), ir=img.getBoundingClientRect(), a=document.querySelector('#ytErrLink'), band=document.querySelector('#tvRemote').getBoundingClientRect();
+        return {link:!a.hidden && a.getBoundingClientRect().width>0, head:document.querySelector('#ytErrTvHead').textContent, find:document.querySelector('#ytErrFind').textContent, tip:document.querySelector('#ytErrQrTip').textContent,
+          note:!document.querySelector('#ytErrNote').hidden, qw:Math.round(ir.width), qh:Math.round(ir.height), nat:img.naturalWidth, src:/^data:image\\/png/.test(img.src),
+          inView:r.top>=0 && r.bottom<=band.top+1 && r.left>=0 && r.right<=innerWidth, cw:Math.round(r.width), ch:Math.round(r.height), bandTop:Math.round(band.top), bottom:Math.round(r.bottom)}})()`);
+      const opened = (await p.eval(`window.__ytOpened.length`)) - opened0;   // TV 화면에서 연 창 (앞 단계에서 연 것은 빼고)
+      ok('V7', qr && !t.link && t.head === 'TV 유튜브 앱에서 이 곡 찾기' && /QA 시험 막힌 영상/.test(t.find) && /노래방/.test(t.find) && /QR/.test(t.tip) && t.note && t.qw >= 96 && t.qw === t.qh && t.qw % t.nat === 0 && t.src && t.inView && !opened,
+        `TV: 링크 단추 ${t.link ? '보임!' : '없음'} · "${t.head}" 찾을 말 "${t.find}" · QR ${t.qw}×${t.qh} (칸당 ${t.qw / t.nat}px, 앱 안 그림) · 카드 ${t.cw}×${t.ch} 띠 위 ${t.inView} (${t.bottom} ≤ ${t.bandTop}) · 한 줄 ${t.note ? '보임' : '숨음!'} · 새 창 ${opened}개 · QR 기다림 ${qr}`);
+      await shot('cr251-blocked-tv-1920x1080.png');
+      await p.key('t');
+      const out = await p.until(`document.querySelector('#tv').hidden && !document.querySelector('#ytErrLink').hidden && document.querySelector('#ytErrTv').hidden`, 3000);
+      const back = await p.eval(`({app:document.querySelector('#ytErrLink').classList.contains('yt-err-app'), label:document.querySelector('#ytErrLink').innerText.trim()})`);
+      ok('V7', out && back.app && back.label === '유튜브에서 열기', `TV에서 나가면 QR 대신 단추 [${back.label}] (PC 키보드 화면 글) ${out}`);
+      await stopAll(p);
+      await p.emulate(PC);
+      await sleep(300);
+    });
+
     await step('가사: 영상 길이를 알면 LRCLIB 싱크 가사 자동(제목·가수·길이 3초 안), 싱크 편집기 열림·2배속까지', ['V9'], async () => {
       await stopAll(p);
       ctx.lrcRules.unshift({ q: '^QA 시험 가사곡 QA가수L$', body: [cand(9501, 'QA 시험 가사곡', 'QA가수L', 95)] });
@@ -328,6 +402,7 @@ export default async function youtube(ctx) {
       await p.emulate(PHONE);
       await sleep(400);
       await p.eval(`ytSetKey(null)`);
+      await p.eval(`window.__ytVideos[${q(ID.A)}].dur=300`);   // PC가 바쁠 때 8초 곡이 재는 사이에 끝나지 않게 (CR-251에서 봄)
       await selYt(p, ID.A);
       await p.eval(`openSearch('yt')`);
       await sleep(300);
@@ -381,6 +456,7 @@ export default async function youtube(ctx) {
       const back = await p.until(`!document.querySelector('#stage').classList.contains('yt-grow')`, 2000);
       ok('V6', back, `창을 닫으면 무대가 원래 크기로 ${back}`);
       await stopAll(p);
+      await p.eval(`window.__ytVideos[${q(ID.A)}].dur=8`);
       await p.emulate(PC);
       await sleep(300);
     });
@@ -447,6 +523,58 @@ export default async function youtube(ctx) {
       await sleep(300);
     });
 
+    await step('설정 "프리미엄 계정으로 틀기 (이 기기만)" (CR-251 ②): 켜면 host www.youtube.com·플레이어 다시 만듦·멈춘 채 다시 올림·알림·이 기기 열쇠만·백업에 없음, 끄면 nocookie', ['V13'], async () => {
+      await stopAll(p); await clearQueue(p);
+      await p.emulate(PC);
+      await p.eval(`window.__ytVideos[${q(ID.A)}].dur=300`);   // 보는 동안 곡이 끝나지 않게
+      await selYt(p, ID.A);
+      await p.eval('play()');
+      const on = await p.until(`state.playing && state.song.ytId===${q(ID.A)}`, 8000);
+      await sleep(1200);
+      const openSet = async () => { if (!(await p.eval(`document.querySelector('#cloudDialog').open`))) { await p.click('#settingsBtn'); await p.until(`document.querySelector('#cloudDialog').open`, 3000); } await p.scrollTo('#ytSec'); };
+      await openSet();
+      const s0 = await p.eval(`(()=>{const sec=document.querySelector('#ytSec'), c=document.querySelector('#ytWww');
+        return {inAdv:document.querySelector('#advBox').contains(sec), prev:sec.previousElementSibling && sec.previousElementSibling.id, vis:sec.getBoundingClientRect().height>0, checked:c.checked, role:c.getAttribute('role'),
+          name:sec.querySelector('.guest-sw b').textContent, sub:document.querySelector('#ytWwwSub').textContent, ls:localStorage.getItem('nb-yt-www'), host:__ytFake.host, n:__ytFake.players.length, calls:__ytFake.calls.length}})()`);
+      ok('V13', on && s0.inAdv && s0.prev === 'remoteSec' && s0.vis && !s0.checked && s0.role === 'switch' && s0.name === '프리미엄 계정으로 틀기 (이 기기만)' && /^꺼짐/.test(s0.sub) && s0.ls === null && s0.host === 'https://www.youtube-nocookie.com',
+        `설정 › 더 보기 (고급) › 유튜브 곡 (앞 #${s0.prev}) "${s0.name}" 꺼짐 · "${s0.sub}" · 저장 ${s0.ls} · host ${s0.host}`);
+      const m0 = await marks(p);
+      await p.click('#ytWww');
+      const rebuilt = await p.until(`__ytFake.players.length>${s0.n} && Yt.loaded===${q(ID.A)} && Yt.st===5 && Yt.ready`, 6000);
+      const tip = await sawToast(p, /유튜브 로그인 정보\(쿠키\)를 써요\. 광고가 그대로면 끄세요/, m0, 3000);
+      await sleep(200);
+      const s1 = await p.eval(`({ls:localStorage.getItem('nb-yt-www'), host:__ytFake.host, n:__ytFake.players.length, destroyed:__ytFake.calls.slice(${s0.calls}).some(c=>c[0]==='destroy'), oldDead:__ytFake.players[${s0.n - 1}].dead===true,
+        playing:state.playing, want:Yt.wantPlay, plays:__ytFake.calls.slice(${s0.calls}).filter(c=>c[0]==='play').length, off:state.offset, sub:document.querySelector('#ytWwwSub').textContent, checked:document.querySelector('#ytWww').checked,
+        frames:document.querySelectorAll('#ytFrame .fake-yt').length})`);
+      await shot('cr251-settings-www-on-1280x800.png');
+      ok('V13', rebuilt && tip && s1.ls === '1' && s1.host === 'https://www.youtube.com' && s1.n === s0.n + 1 && s1.destroyed && s1.oldDead && !s1.playing && !s1.want && !s1.plays && s1.checked && /^켜짐/.test(s1.sub) && s1.frames === 1 && s1.off > 0.5,
+        `켬 → 저장 nb-yt-www=${s1.ls} · host ${s1.host} · 플레이어 ${s0.n}→${s1.n}개 (옛 것 destroy ${s1.destroyed}) · 재생 중이던 곡은 멈춘 채 다시 올림 (재생 ${s1.playing}, 자동 재생 ${s1.plays}번, 자리 ${s1.off.toFixed(1)}초) · 알림 ${tip} · "${s1.sub}"`);
+      // 다시 재생하면 새 플레이어로 그 자리부터
+      await p.eval(`document.querySelector('#cloudDialog').close()`);
+      await p.eval('play()');
+      const on2 = await p.until(`state.playing && Yt.st===1`, 6000);
+      const t2 = await p.eval('curTime()');
+      await p.eval('pause()');
+      await p.until('!state.playing', 3000);
+      // 백업 파일: 받기를 가로채서 머리(JSON)에 이 설정이 없는지
+      const bk = await p.eval(`(async()=>{ const d0=window.download; let got=null; window.download=(f)=>{ got=f; };
+        try { await exportBackup(); } finally { window.download=d0; }
+        if (!got) return {ok:false}; const { head } = await unpackBackup(got); const j=JSON.stringify(head); return {ok:true, www:/yt-www|www\\.youtube\\.com/.test(j), keys:Object.keys(head).join(',')} })()`);
+      ok('V13', on2 && t2 >= s1.off - 0.5 && bk.ok && !bk.www, `다시 재생 → 새 플레이어로 ${t2.toFixed(1)}초부터 ${on2} · 백업 파일 머리(${bk.keys})에 이 설정 ${bk.www ? '있음!' : '없음'}`);
+      // 끄기 → nocookie로 다시, 열쇠 지움
+      await openSet();
+      const m1 = await marks(p), n1 = await p.eval('__ytFake.players.length');
+      await p.click('#ytWww');
+      const back = await p.until(`__ytFake.players.length>${n1} && Yt.loaded===${q(ID.A)} && Yt.st===5 && Yt.ready`, 6000);
+      const tip2 = await sawToast(p, /유튜브 기본 플레이어로 돌아왔어요/, m1, 3000);
+      const s2 = await p.eval(`({ls:localStorage.getItem('nb-yt-www'), host:__ytFake.host, www:Yt.www, sub:document.querySelector('#ytWwwSub').textContent, checked:document.querySelector('#ytWww').checked})`);
+      ok('V13', back && tip2 && s2.ls === null && s2.host === 'https://www.youtube-nocookie.com' && !s2.www && !s2.checked && /^꺼짐/.test(s2.sub),
+        `끔 → host ${s2.host} · 저장 ${s2.ls === null ? '지움' : s2.ls + '!'} · 알림 ${tip2} · "${s2.sub}"`);
+      await p.eval(`document.querySelector('#cloudDialog').close()`);
+      await p.eval(`window.__ytVideos[${q(ID.A)}].dur=8`);
+      await stopAll(p);
+    });
+
     await step('폰 유튜브 [공유] → 노래방: 주소 ?title=&text= → 확인 창 → [예약] · 주소 칸 지움 · manifest share_target · 공유 주소는 저장 안 함', ['V3'], async () => {
       await stopAll(p); await clearQueue(p);
       const share = `${ctx.base}/index.html?title=${encodeURIComponent('QA 시험 공유곡 - QA가수S')}&text=${encodeURIComponent('https://youtu.be/' + ID.S)}`;
@@ -475,6 +603,7 @@ export default async function youtube(ctx) {
       await stopAll(p);
       await p.emulate(PC);
       await p.eval(`(async()=>{ window.__ytBlockAutoplay=false; ytSetKey(null); if (window.__ytOpen0) window.open = window.__ytOpen0;
+        if (Yt.www) ytSetWww(false); localStorage.removeItem('nb-yt-www');   // CR-251 ② 설정은 꺼진 채로
         const gone = state.songs.filter(s=>isYtSong(s)), ids = new Set(gone.map(s=>s.id));
         state.queue = state.queue.filter(id=>!ids.has(id)); saveQueue(); renderQueue();
         for (const pr of Profiles.list) if (pr.favorites) pr.favorites = pr.favorites.filter(id=>!ids.has(id));
