@@ -1,5 +1,6 @@
 // 흐름 13·14: 휴대폰 리모컨 (두 번째 탭을 폰 크기로 → ?pin= 주소 → 버튼·숫자판·검색·예약·내 목록 → PC 화면이 실제로 바뀌는지),
 // 설정 창 "새 코드 만들기" → 휴대폰 "코드가 바뀌었어요", 서버 없이 연 화면(정적 서버 = Pages와 같은 상태)에는 리모컨 칸이 없음
+import path from 'node:path';
 import { PC, PHONE, openPage, txt, visible, isHidden, marks, sawToast, sawFlash, sleep, q, stopAll, selectNo } from './_lib.mjs';
 export const areas = ['N', 'L'];
 
@@ -56,6 +57,33 @@ export default async function remote(ctx) {
     await ph.goto(`${ctx.base}/remote.html`, `!document.querySelector('#app').hidden`);
     const stays = await ph.eval(`document.querySelector('#a2hs').hidden`);
     ok('N21', st.a2 && /크롬 메뉴\(⋮\) → 홈 화면에 추가/.test(st.a2t) && closed && stays, '연결 뒤 "크롬 메뉴(⋮) → 홈 화면에 추가" 한 줄 · 닫으면 다시 안 나옴');
+  });
+  // CR-242 N3: 폰 리모컨 알림도 앱과 같게 글 길이만큼 (예전엔 화면 반 폭에서 줄이 바뀜), 화면 - 32px까지 · 띄어쓰기 없는 긴 글도 넘치지 않고 줄 바꿈. 사진 cr242/remote-360-*.png
+  await step('CR-242 N3 폰 리모컨 알림 폭 (360): 짧은 글은 글 길이만큼, 긴 글은 화면 - 32px까지 넓게, 띄어쓰기 없는 글은 넘치지 않음', ['N12'], async () => {
+    const n242 = path.join(ctx.OUT, 'cr242'), R = {};
+    const PHONE_360 = { name: '360x800', width: 360, height: 800, mobile: true, touch: true };
+    const LONG = '노래방 PC와 연결이 잠깐 끊겼어요 · 같은 와이파이인지 보고 잠시 뒤 다시 눌러 보세요';
+    const NOSPACE = 'QA시험아주긴곡제목띄어쓰기없음'.repeat(3);
+    const at = async (text, shot) => {        // 리모컨 알림은 1.8초라 띄우자마자 잰다
+      await ph.eval(`toast(${q(text)})`); await sleep(60);
+      const b = await ph.eval(`(()=>{const t=document.querySelector('#toast'); if(t.hidden) return null; const r=t.getBoundingClientRect(), rg=document.createRange(); rg.selectNodeContents(t);
+        const tops=new Set([...rg.getClientRects()].filter(x=>x.width>0).map(x=>Math.round(x.top))), cs=getComputedStyle(t);
+        return {vw:innerWidth, w:Math.round(r.width), lines:tops.size, l:Math.round(r.left), r:Math.round(innerWidth-r.right), over:t.scrollWidth>t.clientWidth+1,
+          need:Math.ceil(rg.getBoundingClientRect().width+parseFloat(cs.paddingLeft)+parseFloat(cs.paddingRight)+parseFloat(cs.borderLeftWidth)+parseFloat(cs.borderRightWidth))}})()`);
+      if (shot) await ph.shot(path.join(n242, shot));
+      return b;
+    };
+    await ph.emulate(PHONE_360); await sleep(150);
+    try {
+      R.short = await at('예약했어요 · 3번째', 'remote-360-toast-short.png');
+      R.long = await at(LONG, 'remote-360-toast-long.png');
+      R.nospace = await at(NOSPACE, 'remote-360-toast-nospace.png');
+    } finally { await ph.emulate(PHONE); await ph.eval(`(()=>{const t=document.querySelector('#toast'); t.hidden=true})()`).catch(() => {}); }
+    const side = b => !!b && !b.over && b.l >= 15.5 && b.r >= 15.5;
+    const f = b => b ? `${b.w}px ${b.lines}줄 (좌 ${b.l}·우 ${b.r}${b.over ? ' 넘침' : ''})` : '안 뜸';
+    ok('N12', side(R.short) && R.short.lines === 1 && Math.abs(R.short.w - R.short.need) <= 2
+      && side(R.long) && R.long.lines >= 2 && R.long.w >= R.long.vw - 32 - 2 && side(R.nospace) && R.nospace.lines >= 2,
+      `CR-242 N3 리모컨 알림 360: 짧은 글 ${f(R.short)} (글 길이 ${R.short?.need}px) · 긴 글 ${f(R.long)} (화면 - 32 = ${(R.long?.vw ?? 360) - 32}px) · 띄어쓰기 없는 글 ${f(R.nospace)}`);
   });
 
   await step('리모컨 탭 버튼 11개 → PC가 그대로 실행, 진동·안내, 지금 곡 카드', ['N7', 'N12', 'N6', 'N13'], async () => {

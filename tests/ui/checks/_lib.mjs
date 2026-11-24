@@ -151,3 +151,34 @@ export async function enterTVNoFs(p) {
   if (await p.eval('!!document.fullscreenElement')) { await p.eval('document.exitFullscreen()'); await p.until('!document.fullscreenElement', 3000); }
   await sleep(300);
 }
+
+/** 단추 글 대비 (투명도까지 넣어서 뒤 칸 색 위에 보이는 색으로 잰다, WCAG 식). expr: 요소를 돌려주는 식. CR-241 record.mjs에서 옮김 (CR-242 N4도 씀) */
+export const inkOf = (pg, expr) => pg.eval(`(()=>{const e=${expr}; if(!e) return null;
+    const rgb=s=>{const m=s.match(/[\\d.]+/g).map(Number); return {r:m[0],g:m[1],b:m[2],a:m.length>3?m[3]:1}}, over=(f,b)=>({r:f.r*f.a+b.r*(1-f.a),g:f.g*f.a+b.g*(1-f.a),b:f.b*f.a+b.b*(1-f.a),a:1});
+    let back={r:0,g:0,b:0,a:1}; for(let p=e.parentElement;p;p=p.parentElement){const c=rgb(getComputedStyle(p).backgroundColor); if(c.a>0){back=over(c,back); break;}}
+    const cs=getComputedStyle(e), op=+cs.opacity, bg=over(rgb(cs.backgroundColor),back), fg=over(rgb(cs.color),bg), seen=c=>over({...c,a:op},back);
+    const lum=c=>{const f=v=>{v/=255; return v<=0.03928?v/12.92:Math.pow((v+0.055)/1.055,2.4)}; return 0.2126*f(c.r)+0.7152*f(c.g)+0.0722*f(c.b)};
+    const a=lum(seen(fg)), b=lum(seen(bg)); return {t:e.textContent, op, color:cs.color, d:e.disabled, busy:e.getAttribute('aria-busy'), ratio:Math.round((Math.max(a,b)+0.05)/(Math.min(a,b)+0.05)*100)/100}})()`);
+/** 눌림 막은 "…중" 단추가 흐리지 않음: 투명도 1 · 평소 단추와 같은 글 색 · 대비 4.5:1 이상 */
+export const inkOk = (busy, ref) => !!busy && !!ref && busy.d && busy.op === 1 && busy.color === ref.color && busy.ratio >= 4.5;
+export const fmtInk = (busy, ref) => busy && ref ? `"${busy.t}" 투명도 ${busy.op} · 대비 ${busy.ratio}:1 (눌림 막음 ${busy.d}) / [${ref.t}] ${ref.ratio}:1 · 글 색 같음 ${busy.color === ref.color}` : '못 잼';
+
+/** CR-242 N1: 창(dialog)이 열린 채 뜬 알림 재기. 알림이 그 창 안에 있는지, 정말 보이는지(알림 위 5점을 눌러 보면 알림 자신: 잠깐 pointer-events를 켜서 잼),
+ *  창 단추와 겹치는지(겹친 단추 글), 창 위 끝과의 거리, 크기·줄 수·좌우 여백, 화면의 .toast 수 */
+export const dlgToast = (p, dlg) => p.eval(`(()=>{const d=document.querySelector(${q(dlg)}), t=document.querySelector('#toast'); if(!t||t.hidden) return null;
+  const r=t.getBoundingClientRect(), dr=d&&d.open?d.getBoundingClientRect():null;
+  const sh=new CSSStyleSheet(); sh.replaceSync('#toast{pointer-events:auto!important}'); document.adoptedStyleSheets=[...document.adoptedStyleSheets, sh];
+  const pts=[[r.left+r.width/2,r.top+r.height/2],[r.left+5,r.top+5],[r.right-5,r.top+5],[r.left+5,r.bottom-5],[r.right-5,r.bottom-5]];
+  const seen=pts.filter(([x,y])=>{const e=document.elementFromPoint(x,y); return !!e&&(e===t||t.contains(e))}).length;
+  document.adoptedStyleSheets=document.adoptedStyleSheets.filter(s=>s!==sh);
+  const hit=b=>{const a=b.getBoundingClientRect(); return a.width>0&&a.height>0&&a.left<r.right&&a.right>r.left&&a.top<r.bottom&&a.bottom>r.top};
+  const name=b=>(b.textContent.trim()||b.title||b.getAttribute('aria-label')||b.id).slice(0,12);
+  const btns=d?[...d.querySelectorAll('button')].filter(hit).map(name):[], low=d?[...d.querySelectorAll('.dlg-btns button')].filter(hit).map(name):[];
+  const rg=document.createRange(); rg.selectNodeContents(t); const lines=new Set([...rg.getClientRects()].filter(x=>x.width>0).map(x=>Math.round(x.top))).size;
+  return {inDlg:!!d&&d.contains(t), home:t.parentElement===document.body?'body':'#'+t.parentElement.id, n:document.querySelectorAll('.toast').length, seen, vw:innerWidth, w:Math.round(r.width), h:Math.round(r.height),
+    top:Math.round(r.top), bottom:Math.round(innerHeight-r.bottom), l:Math.round(r.left), rr:Math.round(innerWidth-r.right), dTop:dr?Math.round(r.top-dr.top):null, dL:dr?Math.round(r.left-dr.left):null, dR:dr?Math.round(dr.right-r.right):null,
+    lines, over:t.scrollWidth>t.clientWidth+1, btns, low}})()`);
+/** 창 안 알림이 맞음: 창 안 · 다 보임 · [닫기][저장] 줄과 안 겹침 · 창 위 끝 바로 아래(위 끝에서 4~40px, 창이 화면 밖으로 길면 화면 위 12px) · 창 안 양옆 여백 · 넘침 없음 · 알림 하나 */
+export const dlgToastOk = b => !!b && b.inDlg && b.seen === 5 && b.low.length === 0 && (b.dTop == null || (b.dTop >= 4 && b.dTop <= 40) || b.top === 12)
+  && (b.dL == null || (b.dL >= 8 && b.dR >= 8)) && !b.over && b.n === 1;
+export const fmtDT = b => b ? `${b.vw}폭 ${b.home} ${b.w}×${b.h}px ${b.lines}줄 · 창 위 끝+${b.dTop} (화면 위 ${b.top}) · 창 좌 ${b.dL}·우 ${b.dR} · 보임 ${b.seen}/5 · 겹친 단추 [${b.btns.join('][')}]${b.low.length ? ' 아래 단추 겹침 [' + b.low.join('][') + ']' : ''}${b.over ? ' 넘침' : ''} · 알림 ${b.n}개` : '안 뜸';

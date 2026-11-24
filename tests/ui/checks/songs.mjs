@@ -1,5 +1,7 @@
 // 흐름 3·4: 곡 추가·수정 창, 가사 찾기(가짜 답), 곡 목록 줄 버튼, 가사 타이밍·키, 곡 지우기, Drive 꼬리표(시험 데이터)
-import { PC, txt, isHidden, visible, marks, sawToast, sawFlash, sleep, q, addSongViaDialog, selectById, selectNo, stopAll, seedSong, seedRec } from './_lib.mjs';
+// CR-242 N2: 손가락 화면은 곡 줄·아이콘·둥근 단추를 누른 뒤 hover 모양이 안 남음 (마우스 화면 hover·키보드 윤곽은 그대로)
+import path from 'node:path';
+import { PC, PHONE, openPage, clipShot, txt, isHidden, visible, marks, sawToast, sawFlash, sleep, q, addSongViaDialog, selectById, selectNo, stopAll, seedSong, seedRec } from './_lib.mjs';
 import { LRC_LONG, LRC_SHORT, PLAIN, PLAIN4, cand } from '../fixtures.mjs';
 export const areas = ['C', 'D', 'E', 'F', 'S'];
 
@@ -210,6 +212,66 @@ export default async function songs(ctx) {
     const row2 = await p.eval(`({t:document.querySelector('#deviceTxt').textContent, fetch:!document.querySelector('#fetchBtn').hidden, blob:!!songById(${q(ids.driveBoth)}).blob})`);
     await p.click('#dlgCancel');
     ok('D9', !row.h && /이 기기에 저장돼 있어요/.test(row.t) && row.ev && t && row2.t === 'Drive에만 있어요' && row2.fetch && !row2.blob, `"${row.t}" → 기기에서 지우기 → "${row2.t}", "기기에 저장" 버튼`);
+  });
+  // CR-242 N2: :hover 8가지(.song .icon-btn .round .sy-row .nud .lrc-results button .mine-row .guest-row)는 마우스 화면(@media (hover:hover))에서만.
+  // 손가락 화면에서 누르면 그 요소(와 부모)에 :hover가 붙은 채 남는데, 이제 모양은 안 바뀜. 사진 cr242/phone-412-*-after-tap.png
+  await step('CR-242 N2 손가락으로 누른 뒤 hover 모양 안 남음 (폰 412 곡 줄·⋯·■), 마우스 화면 hover·키보드 윤곽 그대로', ['C5'], async () => {
+    const HOV = ['.song:hover', '.icon-btn:hover', '.round:hover', '.sy-row:hover', '.nud:hover', '.lrc-results button:hover', '.mine-row:hover', '.guest-row:hover'];
+    const n242 = path.join(ctx.OUT, 'cr242');
+    const look = (pg, sel) => pg.eval(`(()=>{const e=document.querySelector(${q(sel)}); if(!e) return null; const cs=getComputedStyle(e);
+      return {bg:cs.backgroundColor, border:cs.borderTopColor, color:cs.color, outline:cs.outlineStyle==='none'?'none':cs.outlineStyle, hov:e.matches(':hover')}})()`);
+    const same = (a, b) => !!a && !!b && a.bg === b.bg && a.border === b.border && a.color === b.color;
+    const fmtL = o => o ? `${o.bg} / ${o.border} / ${o.color}` : '없음';
+    // CSS.forcePseudoState로 hover·focus-visible을 붙여 잰다 (진짜 마우스 없이)
+    const forced = async (pg, sel) => {
+      const out = {};
+      await pg.s('DOM.enable'); await pg.s('CSS.enable');
+      try {
+        const { root } = await pg.s('DOM.getDocument', { depth: 0 });
+        const { nodeId } = await pg.s('DOM.querySelector', { nodeId: root.nodeId, selector: sel });
+        for (const st of [null, 'hover', 'focus-visible']) {
+          await pg.s('CSS.forcePseudoState', { nodeId, forcedPseudoClasses: st ? [st] : [] }); await sleep(250);
+          out[st || 'base'] = await look(pg, sel);
+        }
+        await pg.s('CSS.forcePseudoState', { nodeId, forcedPseudoClasses: [] });
+      } finally { await pg.s('CSS.disable').catch(() => {}); await pg.s('DOM.disable').catch(() => {}); }
+      return out;
+    };
+    // ① 규칙: 8가지 :hover가 모두 (hover: hover) 안에만 있음
+    const where = await p.eval(`(()=>{const want=${q(HOV)}, f={}; const walk=(rules,m)=>{for(const r of rules){ if(r.cssRules&&r.media) walk(r.cssRules, r.media.mediaText);
+      else if(r.selectorText) for(const x of r.selectorText.split(',').map(y=>y.trim())) if(want.includes(x)) (f[x]=f[x]||[]).push(m||'(밖)'); }};
+      for(const sh of document.styleSheets){ try{ walk(sh.cssRules,'') }catch{} } return f})()`);
+    const rulesOk = HOV.every(h => where[h]?.length >= 1 && where[h].every(m => /^\(hover:\s*hover\)$/.test(m)));
+    // ② 마우스 화면 (PC 탭): hover를 붙이면 모양이 바뀜 · 키보드 윤곽
+    const ROW = '#songList > .song:not(.on)', ROUND = '#stopBtn';
+    await p.move(1, 1);
+    const pc = { row: await forced(p, ROW), icon: await forced(p, ROW + ' .fav-btn'), round: await forced(p, ROUND) };
+    const pcOk = !same(pc.row.base, pc.row.hover) && !same(pc.icon.base, pc.icon.hover) && !same(pc.round.base, pc.round.hover) && pc.icon['focus-visible'].outline === 'solid' && pc.round['focus-visible'].outline === 'solid';
+    // ③ 폰 412: hover를 붙여도 그대로 · 진짜로 누른 뒤에도 그대로 (누르기 전과 같음)
+    const ph = await openPage(ctx, PHONE, ctx.base + '/index.html');
+    let f = {}, b0 = {}, a1 = {}, touch = false;
+    try {
+      touch = await ph.eval(`matchMedia('(hover:none)').matches`);
+      f = { row: await forced(ph, ROW), round: await forced(ph, ROUND) };
+      const idx = await ph.eval(`[...document.querySelectorAll('#songList > .song')].findIndex(li=>!li.classList.contains('on'))+1`);
+      const rowSel = `#songList > .song:nth-child(${idx})`, iconSel = rowSel + ' .more-toggle';
+      f.icon = await forced(ph, iconSel);
+      b0 = { row: await look(ph, rowSel), icon: await look(ph, iconSel), round: await look(ph, ROUND) };
+      await ph.tap(iconSel); await sleep(200);                  // ⋯ 펴기 → 다시 접기 (곡은 안 바뀜). 줄과 ⋯에 :hover가 남음
+      await ph.tap(iconSel); await sleep(300);
+      a1 = { row: await look(ph, rowSel), icon: await look(ph, iconSel) };
+      await clipShot(ph, [rowSel], path.join(n242, 'phone-412-song-row-after-tap.png'));
+      await ph.tap(ROUND); await sleep(300);                     // ■ 정지 (재생 중이 아니라 아무 일 없음)
+      a1.round = await look(ph, ROUND);
+      await clipShot(ph, ['#playBtn', '#stopBtn', '#recBtn'], path.join(n242, 'phone-412-round-after-tap.png'));
+    } finally { await ph.close().catch(() => {}); }
+    const phForcedOk = ['row', 'icon', 'round'].every(k => same(f[k]?.base, f[k]?.hover)) && f.icon?.['focus-visible']?.outline === 'solid';
+    const phTapOk = ['row', 'icon', 'round'].every(k => same(b0[k], a1[k]));
+    ctx.log(`  CR-242 N2 규칙 자리: ${HOV.map(h => h + ' ' + (where[h] || ['없음']).join('/')).join(' · ')}`);
+    ctx.log(`  CR-242 N2 폰 누르기 전→뒤: ${['row', 'icon', 'round'].map(k => k + ' ' + fmtL(b0[k]) + ' → ' + fmtL(a1[k]) + ' (:hover ' + a1[k]?.hov + ')').join(' | ')}`);
+    ok('C5', rulesOk && pcOk && touch && phForcedOk && phTapOk,
+      `CR-242 N2 :hover 8가지 모두 (hover: hover) 안 ${rulesOk} · 마우스 화면 hover 그대로 (곡 줄 ${pc.row.base?.bg} → ${pc.row.hover?.bg} · ♡ ${pc.icon.hover?.bg} · ■ 테두리 ${pc.round.base?.border} → ${pc.round.hover?.border}) · 키보드 윤곽 ${pc.icon['focus-visible']?.outline}`
+      + ` / 폰(hover:none ${touch}) hover를 붙여도 그대로 ${phForcedOk} · 누른 뒤(:hover 줄 ${a1.row?.hov}·⋯ ${a1.icon?.hov}·■ ${a1.round?.hov}) 모양 그대로 ${phTapOk}`);
   });
   await stopAll(p);
 }

@@ -1,5 +1,6 @@
 // 조건 M: Edge 가짜 마이크 (권한 창 없이 허용, 일정한 삐 소리)로 마이크 켜기·이름·알림·기본 싱크·소리 막대·자동 측정·점수 창
-import { txt, visible, isHidden, marks, sawToast, sleep, q, stopAll, selectById } from './_lib.mjs';
+import path from 'node:path';
+import { txt, visible, isHidden, marks, sawToast, sleep, q, stopAll, selectById, clipShot, inkOf, inkOk, fmtInk } from './_lib.mjs';
 export const areas = ['B', 'F', 'H', 'K', 'L'];
 
 export default async function mic(ctx) {
@@ -43,14 +44,29 @@ export default async function mic(ctx) {
     ok('B9', again, '다시 연결할 때도 "마이크 연결됨" 알림 (스피커 모드를 바꾸면 마이크를 다시 연다)');
   });
 
-  await step('"자동 측정": 측정 중 → 결과 안내', ['F10'], async () => {
+  await step('"자동 측정": 측정 중 → 결과 안내 · "측정 중…" 흐리지 않음 (CR-242 N4), 측정 중 오류가 나도 원래대로', ['F10'], async () => {
     const m = await marks(p);
+    const MB = `document.querySelector('#measureBtn')`;
+    const ref = await inkOf(p, MB);                                       // CR-242 N4: 평소 [자동 측정]
     await p.click('#measureBtn');
     const busy = await p.eval(`({t:document.querySelector('#measureBtn').textContent, d:document.querySelector('#measureBtn').disabled})`);
+    // CR-242 N4: "측정 중…"(눌림 막음)도 흐리지 않음 (aria-busy) — 사진 cr242/pc-1280-measuring.png
+    const ink = await inkOf(p, MB);
+    await clipShot(p, ['#measureBtn', '#s-recOffset'], path.join(ctx.OUT, 'cr242', 'pc-1280-measuring.png'), 16);
     const done = await p.until(`document.querySelector('#measureBtn').textContent==='자동 측정' && !document.querySelector('#measureBtn').disabled`, 20000, 200);
     const t = await sawToast(p, /측정 완료|딸깍 소리를 못 들었어요|지연이 너무 길어요/, m, 2000);
     const last = await p.eval(`__ui.toasts.slice(${m.t}).map(x=>x.text).filter(x=>/측정|딸깍|지연/.test(x)).pop()||''`);
     ok('F10', busy.t === '측정 중…' && busy.d && done && t, `"측정 중…" → "${last.slice(0, 40)}…" (가짜 마이크라 실제 값은 기기에서)`);
+    const after = await p.eval(`(()=>{const b=${MB}; return {t:b.textContent, d:b.disabled, busy:b.hasAttribute('aria-busy')}})()`);
+    // 측정 중 오류가 나도(결과 계산을 한 번만 일부러 실패시킴) [자동 측정]으로 돌아오고 aria-busy가 빠짐
+    await p.eval(`(()=>{window.__sd=summarizeDelays; summarizeDelays=()=>{summarizeDelays=window.__sd; throw new Error('UI점검: 일부러 낸 측정 오류')}; window.__mErr=null;
+      measureLatency().catch(e=>{window.__mErr=String(e&&e.message||e)})})()`);
+    const mid = await p.until(`${MB}.getAttribute('aria-busy')==='true' && ${MB}.textContent==='측정 중…'`, 5000, 100);
+    const errDone = await p.until(`window.__mErr!==null`, 20000, 200);
+    const fail = await p.eval(`(()=>{const b=${MB}; return {t:b.textContent, d:b.disabled, busy:b.hasAttribute('aria-busy'), err:window.__mErr}})()`);
+    await p.eval(`(()=>{if(window.__sd){summarizeDelays=window.__sd; delete window.__sd} delete window.__mErr})()`);
+    ok('F10', inkOk(ink, ref) && ink.t === '측정 중…' && ink.busy === 'true' && after.t === '자동 측정' && !after.d && !after.busy && mid && errDone && fail.t === '자동 측정' && !fail.d && !fail.busy,
+      `CR-242 N4 "측정 중…" 흐리지 않음: ${fmtInk(ink, ref)} · aria-busy ${ink?.busy} → 끝나면 [${after.t}] aria-busy ${after.busy ? '남음' : '빠짐'} · 측정 중 오류(흉내 "${fail.err}") 뒤 [${fail.t}] 눌림 막음 ${fail.d} · aria-busy ${fail.busy ? '남음' : '빠짐'}`);
     await p.eval(`Object.assign(settings,{recOffset:120, recOffsetTouched:false}); applySettings(); saveSettings()`);
   });
 

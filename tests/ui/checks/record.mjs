@@ -4,7 +4,7 @@
 // CR-241 디자인 보기 K1: TV 화면이 열려 있으면 알림은 예전 폭(화면 반까지), TV 밖은 CR-241 그대로
 import fs from 'node:fs';
 import path from 'node:path';
-import { PC, TV, PHONE, PHONE_L, READY_DEMO, openPage, clipShot, txt, visible, isHidden, marks, sawToast, sleep, q, stopAll, selectById, seedRec, enterTVNoFs } from './_lib.mjs';
+import { PC, TV, PHONE, PHONE_L, READY_DEMO, openPage, clipShot, txt, visible, isHidden, marks, sawToast, sleep, q, stopAll, selectById, seedRec, enterTVNoFs, inkOf, inkOk, fmtInk, dlgToast, dlgToastOk, fmtDT } from './_lib.mjs';
 export const areas = ['J', 'F'];
 
 export async function waitDownload(ctx, re, since, ms = 15000) {
@@ -23,6 +23,7 @@ export default async function record(ctx) {
   await p.eval(`state.queue=[]; saveQueue(); renderQueue(); if(state.armed) setArmed(false)`);
   await selectById(p, ids.short);
   const nRecs = () => p.eval('state.recs.length');
+  const n242 = path.join(ctx.OUT, 'cr242');      // CR-242 디자인 보기 N1·N4 사진 (결과 폴더 cr242/)
 
   await step('마이크 없이 녹음: "목소리 없이 녹음돼요" → 일시정지 → 끝나면 저장', ['J14', 'J1', 'J2', 'J4', 'J3', 'F1'], async () => {
     // toast()를 부른 글도 적어 둔다 (화면에 보였는지와, 앱이 안내를 부르기는 했는지를 나눠 보려고)
@@ -96,6 +97,29 @@ export default async function record(ctx) {
       && !(await isHidden(p, '#recHint')), `${rows.length}개: 날짜·길이 "${rows[0]?.sub}" · 점수 칩 · "반주 없음" · "반주 위치 맞추기 필요"`);
     const dr = by('QA 시험 Drive 녹음');
     ok('J7', dr.btns?.includes('기기로 받기') && /☁ Drive/.test(dr.sub), `Drive에만 있는 녹음: "${dr.sub}" + "기기로 받기"`);
+    // CR-242 N4: [기기로 받기]를 누르면 "받는 중…"(눌림 막음)도 흐리지 않음 (aria-busy) · 받기가 실패해도 [기기로 받기]로 돌아오고 aria-busy가 빠짐
+    // 받기는 흉내 (ensureRecMedia를 잠깐 바꿔 끝을 손으로 냄: 일부러 실패). 사진 cr242/pc-1280-rec-downloading.png
+    const dRow = `[...document.querySelectorAll('#recList li.rec')].find(li=>li.querySelector('.t').textContent==='QA 시험 Drive 녹음')`;
+    const dBtn = `[...${dRow}.querySelectorAll('.btns button')].find(b=>b.textContent==='기기로 받기')`;
+    const dIdx = await p.eval(`[...document.querySelectorAll('#recList li.rec')].indexOf(${dRow})+1`);
+    const dl4 = {};
+    try {
+      dl4.ref = await inkOf(p, dBtn);
+      await p.eval(`(()=>{window.__erm=ensureRecMedia; ensureRecMedia=()=>new Promise((res,rej)=>{window.__ermEnd=rej}); window.__dlBtn=${dBtn}; __dlBtn.click()})()`);
+      await sleep(150);
+      dl4.busy = await inkOf(p, 'window.__dlBtn');
+      await clipShot(p, [`#recList li.rec:nth-child(${dIdx})`], path.join(n242, 'pc-1280-rec-downloading.png'));
+      const m4 = await marks(p);
+      await p.eval(`__ermEnd(new Error('UI점검: 일부러 낸 받기 실패'))`); await sleep(250);
+      dl4.after = await p.eval(`({t:__dlBtn.textContent, d:__dlBtn.disabled, busy:__dlBtn.hasAttribute('aria-busy')})`);
+      dl4.row = await p.eval(`(()=>{const b=${dBtn}; return b?{t:b.textContent, d:b.disabled, busy:b.hasAttribute('aria-busy')}:null})()`);
+      dl4.fail = await p.eval(`__ui.toasts.slice(${m4.t}).map(x=>x.text).pop()||''`);
+    } finally {
+      await p.eval(`(()=>{if(window.__erm){ensureRecMedia=window.__erm; delete window.__erm} delete window.__dlBtn; delete window.__ermEnd; clearTimeout(toastTimer); document.querySelector('#toast').hidden=true})()`).catch(() => {});
+    }
+    ok('J7', inkOk(dl4.busy, dl4.ref) && dl4.busy.t === '받는 중…' && dl4.busy.busy === 'true' && !!dl4.after && dl4.after.t === '기기로 받기' && !dl4.after.d && !dl4.after.busy
+      && !!dl4.row && !dl4.row.d && !dl4.row.busy && !!dl4.fail,
+      `CR-242 N4 "받는 중…" 흐리지 않음: ${fmtInk(dl4.busy, dl4.ref)} · aria-busy ${dl4.busy?.busy} → 받기 실패(흉내) 알림 "${dl4.fail}" 뒤 [${dl4.after?.t}] 눌림 막음 ${dl4.after?.d} · aria-busy ${dl4.after?.busy ? '남음' : '빠짐'} (다시 그린 줄도 ${dl4.row ? (dl4.row.busy ? '남음' : '빠짐') : '없음'})`);
     const lg = by('QA 시험 예전 녹음');
     const since = ctx.downloads().length;
     const i = rows.findIndex(r => r.t === 'QA 시험 예전 녹음') + 1;
@@ -199,13 +223,7 @@ export default async function record(ctx) {
       if(!l) L.push(l={top:r.top, bottom:r.bottom, right:r.right, t:[]}); l.t.push(b.textContent); l.bottom=Math.max(l.bottom,r.bottom); l.right=Math.max(l.right,r.right); }
     L.sort((a,b)=>a.top-b.top); const br=box.getBoundingClientRect(), r1=v=>Math.round(v*10)/10;
     return {lines:L.map(l=>l.t), gap:L.length>1?r1(L[1].top-L[0].bottom):null, w:r1(br.width), rightGap:L.length?r1(br.right-L[L.length-1].right):null}})()`);
-  // K4: 단추 글 대비 (투명도까지 넣어서 뒤 칸 색 위에 보이는 색으로 잰다, WCAG 식)
-  const inkOf = (pg, expr) => pg.eval(`(()=>{const e=${expr}; if(!e) return null;
-    const rgb=s=>{const m=s.match(/[\\d.]+/g).map(Number); return {r:m[0],g:m[1],b:m[2],a:m.length>3?m[3]:1}}, over=(f,b)=>({r:f.r*f.a+b.r*(1-f.a),g:f.g*f.a+b.g*(1-f.a),b:f.b*f.a+b.b*(1-f.a),a:1});
-    let back={r:0,g:0,b:0,a:1}; for(let p=e.parentElement;p;p=p.parentElement){const c=rgb(getComputedStyle(p).backgroundColor); if(c.a>0){back=over(c,back); break;}}
-    const cs=getComputedStyle(e), op=+cs.opacity, bg=over(rgb(cs.backgroundColor),back), fg=over(rgb(cs.color),bg), seen=c=>over({...c,a:op},back);
-    const lum=c=>{const f=v=>{v/=255; return v<=0.03928?v/12.92:Math.pow((v+0.055)/1.055,2.4)}; return 0.2126*f(c.r)+0.7152*f(c.g)+0.0722*f(c.b)};
-    const a=lum(seen(fg)), b=lum(seen(bg)); return {t:e.textContent, op, color:cs.color, d:e.disabled, ratio:Math.round((Math.max(a,b)+0.05)/(Math.min(a,b)+0.05)*100)/100}})()`);
+  // K4: 단추 글 대비 inkOf·inkOk·fmtInk는 _lib.mjs (CR-242 N4도 씀)
   const btnByText = (sel, t) => `[...document.querySelectorAll(${q(sel + ' button')})].find(b=>b.textContent===${q(t)})`;
   const fmtL = L => L ? L.lines.map(l => '[' + l.join('][') + ']').join(' / ') + (L.gap != null ? ` (틈 ${L.gap}px)` : '') : '없음';
   // 새 녹음 줄: 1줄 [▶ 듣기][싱크·믹스 조절] · 2줄 [공유 자리][WAV로 저장][삭제], 줄 틈 6px (K2)
@@ -214,8 +232,6 @@ export default async function record(ctx) {
   // 폰 창: 1줄 [공유 자리][WAV로 내보내기] · 2줄 [닫기][저장] 오른쪽에 붙음 (K3)
   const mixTwo = (L, first) => !!L && L.lines.length === 2 && L.lines[0].length === 2 && first.test(L.lines[0][0]) && L.lines[0][1] === 'WAV로 내보내기'
     && JSON.stringify(L.lines[1]) === '["닫기","저장"]' && Math.abs(L.rightGap) < 1;
-  const inkOk = (busy, wav) => !!busy && !!wav && busy.d && busy.op === 1 && busy.color === wav.color && busy.ratio >= 4.5;
-  const fmtInk = (busy, wav) => busy && wav ? `"${busy.t}" 투명도 ${busy.op} · 대비 ${busy.ratio}:1 (눌림 막음 ${busy.d}) / [${wav.t}] ${wav.ratio}:1 · 글 색 같음 ${busy.color === wav.color}` : '못 잼';
   // 세는 글이 가장 길 때 (2분 넘게): renderShareUI가 Share.busy로 그리는 모양을 잠깐 넣어 본다 (파일은 안 만듦)
   const LONG = sel => `(()=>{const b=document.querySelector(${q(sel)}); Share.busy={key:shareKeyOf(b.shareInfo), t0:performance.now()-125000}; renderShareUI(); return b.textContent})()`;
   const LONG_OFF = `(()=>{Share.busy=null; renderShareUI()})()`;
@@ -551,6 +567,12 @@ export default async function record(ctx) {
       await ph.tap('#mxShare');
       const mxFail = await sawToast(ph, FAIL_RE, m, 5000);
       await ph.shot(path.join(n241, 'phone-412-mix-fail-toast.png'));
+      // CR-242 N1: 창이 열린 채 뜬 알림은 창 안 위쪽에 보이고 [닫기][저장] 줄을 안 가림 — 412·360 (사진 cr242/)
+      const mxT = { 412: await dlgToast(ph, '#mixDialog') };
+      await ph.shot(path.join(n242, 'phone-412-mix-fail-toast.png'));
+      await ph.emulate(PHONE_360);
+      try { await ph.eval(`toast(${q(FAIL)}, 60000)`); await sleep(80); mxT[360] = await dlgToast(ph, '#mixDialog'); await ph.shot(path.join(n242, 'phone-360-mix-fail-toast.png')); }
+      finally { await ph.emulate(PHONE); }
       await ph.eval(`__sh.mode='auto'`); await toastOff(ph);
       // CR-241 N4: 창 [WAV로 내보내기] "만드는 중…"도 흐리지 않음
       await ph.eval(`__rmDelay=4000`); since = ctx.downloads().length;
@@ -561,6 +583,7 @@ export default async function record(ctx) {
       await ph.eval(`__rmDelay=0`);
       mxWavBusy.after = await ph.eval(`(()=>{const b=document.querySelector('#mxWav'); return {t:b.textContent, d:b.disabled, busy:b.hasAttribute('aria-busy')}})()`);
       await ph.tap('#mxClose');
+      const mxHome = await ph.eval(`document.querySelector('#toast').parentElement===document.body && document.querySelectorAll('.toast').length===1`);   // CR-242 N1: 창을 닫으면 알림은 화면(body)으로
       const recMixOff = await ph.eval(`state.recs.find(x=>x.id===${q(phIds[0])}).mix.offset`);
       // 판정
       const nameRe = /^QA 시험 폰 나누기_\d{8}-\d{4}\.m4a$/;
@@ -591,6 +614,7 @@ export default async function record(ctx) {
       // CR-241 디자인 보기 N1~N5 (폰·터치 PC)
       ok('J15', toastOk(tReady[412], 1) && toastOk(tReady[360], 1) && toastOk(tFail[412], 2) && toastOk(tFail[360], 2) && tOther.every(b => toastOk(b, 6)),
         `디자인 N1 알림 폭(글 길이만큼, 화면 - 32px 안): [보내기] 안내 ${fmtT(tReady[412])} · ${fmtT(tReady[360])} / 실패 안내 ${fmtT(tFail[412])} · ${fmtT(tFail[360])} / 다른 안내·긴 이름 ${tOther.map(fmtT).join(' · ')}`);
+      ok('J15', dlgToastOk(mxT[412]) && dlgToastOk(mxT[360]) && mxHome, `CR-242 N1 창 안 알림 (믹스 창 [공유] 실패): 412 ${fmtDT(mxT[412])} / 360 ${fmtDT(mxT[360])} · 창 닫으면 알림은 화면(body)으로 ${mxHome}`);
       ok('J15', failMsg && mxFail, `디자인 N2 실패 안내 "${FAIL}" — 줄 [공유] ${failMsg} · 창 [공유] ${mxFail} (단추 이름 [ ] 없음)`);
       ok('J15', touch && n3ph.wav.hover.border === n3ph.wav.base.border && n3ph.pri.hover.filter === n3ph.pri.base.filter && /^solid /.test(n3ph.wav['focus-visible'].outline)
         && !!tapLook.share && tapLook.share.border === tapLook.wav.border,
