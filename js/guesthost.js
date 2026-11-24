@@ -18,11 +18,6 @@ const GUEST_ROOM_PER_SEC = 30;     // 방 전체 1초 30개까지 (손님이 아
 const GUEST_SEEN_MS = 60000;       // 손님 폰은 20초마다 hello. 60초 소식이 없으면 나간 것으로 셈
 const GUEST_EVERY_MS = 20000;      // 상태가 안 바뀌어도 20초마다 한 번 (손님 폰은 60초 동안 소식이 없으면 끊김으로 봄)
 const guestYtOn = () => typeof ytReserve === 'function';   // 유튜브 곡 예약 (CR-030 yt.js가 있을 때만)
-// 손님 방을 켜 둔 탭 (CR-251 YT-r7): 이 탭의 sessionStorage에만 기억 → 새로 고침·뒤로 갔다 오기 뒤에 새 방(새 이름·새 QR)으로 다시 연다.
-// 앱을 새로 켜면(새 탭) 예전처럼 닫힌 채로 시작한다. 방 이름은 기억하지 않는다 (열 때마다 새 이름 그대로). [방 닫기]를 누르면 지운다
-const GUEST_ON_KEY = 'nb-guest-on';
-const guestWant = () => { try { return sessionStorage.getItem(GUEST_ON_KEY) === '1'; } catch { return false; } };
-const guestWantSet = on => { try { on ? sessionStorage.setItem(GUEST_ON_KEY, '1') : sessionStorage.removeItem(GUEST_ON_KEY); } catch {} };
 
 /* ---------------- QR 그림 (js/vendor/toqr-0.1.1.mjs, 이 저장소 안 사본) ---------------- */
 let toqrMod = null;
@@ -74,7 +69,6 @@ async function guestOpen() {
   Object.assign(Guest, { on: true, busy: false, sb, ch, room, qr: null, qrPx: 0, guests: new Map(), res: [], all: [], last: '', lastAt: 0,
     url: guestUrl(location.href, room, hubCodeMake(Hub.conf.u, Hub.conf.k)) });
   clearInterval(Guest.tick); Guest.tick = setInterval(guestTick, 1000);
-  guestWantSet(true);
   guestRender(); guestSendState(true);
   const url = Guest.url;
   try { const qr = await guestQrMake(url); if (Guest.url === url) { Guest.qr = qr.src; Guest.qrPx = qr.px; } }
@@ -96,8 +90,6 @@ async function guestClose(quiet) {
 }
 // 노래방 화면을 닫거나 새로 고침하면 방도 끝난다 (손님 화면에 "방이 닫혔어요")
 addEventListener('pagehide', () => { if (Guest.ch) try { Guest.ch.send({ type: 'broadcast', event: 'h', payload: { v: GUEST_V, t: 'closed' } }); } catch {} });
-// 뒤로 갔다가 그대로 돌아옴(bfcache): 손님은 위에서 "닫힘"을 받았으니 새 방으로 다시 열어 TV에 새 QR (CR-251 YT-r7, 폰 방장은 기기 확인)
-addEventListener('pageshow', e => { if (e.persisted && Guest.on && !Guest.busy) guestOpen(); });
 
 /* ---------------- 손님 메시지 처리 ---------------- */
 function guestReply(m, body) {
@@ -196,11 +188,7 @@ function guestSendState(force) {
 }
 function guestTick() {
   if (!Guest.on) return;
-  if (typeof hubOn !== 'function' || !hubOn() || Hub.sb !== Guest.sb) {   // 허브 연결을 끊거나 바꿈 → 방도 닫음
-    // 허브가 바뀌었고(다시 로그인 등) 이 탭에서 켜 둔 방이면 새 방으로 다시 연다 (CR-251 YT-r7). 끊었으면 닫힌 채로
-    guestClose().then(() => { if (guestWant() && typeof hubOn === 'function' && hubOn()) guestOpen(); });
-    return;
-  }
+  if (typeof hubOn !== 'function' || !hubOn() || Hub.sb !== Guest.sb) { guestClose(); return; }   // 허브 연결을 끊거나 바꿈 → 방도 닫음
   const now = Date.now(); let gone = false;
   for (const [gid, g] of Guest.guests) if (now - g.seen > GUEST_SEEN_MS) { Guest.guests.delete(gid); gone = true; }
   Guest.res = guestQueueMap(state.queue, Guest.res).live;    // 이미 부른 곡·방장이 뺀 곡의 손님 예약은 잊는다
@@ -258,7 +246,7 @@ function guestSheet() {
   else window.addEventListener('resize', guestQrFit);
   on('#guestOpenBtn', 'click', () => guestOpen());
   on('#guestNewBtn', 'click', () => guestOpen());          // 새 QR = 새 방 (지금 손님은 "방이 닫혔어요")
-  on('#guestCloseBtn', 'click', () => { guestWantSet(false); guestClose(); });   // 사람이 닫은 방은 새로 고침해도 다시 안 엶
+  on('#guestCloseBtn', 'click', () => guestClose());
   on('#guestDlgClose', 'click', () => $('#guestDialog').close());
   on('#guestCardBtn', 'click', () => guestOpen());
   on('#guestTvQr', 'change', e => { Guest.tvQr = e.target.checked; lsSet('nb-guest-tv', Guest.tvQr ? null : '0'); guestRender(); });
@@ -268,8 +256,4 @@ function guestSheet() {
   // 설정 창을 열고 닫을 때마다 다시 그린다 (허브를 이으면 TV 대기 카드에 [손님 QR 켜기]가 생기고, 끊으면 없어진다)
   if (dlg) new MutationObserver(() => { guestRender(); if (dlg.open && !Guest.on) guestNote(''); }).observe(dlg, { attributes: true, attributeFilter: ['open'] });
 }
-// main.js가 켤 때 부름. 이 탭에서 손님 방을 켜 둔 채 새로 고침했으면 새 방으로 다시 연다 (CR-251 YT-r7)
-function guestInit() {
-  guestRender();
-  if (guestWant() && typeof hubOn === 'function' && hubOn()) guestOpen();
-}
+function guestInit() { guestRender(); }   // main.js가 켤 때 부름
