@@ -146,7 +146,7 @@ select{background:var(--btn-bg);border:1px solid var(--btn-line);border-radius:v
 .lyrics{position:absolute;left:4%;right:4%;bottom:7%;display:flex;flex-direction:column;gap:1.4cqw}
 .line{position:relative;font:400 clamp(20px,4.4cqw,124px)/1.15 var(--lyric);white-space:nowrap;min-height:1.15em;letter-spacing:.01em;max-width:100%}
 .line.bottom{align-self:flex-end;text-align:right}
-.line.top{align-self:flex-start}
+.line.top{align-self:flex-start;display:block;padding:0 0 14px}   /* CR-243 K1: 머리 줄 .top 규칙(43줄 flex·위아래 14px)이 윗줄 가사에도 걸려 분홍 채움 글이 흰 글보다 14px 위에 그려지던 것. 흰 글 자리는 그대로 두려고 아래 14px만 남김 */
 .line .base,.line .fill{display:block}
 .line .base{color:#fff;text-shadow:-2px -2px 0 #0a0e3a,2px -2px 0 #0a0e3a,-2px 2px 0 #0a0e3a,2px 2px 0 #0a0e3a,0 3px 0 #0a0e3a,0 0 10px rgba(0,0,0,.5)}
 .line .fill{position:absolute;inset:0;color:var(--pink);clip-path:inset(0 calc(100% - var(--p,0%)) 0 0);

@@ -3,6 +3,7 @@
 //   1 TV 1920 막대 보임·숨김 · 2 PC 1280 막대 숨김(긴 알림 2줄) · 3 폰 가로 915·844 막대 보임·더 보기 줄·숨김 × 짧은·긴·실패 알림 + flash
 //   4 폰 915 + 글자 130%(704×317 배율 1.3) · 5 노래 시작 제목 카드 · 6 막대가 숨을 때·다시 나올 때 (끝 자리만 잼, 움직이는 도중은 미확인)
 //   7 다른 자리 그대로: 대기 화면·무대 창(곡 검색·예약 목록)·번호 상자 = 막대 위 8px · TV 닫힘 = 아래 24px · 창 안 알림 · 유튜브 띠
+//   K1(디자인 보기) 윗줄 분홍 채움 글 top = 흰 글 top (TV 1920·폰 915, 부르는 중 = 데모곡 16초쯤 윗줄 약 30%)
 // 데모곡(가짜 자료)만 쓰고, 사진은 결과 폴더 cr243/ (QR이 보이는 대기 화면은 찍지 않음)
 import path from 'node:path';
 import { PC, TV, PHONE_L, openPage, sleep, q, stopAll, selectById, enterTVNoFs } from './_lib.mjs';
@@ -17,8 +18,9 @@ const LONG = "녹음 저장됨 · 작은 방의 노래 (시험용 조금 긴 곡
 const FAIL = '이 곡의 반주를 불러오지 못했어요. 곡을 다시 골라 주세요';
 const FLASH = '우선예약  10001  작은 방의 노래';
 
-// 알림 자리 재기: 가사 두 줄의 보이는 글(.base)·박자 점(●, 떠 있을 때)과 겹침·틈, 글자 칸을 덮은 몫(%), 가사 칸(.lyrics 상자, 참고만)과 틈, flash와 겹침(%), 보이는 막대와 겹침, 제목 카드 글과 겹침, 화면 안
-// (참고: 윗줄 가사 상자는 머리 줄 .top 규칙의 위아래 14px 여백이 같이 걸려서 글보다 14px씩 크다 — 847befc부터, 이번 범위 밖)
+// 알림 자리 재기: 가사 두 줄의 보이는 글(흰 글 .base · 부른 만큼 보이는 분홍 채움 글 .fill)·박자 점(●, 떠 있을 때)과 겹침·틈, 글자 칸을 덮은 몫(%), 가사 칸(.lyrics 상자, 참고만)과 틈, flash와 겹침(%), 보이는 막대와 겹침, 제목 카드 글과 겹침, 화면 안
+// 분홍 글: .fill 상자(inset:0) 왼쪽부터 --p 만큼(clip-path), 높이는 흰 글 한 줄. pkTop·pkBot = 분홍 top - 흰 top (보이든 안 보이든 상자로 잼)
+// (윗줄 가사 .line.top은 머리 줄 .top 규칙(43줄 flex·위아래 14px)을 끊는다 — CR-243 K1 display:block · 아래 14px만 남김. 그래서 흰 글 자리는 그대로, 가사 칸 위 끝은 14px 빈 여백)
 const MEAS = `(()=>{
   const R=e=>{if(!e) return null; const r=e.getBoundingClientRect(); return r.width>0&&r.height>0?{l:r.left,t:r.top,r:r.right,b:r.bottom,w:r.width,h:r.height}:null};
   const vis=e=>{if(!e||e.hidden) return false; const cs=getComputedStyle(e); return cs.display!=='none'&&cs.visibility!=='hidden'&&+cs.opacity>0};
@@ -27,8 +29,12 @@ const MEAS = `(()=>{
   const t=document.querySelector('#toast'), tv=document.querySelector('#tv'), bar=document.querySelector('#tvRemote'), fl=document.querySelector('#flash');
   const T=vis(t)?R(t):null;
   const line=id=>{const e=document.querySelector(id+' .base'); return e&&e.textContent.trim()?R(e):null};
+  const pink=(id,B)=>{const ln=document.querySelector(id), f=ln.querySelector('.fill'), F=R(f); if(!B||!F||!f.textContent.trim()) return null;
+    const p=Math.min(100,Math.max(0,parseFloat(ln.style.getPropertyValue('--p'))||0)), w=F.w*p/100;
+    return {dy:Math.round((F.t-B.t)*10)/10, p:Math.round(p), w:Math.round(w), vis:w>0.5?{l:F.l,t:F.t,r:F.l+w,b:F.t+B.h,w,h:B.h}:null}};
   const top=line('#lineTop'), bot=line('#lineBottom'), ly=R(document.querySelector('#stage .lyrics'));
-  const dots=[...document.querySelectorAll('#stage .lyrics .dots')].filter(e=>e.textContent.trim()).map(R).filter(Boolean), parts=[top,bot,...dots].filter(Boolean);
+  const pT=pink('#lineTop',top), pB=pink('#lineBottom',bot);
+  const dots=[...document.querySelectorAll('#stage .lyrics .dots')].filter(e=>e.textContent.trim()).map(R).filter(Boolean), parts=[top,bot,pT&&pT.vis,pB&&pB.vis,...dots].filter(Boolean);
   const F=vis(fl)?R(fl):null, B=!tv.hidden&&vis(bar)&&!tv.classList.contains('hide-ui')?R(bar):null;
   const tc=vis(document.querySelector('#titleCard'))?['#cardTitle','#cardArtist'].map(s=>R(document.querySelector(s))):null;
   const rg=document.createRange(); rg.selectNodeContents(t); const lines=new Set([...rg.getClientRects()].filter(x=>x.width>0).map(x=>Math.round(x.top))).size;
@@ -38,7 +44,8 @@ const MEAS = `(()=>{
     top:pct(T,top), bot:pct(T,bot), lyHit:parts.some(x=>area(T,x)>0), dots:dots.length, txtGap:T&&parts.length?Math.round((Math.min(...parts.map(x=>x.t))-T.b)*10)/10:null, boxGap:T&&ly?Math.round((ly.t-T.b)*10)/10:null,
     fl:F?pct(T,F):null, flHit:Math.round(area(T,F)), flGap:T&&F?Math.round((T.t-F.b)*10)/10:null, bar:B?Math.round(area(T,B)):null, barGap:T&&B?Math.round((B.t-T.b)*10)/10:null,
     tc:tc?tc.map(x=>Math.round(area(T,x))):null, tcGap:T&&tc&&tc[1]?Math.round((T.t-tc[1].b)*10)/10:null, barH, inView:!!T&&T.t>=7.5&&T.b<=innerHeight+0.5,
-    home:t.parentElement===document.body?'body':t.parentElement.id, bottomCss:cs.bottom, tr:cs.transitionProperty+' '+cs.transitionDuration}})()`;
+    home:t.parentElement===document.body?'body':t.parentElement.id, bottomCss:cs.bottom, tr:cs.transitionProperty+' '+cs.transitionDuration,
+    pkTop:pT?pT.dy:null, pkBot:pB?pB.dy:null, pkP:pT?pT.p:null, pkW:pT?pT.w:null, pkBotP:pB?pB.p:null, whTop:top?Math.round(top.t*10)/10:null, whBot:bot?Math.round(bot.t*10)/10:null}})()`;
 
 const showAt = async (pg, text, withFlash) => {
   await pg.eval(`(()=>{ toast(${q(text)}, 60000); ${withFlash ? `flash(${q(FLASH)}, 60000)` : `clearTimeout(flashTimer); document.querySelector('#flash').hidden=true`} })()`);
@@ -60,7 +67,11 @@ const atLine = async pg => {
 
 const fmt = m => !m ? '못 잼' : !m.shown ? `${m.vw}×${m.vh} 알림 안 뜸`
   : `${m.vw}×${m.vh} ${m.more ? '더 보기 줄' : m.ui ? '막대 보임' : '막대 숨김'} · 알림 ${m.w}×${m.h} ${m.lines}줄 위 ${m.tTop}·아래 ${m.tBot} · 가사와 틈 ${m.txtGap}px${m.dots ? ' (박자 점 포함)' : ''} (가사 칸 ${m.boxGap}) · 가림 윗줄 ${m.top ?? '-'}% 아랫줄 ${m.bot ?? '-'}%`
-    + ` · flash ${m.fl == null ? '없음' : m.fl + '% (틈 ' + m.flGap + ')'} · 막대 ${m.bar == null ? '숨음' : m.bar ? '겹침 ' + m.bar + 'px²' : '0 (틈 ' + m.barGap + ')'}`;
+    + ` · flash ${m.fl == null ? '없음' : m.fl + '% (틈 ' + m.flGap + ')'} · 막대 ${m.bar == null ? '숨음' : m.bar ? '겹침 ' + m.bar + 'px²' : '0 (틈 ' + m.barGap + ')'}`
+    + (m.pkTop == null ? '' : ` · 분홍-흰 top 윗줄 ${m.pkTop}px (${m.pkP}%)`);
+// K1: 윗줄 분홍 채움 글이 보이고(부르는 중) 그 top이 흰 글 top과 같다. 아랫줄도 같다 (아랫줄 분홍은 이 자리에서 0%라 상자로만 잼)
+const pinkOk = m => !!m && m.pkTop != null && m.pkW > 0 && Math.abs(m.pkTop) <= 0.5 && (m.pkBot == null || Math.abs(m.pkBot) <= 0.5);
+const fk = m => !m ? '못 잼' : `${m.vw}×${m.vh} 윗줄 분홍 ${m.pkW}px(${m.pkP}%) top - 흰 top ${m.pkTop}px · 아랫줄 ${m.pkBot ?? '-'}px · 흰 글 top ${m.whTop}·${m.whBot}px`;
 // 가사 두 줄·flash·막대와 겹침 0, 화면 안 (flash: 떠 있어야 하는 때)
 const clear = (m, wantFlash = true) => !!m && m.shown && m.top === 0 && m.bot === 0 && !m.lyHit && (!wantFlash || (m.fl !== null && m.flHit === 0)) && !m.bar && m.inView;
 
@@ -152,6 +163,16 @@ export default async function tvtoast(ctx) {
     ctx.log(`  ! CR-243 폰 탭: ${e.message}`); ok('E3', false, `CR-243 폰 탭을 열지 못함: ${e.message}`);
   }
 
+  // K1: 1·3에서 잰 부르는 중 화면 (데모곡 16초쯤, 윗줄 약 30%) — 분홍 채움 글이 흰 글과 같은 높이 (d1a847a까지는 -14px)
+  await step('CR-243 K1 윗줄 분홍 채움 글 top = 흰 글 top (TV 1920·폰 915, 부르는 중)', ['E3'], async () => {
+    const a = M['1920-shown'], b = M['915-shown-짧은'];
+    // 앱 머리 줄 .top은 그대로 (flex · 위아래 14px): K1은 윗줄 가사 쪽만 끊는다
+    const hd = await p.eval(`(()=>{const h=document.querySelector('header.top'), cs=getComputedStyle(h); return {d:cs.display, pt:cs.paddingTop, pb:cs.paddingBottom, h:Math.round(h.getBoundingClientRect().height*10)/10, vw:innerWidth}})()`);
+    const hdOk = hd.d === 'flex' && hd.pt === '14px' && hd.pb === '14px';
+    ctx.log(`  CR-243 K1 TV 1920 ${fk(a)} | 폰 915 ${fk(b)} | 머리 줄 ${JSON.stringify(hd)}`);
+    ok('E3', pinkOk(a) && pinkOk(b) && hdOk, `CR-243 디자인 보기 K1 윗줄 분홍 글 top = 흰 글 top (TV 1920·폰 915): TV 1920 ${fk(a)} | 폰 915 ${fk(b)} | 머리 줄 .top ${hd.d} 위아래 ${hd.pt}·${hd.pb} 높이 ${hd.h}px (${hd.vw}폭)`);
+  });
+
   // 5: 노래 시작 제목 카드 (노래 중 처음 4.5초) + "마이크를 켜면…" — TV 1920 · PC 1280 (PC 탭) · 폰 915 (폰 탭)
   const titleAt = async (pg) => {
     await pg.eval(`(()=>{ stopPlayback(); play(); })()`);
@@ -204,7 +225,7 @@ export default async function tvtoast(ctx) {
       && s.down.tBot < s.up.tBot - 4 && Math.abs(s.back.tBot - s.up.tBot) <= 1           // 숨으면 내려가고, 나오면 제자리
       && Math.abs(s.down.txtGap - s.up.txtGap) <= 2 && Math.abs(s.back.txtGap - s.up.txtGap) <= 2    // 가사와 같이 (틈이 그대로)
       && /bottom 0\.2s/.test(s.up.tr) && /bottom 0\.2s/.test(s.lyTr);
-    const f6 = s => s ? `${s.up.vw}폭 알림 아래 ${s.up.tBot} → 숨김 ${s.down.tBot} → 다시 ${s.back.tBot}px · 가사와 틈 ${s.up.txtGap}/${s.down.txtGap}/${s.back.txtGap}px · 가림 ${[s.up, s.down, s.back].map(m => (m.top ?? 0) + '·' + (m.bot ?? 0)).join(' / ')}% · 막대 겹침 ${[s.up, s.back].map(m => m.bar ?? '-').join('·')} · 알림 "${s.up.tr}" · 가사 "${s.lyTr}"` : '못 잼';
+    const f6 = s => s ? `${s.up.vw}폭 알림 아래 ${s.up.tBot} → 숨김 ${s.down.tBot} → 다시 ${s.back.tBot}px · 가사와 틈 ${s.up.txtGap}/${s.down.txtGap}/${s.back.txtGap}px · 가림 ${[s.up, s.down, s.back].map(m => (m.top ?? 0) + '·' + (m.bot ?? 0)).join(' / ')}% · 막대 겹침 ${[s.up, s.back].map(m => m.bar ?? '-').join('·')} · 가사(분홍 포함) 겹침 ${[s.up, s.down, s.back].map(m => m.lyHit ? '있음' : '0').join('/')} · 알림 "${s.up.tr}" · 가사 "${s.lyTr}"` : '못 잼';
     ctx.log(`  CR-243 #6 ${f6(S[1920])} | ${f6(S[915])}`);
     ok('L9', good(S[1920]) && good(S[915]), `CR-243 디자인 6장 #6 막대 숨음·다시 나옴 (끝 자리, 움직이는 도중은 미확인): TV 1920 ${f6(S[1920])} | 폰 915 ${f6(S[915])}`);
   });

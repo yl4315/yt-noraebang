@@ -106,6 +106,7 @@ npm run test:ui                  # 화면 자동 점검: 헤드리스 Edge가 �
   - 같이 쓰는 부품(`.btn`·`.round`·`kbd`)은 `--btn-bg`·`--btn-line`·`--r-btn`·`--on-amber` 같은 변수로 양쪽 값을 나눈다.
   - 관리 화면에 색을 새로 쓸 때는 `#색` 대신 회사 변수(`--color-danger`·`--color-info` …).
 - `--amber`는 관리 화면에서 흰색(회사 강조)이다. 소리 막대처럼 "내용 색"은 직접 값으로 둔다.
+- 윗줄 가사 `.line.top`은 머리 줄 `.top` 규칙(flex·위아래 14px)을 끊는다 (`display:block;padding:0 0 14px`). 안 끊으면 분홍 채움 글(`.fill`, `inset:0`)이 흰 글보다 14px 위에 그려진다. 아래 14px는 흰 글 자리·두 줄 사이를 예전 그대로 두려고 남긴 것 (CR-243 디자인 보기 K1, `checks/tvtoast.mjs`가 분홍 top = 흰 top을 잰다).
 - 다크 고정. `<html data-theme="light">`로 바꿔 보면 관리 화면에 남은 직접 색을 찾을 수 있다 (무대는 남색 그대로가 맞음).
 - 디자인실이 토큰을 바꾸면 두 파일을 다시 복사한다 (`cmp`로 같은지 확인).
 - 진동은 손가락 화면에서만(`haptic()`): 누르기 `tap`, 예약·저장 `success`, 취소 `warning` (한 번 누르면 하나만). 리모컨은 `remote.html` 안 `buzz()`.
