@@ -448,6 +448,20 @@ function parseYouTubeId(text) {
   return null;
 }
 const ytWatchUrl = id => 'https://www.youtube.com/watch?v=' + encodeURIComponent(id);
+// CR-251 ①: 유튜브 앱으로 넘길 오류는 101·150만 (올린 사람이 다른 곳에서 틀지 못하게 막음 → 유튜브 앱·사이트에서는 된다).
+// 100(지워짐·비공개)·2·5·153·끊김(offline)·플레이어 못 불러옴(api)은 앱으로 가도 안 되거나 다시 하면 되는 오류라 넘기지 않는다
+const ytErrToApp = code => code === 101 || code === 150;
+// CR-251 ②: 플레이어 host. 기본은 youtube-nocookie (로그인 정보를 안 씀). 설정 "프리미엄 계정으로 틀기 (이 기기만)"를 켠 기기만
+// www.youtube.com (그 브라우저의 유튜브 로그인 쿠키를 씀). 값은 이 기기 localStorage에만 — 백업 파일·Drive·허브·손님 폰에 안 간다
+const YT_WWW_KEY = 'nb-yt-www';
+const ytHostFor = www => www ? 'https://www.youtube.com' : 'https://www.youtube-nocookie.com';
+// TV 유튜브 앱에서 찾을 말: "제목 가수 노래방" (ytSearchQuery와 같은 규칙). 제목을 모르는 곡("유튜브 영상 <번호>")이면 ''
+function ytAppFindWords(title, artist) {
+  const t = String(title ?? '').replace(/\s+/g, ' ').trim();
+  if (!t || /^유튜브 영상 [A-Za-z0-9_-]{11}$/.test(t)) return '';
+  const a = String(artist ?? '').replace(/\s+/g, ' ').trim();
+  return ytSearchQuery(a && !t.includes(a) ? t + ' ' + a : t);
+}
 // 열쇠 없는 검색: 유튜브 검색 결과를 새 창으로 연다. 검색어에 "노래방"을 보탠다 (이미 노래방·MR·karaoke·inst가 있으면 그대로)
 function ytSearchQuery(q) {
   const s = String(q ?? '').replace(/\s+/g, ' ').trim();

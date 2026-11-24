@@ -136,14 +136,14 @@ npm run test:ui                  # 화면 자동 점검: 헤드리스 Edge가 �
   - 설정 창 `더 보기 (고급)`(`#advBtn`) → `nb-advanced`='1'이면 `<html class="adv">` = 숨기기 전 화면. 끄면(기본) `.adv-only`·`.adv-full`이 숨고 `.adv-short`가 보인다 (`css/app.css` "숨김 정리").
   - 그 자리에서 펴는 칸: `.fold` 안 `.fold-btn`("더 보기 ›")을 누르면 `.unfold` → `.fold-more`가 보인다 (음향 설정 세부, "가사 맞추기 ›", 설정 창 "이 기기에 저장된 곡"). 고급이면 늘 펴져 있다.
   - 음향 설정(`#deckMore`): 고급 꺼짐이면 사람이 펴고 접은 상태를 `nb-deck`에 기억 (처음엔 접힘). 고급 켬이면 예전 규칙 (PC 펼침, ≤560 접힘) — core.js `deckOpenAtStart`.
-  - 설정 창 차례: 손님(`#guestSec`, 맨 위 묶음 — 고급 밖, 디자인 확인 CR-228 2장) → 곡 창고(Drive · 이 기기에 저장된 곡 · 허브 연결 `#hubSec` — 고급 밖, 디자인 확인 CR-229 #2) → `더 보기 (고급)` 안에 여행 준비 · 백업 파일 · MR 만들기(주소는 `#mrAddr` 안) · 내 폰 리모컨(`#myRemoteSec`, 허브에 로그인해 있을 때만 `myRender`가 보이게 함, `#advBtn` 작은 글 "내 폰 리모컨"(`#advSubMy`)도 그때만, CR-228 ③) · 옛 폰 리모컨 (같은 와이파이)(`#remoteSec`, 서버로 켰을 때만 `renderRemoteInfo`가 보이게 함 — Pages에서는 고급을 켜도 안 보임, `#advBtn` 작은 글 끝 "옛 폰 리모컨"(`#advSubRemote`)도 그때만. 칸 맨 위 `#remoteOldHint` "기본은 "내 폰 리모컨 (허브)"이에요…"는 `renderRemoteInfo`가 덮어쓰는 `#remoteSet` 밖, CR-228 ④).
+  - 설정 창 차례: 손님(`#guestSec`, 맨 위 묶음 — 고급 밖, 디자인 확인 CR-228 2장) → 곡 창고(Drive · 이 기기에 저장된 곡 · 허브 연결 `#hubSec` — 고급 밖, 디자인 확인 CR-229 #2) → `더 보기 (고급)` 안에 여행 준비 · 백업 파일 · MR 만들기(주소는 `#mrAddr` 안) · 내 폰 리모컨(`#myRemoteSec`, 허브에 로그인해 있을 때만 `myRender`가 보이게 함, `#advBtn` 작은 글 "내 폰 리모컨"(`#advSubMy`)도 그때만, CR-228 ③) · 옛 폰 리모컨 (같은 와이파이)(`#remoteSec`, 서버로 켰을 때만 `renderRemoteInfo`가 보이게 함 — Pages에서는 고급을 켜도 안 보임, `#advBtn` 작은 글 "옛 폰 리모컨"(`#advSubRemote`)도 그때만. 칸 맨 위 `#remoteOldHint` "기본은 "내 폰 리모컨 (허브)"이에요…"는 `renderRemoteInfo`가 덮어쓰는 `#remoteSet` 밖, CR-228 ④) · 유튜브 곡(`#ytSec`, 프리미엄 계정으로 틀기, 맨 끝, 작은 글 끝 "유튜브 프리미엄", CR-251 ②).
   - 새 칸을 숨길 때는 위 클래스만 쓰고, 그 칸을 보는 화면 점검은 고급 켠 화면에서 그대로 돌게 둔다 (`tests/ui/checks/_lib.mjs` `openPage`가 탭마다 `nb-advanced`='1'). 숨김 자체는 `checks/hide.mjs`(W13).
 
 ## 유튜브 곡 (`js/yt.js`, CR-030)
 
 - 곡 하나 = `source:'yt'` + `ytId`(영상 번호 11자) (+ 플레이어가 알려 준 길이 `ytDur`). 판정은 `core.js isYtSong`, 찾기는 `findYtSong`. 파일(`blob`·`fileId`)이 없다.
 - **재생 소스 층(R3)**: `playback.js`의 `play`·`pause`·`stopPlayback`·`seekTo`·`onFinish`·`curTime`·`dur`는 `ytSong()`이면 `ytPlay`·`ytPause`·`ytStop`·`ytSeek`·`ytTime`·`ytDur`로 보낸다. MR 곡 길은 그대로. "곡 준비됨"은 `songReady(s)` (`s.buffer`를 직접 보지 않는다).
-- 약관: 공식 IFrame API(`https://www.youtube.com/iframe_api`, 플레이어 host는 youtube-nocookie)만. 영상은 보이는 채로, 노래방 요소가 위에 겹치지 않게(`ytFrame`이 무대 빈 곳에 16:9로 놓음), 200×200 아래로 줄이지 않는다. 화면이 숨으면 멈춘다. **영상 소리를 Web Audio에 잇거나 녹음·내려받기하는 코드를 넣지 않는다** (화면 점검 V6이 `yt.js`를 훑어 봄).
+- 약관: 공식 IFrame API(`https://www.youtube.com/iframe_api`)만. 플레이어 host는 기본 youtube-nocookie, 이 설정을 켠 기기만 www.youtube.com (팀장 11-24). 설정 이름 "프리미엄 계정으로 틀기 (이 기기만)", 저장 열쇠 `nb-yt-www` (아래 CR-251 ②). 영상은 보이는 채로, 노래방 요소가 위에 겹치지 않게(`ytFrame`이 무대 빈 곳에 16:9로 놓음), 200×200 아래로 줄이지 않는다. 화면이 숨으면 멈춘다. **영상 소리를 Web Audio에 잇거나 녹음·내려받기하는 코드를 넣지 않는다** (화면 점검 V6이 `yt.js`를 훑어 봄).
 - 유튜브 곡은 키·녹음·반주 볼륨을 끈다 (`setKey`·`setArmed`·`bumpMr`가 안내만). 점수는 마이크 + `curTime()`(= `ytTime`)이라 그대로 켜 둔다.
 - 검색 열쇠(YouTube Data API)는 **`ytSetKey(글자 또는 함수)`로 메모리에만** (허브 CR-227이 부름). localStorage·IndexedDB·Drive·화면·로그에 쓰지 않는다. 열쇠가 없으면 링크·[공유]·[유튜브에서 열어 찾기]만. 한도(400·403·429)면 이 화면 동안 열쇠 없는 길.
 - 열쇠가 없을 때 곡 제목은 플레이어가 재생할 때 알려 주는 제목(`getVideoData`)으로 채운다. oEmbed 같은 바깥 접속을 더하지 않는다.
@@ -151,6 +151,9 @@ npm run test:ui                  # 화면 자동 점검: 헤드리스 Edge가 �
 - TV에서 유튜브 곡이면 `#tv.yt-mode`: 무대는 위 칸, `#tvRemote`가 아래 68px 띠. 이때 `flash()`와 `toast()`는 무대 가운데·띠 왼쪽 대신 띠 안(`ytBandNote`)에 뜬다 (yt.js가 두 함수를 감쌈).
 - 폰(무대 폭 640 아래, TV 아님)에서 창(`YT_SPLIT`)이 열리면: 멈춘 영상은 숨기고(창이 무대를 다 씀), 재생 중이면 무대에 `yt-grow`를 붙여 `--yt-cut` + 창 높이만큼 길게 한다 (위 영상 · 아래 창).
 - 폰(폭 560 아래)에서 재생 전에 곡 검색 창을 열면 무대가 `min(600px,78vh)`로 길어지고 창이 무대 폭을 다 쓴다. 검색 줄 단추는 다음 줄 오른쪽(높이 36), 썸네일 96×54, ✕ 48×48 (`app.css` 맨 끝, 무대가 `.main` 안일 때만 → TV 화면은 그대로). 못 트는 영상 안내(`#ytErr`)가 보이면 곡 제목 카드·가사를 숨긴다.
+- 퍼가기를 막은 영상(오류 101·150, `core.js ytErrToApp`, CR-251 ①): `#ytErr`에 큰 `[유튜브 앱으로 열기]`(`.yt-err-app`, 새 창 `ytWatchUrl`, 키보드 PC는 `.for-keys` 글 "유튜브에서 열기") + 한 줄 `#ytErrNote`(녹음·점수·예약곡 이어 부르기는 안 됨). TV 화면(`#tv` 보임)은 링크를 숨기고 `#ytErrTv`: "TV 유튜브 앱에서 이 곡 찾기" + 찾을 말(`ytAppFindWords` = 제목 가수 노래방) + 영상 링크 QR(`guestQrMake` = 앱 안 toqr 사본, `qrFitPx` 96 아래로 안 줄임). TV에 들어가거나 나오면 `ytFrame`이 안내를 그 화면 것으로 다시 그린다. 그 밖의 오류(100·2·5·153·offline·api)는 예전 그대로 작은 `[유튜브에서 열기]`.
+- 3초 뒤 다음 예약곡(V7)은 그대로. 큰 단추를 누르면 `cancelNext()` (유튜브 앱에서 부르는 동안 뒤에서 다음 곡이 시작되지 않게, 예약 목록은 그대로). 넘어가면 안내는 사라진다. 못 튼 곡을 다시 고르면 다시 올려서(`ytSelect`: `Yt.err`가 있으면 `Yt.loaded`를 비움) 안내가 다시 나온다. 무대(`.stage`)는 `overflow:clip` — `.lights`(inset -20%) 때문에 `hidden`만이면 `scrollIntoView`·focus가 무대를 옆으로 밀어 가운데 안내가 폰에서 잘렸다.
+- 설정 › 더 보기 (고급) › 유튜브 곡 › **프리미엄 계정으로 틀기 (이 기기만)** (`#ytWww`, CR-251 ②): 기본 꺼짐, 값은 이 기기 localStorage `nb-yt-www`(`'1'`)에만 — 백업 파일·Drive·허브·손님 폰에 넣지 않는다. 바꾸면 `ytSetWww` → `ytRebuild`: 플레이어를 `destroy`하고 `Yt.player`·`ready`·`playerP`·`loaded`를 비운 뒤 host `ytHostFor(켜짐)`으로 다시 만든다 (`Yt.gen`으로 늦게 온 옛 플레이어 알림은 버림). 지금 곡이 유튜브 곡이면 멈춘 뒤 같은 자리에 멈춘 채로 다시 올린다 (자동 재생 안 함). 켤 때 알림 "유튜브 로그인 정보(쿠키)를 써요. 광고가 그대로면 끄세요". **광고를 막거나 숨기거나 건너뛰는 코드는 넣지 않는다** (프리미엄이 광고를 없애는지는 유튜브와 그 계정에 달림).
 - 화면 점검은 `tests/ui/fake-yt.js`(가짜 플레이어)·`checks/youtube.mjs`. 열쇠는 `run.mjs`의 가짜 글자만 쓴다.
 
 ## 곡 넣기 자동화 (`js/bulk.js`)
