@@ -5,7 +5,7 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import { PC, PHONE, PHONE_L, TV, READY_DEMO, openPage, seedSong, txt, visible, isHidden, count, marks, sawToast, sleep, enterTVNoFs } from './_lib.mjs';
+import { PC, PHONE, PHONE_L, TV, READY_DEMO, openPage, seedSong, txt, visible, isHidden, count, marks, sawToast, sawFlash, sleep, enterTVNoFs } from './_lib.mjs';
 import { wav } from '../fixtures.mjs';
 import { FAKE_HUB_HOST, FAKE_HUB_KEY, hubCode, fakeMail, makeFakeRealtime } from '../fakehub.mjs';
 export const areas = ['X'];
@@ -215,9 +215,11 @@ export default async function guest(ctx) {
   });
 
   // X6: 지금 곡 + 키 (G4)
-  await step('지금 곡 (G4): 방장이 시작 → 제목·진행 · 키 ♯·원래 키 (−2~+2)', ['X2', 'X6'], async () => {
+  await step('지금 곡 (G4): 방장이 시작 → 손님 차례 알림 · 제목·진행 · 키 ♯·원래 키 (−2~+2)', ['X2', 'X5', 'X6'], async () => {
+    const mkTurn = await marks(host);
     await host.eval('startNext()');
     ok('X6', await host.until(`state.playing && state.song && state.song.title==='QA 손님 첫곡'`, 15000), '방장 재생: ' + await host.eval('state.song && state.song.title'));
+    ok('X5', await sawFlash(host, /QA손님하나님 차례예요/, mkTurn, 5000), '손님 예약 곡이 시작되면 TV에 "QA손님하나님 차례예요" (CR-251 YT-r14)');
     await A.p.tap('.tabs [data-tab="tabNow"]');
     ok('X6', await A.p.until(`$('#nowTitle').textContent==='QA 손님 첫곡' && !$('#nowProgBox').hidden && !$('#keyUp').disabled`, 6000), 'A 지금 곡: ' + await txt(A.p, '#nowTitle'));
     ok('X6', /QA 손님 둘째곡/.test(await txt(A.p, '#nextBox')), '다음 곡: ' + await txt(A.p, '#nextBox'));
@@ -392,10 +394,17 @@ export default async function guest(ctx) {
     await host.eval(`$('#guestTvQr').click()`); await sleep(150);
     ok('X3', await visible(host, '#guestCard') && await host.eval(`localStorage.getItem('nb-guest-tv')===null`), '다시 켬');
     await A.p.tap('.tabs [data-tab="tabFind"]');
-    const mk_ = await marks(A.p);
-    await tapReserve(A, 'QA 손님 둘째곡');
-    ok('X5', await sawToast(A.p, /예약했어요 · 바로 시작해요/, mk_, 6000), 'TV 대기 중 손님 예약: ' + await txt(A.p, '#toast'));
-    ok('X5', await host.until(`state.playing && state.song.title==='QA 손님 둘째곡'`, 15000), '방장 TV에서 바로 시작');
+    const mk_ = await marks(A.p), mkT = await marks(host);
+    let turn = false;
+    try {
+      await host.emulate(TV); await sleep(300);      // CR-251 YT-24 사진: TV 1920에서 손님 곡이 바로 시작 → "QA손님하나님 차례예요"
+      await tapReserve(A, 'QA 손님 둘째곡');
+      ok('X5', await sawToast(A.p, /예약했어요 · 바로 시작해요/, mk_, 6000), 'TV 대기 중 손님 예약: ' + await txt(A.p, '#toast'));
+      ok('X5', await host.until(`state.playing && state.song.title==='QA 손님 둘째곡'`, 15000), '방장 TV에서 바로 시작');
+      turn = await sawFlash(host, /QA손님하나님 차례예요/, mkT, 5000);
+      if (turn) await shot(host, 'cr251-tv-1920-guest-turn.png');
+    } finally { await host.emulate(PC); await sleep(200); }
+    ok('X5', turn, 'TV 대기 중 손님 예약이 바로 시작돼도 "QA손님하나님 차례예요" (CR-251 YT-24)');
   });
 
   // X8: 방 닫기 → G6a · 옛 QR → G6b · 새 QR = 새 방 · 허브 연결 끊으면 방도 닫힘

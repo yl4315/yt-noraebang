@@ -68,11 +68,16 @@ function moveToTop(i) {
 async function startNext() {
   cancelNext();
   while (state.queue.length) {
+    const who = typeof guestNickAt === 'function' ? guestNickAt(0) : '';   // 손님 예약이면 시작할 때 차례 알림 (CR-251 YT-r14)
     const s = songById(state.queue.shift()); saveQueue(); renderQueue();
     if (!s) continue;
     hideScore(); closeOverlays();
     await selectSong(s);
-    if (state.song === s && songReady(s)) { state.offset = 0; await play(); return; }
+    if (state.song === s && songReady(s)) {
+      state.offset = 0; await play();
+      if (who && typeof guestTurnText === 'function' && state.song === s && (state.playing || ytSong(s))) flash(guestTurnText(who), 4000);
+      return;
+    }
     flash(`${s.no} ${s.title} · 불러오지 못해 건너뛰었어요`);
   }
 }

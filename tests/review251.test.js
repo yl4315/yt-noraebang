@@ -68,3 +68,12 @@ test('녹음 줄 "백업 안 됨" 표 (YT-16): 백업이 꺼져 있고 Drive에 
   assert.equal(recBackupMissing({ id: 'a' }, true), false);                  // 백업 켬 (다음 동기화 때 올라감)
   assert.equal(recBackupMissing(null, false), false);
 });
+
+test('손님 차례 알림 (YT-r14): 이름이 있으면 "OO님 차례예요", 이름 없는 손님은 "손님 차례예요", 손님 예약이 아니면 빈 글', () => {
+  const { guestTurnText } = load(['guestTurnText']);
+  assert.equal(guestTurnText('민지'), '민지님 차례예요');
+  assert.equal(guestTurnText('  민지 '), '민지님 차례예요');
+  assert.equal(guestTurnText('손님'), '손님 차례예요');
+  assert.equal(guestTurnText(''), '');
+  assert.equal(guestTurnText(null), '');
+});

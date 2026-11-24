@@ -893,6 +893,11 @@ function guestQueueMap(queue, res) {
   }
   return { at, live: res.filter((_, j) => used.has(j)) };
 }
+// 손님 차례 알림 글 (CR-251 YT-r14): 손님이 예약한 곡이 시작되면 TV에 "OO님 차례예요" (이름이 없으면 "손님 차례예요"). 손님 예약이 아니면 ''
+function guestTurnText(nick) {
+  const n = String(nick || '').trim();
+  return !n ? '' : n === '손님' ? '손님 차례예요' : `${n}님 차례예요`;
+}
 // 손님 모두에게 같이 가는 상태: 지금 곡(제목·가수·종류·진행·키)과 예약 목록 제목 10개.
 // 손님 예약 줄에는 예약 표(r)만 붙는다 (10개 뒤의 손님 예약 표는 rest). 손님 폰은 자기가 받은 표만 "내 예약"으로 안다
 function guestStateMsg({ now, playing, t, d, key, keyOk, queue, songOf, map, keyOn, yt }) {
