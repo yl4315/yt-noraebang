@@ -34,6 +34,7 @@ function renderSongs() {
     const st = songStatus(s);
     if (st) { const tg = el('span', 'stag ' + st.cls, st.text); tg.dataset.dl = s.id; li.querySelector('.a').append(tg); }
     if (lacksLyrics(s)) li.querySelector('.a').append(el('span', 'stag nolyr', '가사 없음'));
+    if (ytBlocked(s)) { const b = el('span', 'stag yblk', YT_BLOCK_TAG); b.title = YT_BLOCK_TIP; li.querySelector('.a').append(b); }   // 노래방에서 안 틀어지는 유튜브 곡 (CR-251 YT-01)
     const acts = li.querySelector('.acts');
     const ib = (html, tip, cls, fn) => { const b = document.createElement('button'); b.className = 'icon-btn ' + cls; b.type = 'button'; b.title = tip; b.innerHTML = html; b.onclick = e => { e.stopPropagation(); fn(b); }; acts.append(b); return b; };
     const rb = el('button', 'btn small', '예약'); rb.type = 'button'; rb.title = '예약 목록에 추가';

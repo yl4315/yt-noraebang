@@ -69,8 +69,16 @@ async function startNext() {
   cancelNext();
   while (state.queue.length) {
     const who = typeof guestNickAt === 'function' ? guestNickAt(0) : '';   // 손님 예약이면 시작할 때 차례 알림 (CR-251 YT-r14)
+    const gr = typeof guestResAt === 'function' ? guestResAt(0) : null;   // 그 손님 예약 표 (못 틀면 그 손님에게 알림, CR-251 YT-01)
     const s = songById(state.queue.shift()); saveQueue(); renderQueue();
     if (!s) continue;
+    // 노래방에서 안 틀어진다고 기억한 유튜브 곡은 차례가 오면 바로 건너뛴다 (CR-251 YT-01). 손으로 고르면 한 번 더 틀어 본다
+    if (ytBlocked(s)) {
+      flash(ytSkipText(s), 4000);
+      if (gr && typeof guestTellSkip === 'function') guestTellSkip(gr, s);
+      continue;
+    }
+    if (typeof guestStarted === 'function') guestStarted(gr, s);
     hideScore(); closeOverlays();
     if (typeof ytAutoStart === 'function') ytAutoStart(s);   // 유튜브 곡이 인터넷 탓에 못 틀면 3초 뒤 다음 곡 (yt.js ytNetFail, CR-251 YT-07)
     await selectSong(s);
@@ -105,6 +113,7 @@ function renderQueue() {
     const t = el('span', 't', s.title); t.append(el('small', '', s.artist || ''));
     const who = typeof guestNickAt === 'function' ? guestNickAt(i) : '';   // 손님 예약이면 손님 이름 (CR-228)
     if (who) t.append(el('small', 'who', who));
+    if (ytBlocked(s)) t.append(el('small', 'yblk', YT_BLOCK_TAG));   // 노래방에서 안 틀어지는 유튜브 곡 (CR-251 YT-01)
     li.append(el('span', 'i', i + 1), el('span', 'n', s.no), t); ol.append(li);
   });
   if (q.length > 7) { const li = document.createElement('li'); li.append(el('span', 'i', ''), el('span', 'n', ''), el('span', 't', `외 ${q.length - 7}곡`)); ol.append(li); }
@@ -121,6 +130,7 @@ function songRow(s, idx, sel, acts, extra) {
   if (isFav(s)) li.querySelector('.nm').append(el('small', 'stat', '♥'));
   if (isYtSong(s)) li.querySelector('.nm').append(el('span', 'ytag', '유튜브'));   // 유튜브 곡 (CR-030)
   else if (!onDevice(s)) li.querySelector('.nm').append(el('small', '', '☁'));
+  if (ytBlocked(s)) { const b = el('small', 'yblk', YT_BLOCK_TAG); b.title = YT_BLOCK_TIP; li.querySelector('.nm').append(b); }   // CR-251 YT-01
   if (extra) li.querySelector('.nm').append(Object.assign(document.createElement('small'), { className: 'stat', textContent: extra }));
   for (const [txt, cls, fn, aria] of acts) {   // aria: 짧은 글 단추의 읽어 주는 이름 (예: "우선" → "우선예약")
     const b = document.createElement('button'); b.type = 'button'; b.className = 'btn ' + cls; b.textContent = txt;

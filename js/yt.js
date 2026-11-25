@@ -221,6 +221,7 @@ function ytOnState(st) {
   if (st === 1) {
     clearTimeout(Yt.blockTimer); ytShowTap(false);
     Yt.auto = null;   // 틀어졌다 → 이 곡은 이제 손으로 다시 틀어도 안내만 (CR-251 YT-07)
+    if (s.ytBlocked != null) ytUnmark(s);   // 다시 골라서 틀어졌다 → "노래방에서 안 틀어짐" 표시를 지운다 (CR-251 YT-01)
     ytNoteMeta(s);
     if (!state.playing) {
       const fresh = Yt.fresh != null ? Yt.fresh : ytRawTime() < 0.5;
@@ -251,10 +252,21 @@ function ytOnError(code) {
   state.playing = false; state.offset = 0; state.score = null;
   updateTransportUI();
   ytShowErr(Yt.err);
+  if (ytBlockCode(Yt.err)) ytMarkBlocked(s, Yt.err);   // 지워짐·비공개·퍼가기 막힘은 곡에 기억 (CR-251 YT-01)
   // 바로 넘어가지 않고 안내를 보여 준 뒤 3초 뒤 다음 예약곡
   if (starting && !state.sync && state.queue.length) scheduleNext(3000);
   ytFrame(true);
 }
+// 노래방에서 안 틀어지는 영상(100 지워짐·비공개 · 101·150 퍼가기 막힘)을 곡에 기억한다 (CR-251 YT-01): s.ytBlocked = 오류 번호.
+// 곡 줄·예약 목록·리모컨·손님 화면에 "노래방에서 안 틀어짐", 예약 차례가 오면 바로 건너뜀 (karaoke.js startNext). 곡은 지우지 않고 다른 칸은 그대로.
+// 이 기기 IndexedDB에만 둔다 — SONG_FIELDS에 넣지 않아서 Drive library.json·백업 파일·허브에는 안 간다 (칸을 늘리면 예전 판이 지움).
+// 막힘을 피해 가지 않는다: 다시 고르면 한 번 더 그대로 틀어 보고, 틀어지면 표시를 지운다 (ytUnmark)
+function ytMarkBlocked(s, code) {
+  if (Yt.auto === s && typeof guestTellNow === 'function') guestTellNow(s);   // 손님 예약 차례였으면 그 손님에게 "넘어갔어요"
+  if (s.ytBlocked === code) return;
+  s.ytBlocked = code; persistSong(s, false, true); ytRefreshSong(s);
+}
+function ytUnmark(s) { delete s.ytBlocked; persistSong(s, false, true); ytRefreshSong(s); }
 // 플레이어가 아는 제목·길이를 곡에 적는다 (제목은 아직 "유튜브 영상 …"일 때만, 길이는 0.5초 넘게 다를 때만)
 function ytNoteMeta(s) {
   if (!ytApiReady() || Yt.loaded !== s.ytId) return;
@@ -361,7 +373,13 @@ function ytFrame(force) {
   stage.classList.toggle('yt-split', split);
   stage.classList.toggle('yt-narrow', narrow);
   stage.classList.toggle('yt-grow', split && phoneWin);
-  if (!show) { box.classList.add('off'); stage.classList.remove('yt-small'); return; }
+  // 숨길 때는 자리·크기도 CSS 기본(320×180)으로 되돌린다: 넓은 화면 자리가 남으면 폰을 세로로 돌리거나
+  // 창을 좁혔을 때 숨은 상자가 화면 밖으로 삐져나가 폰이 화면 전체를 작게 줄여 보였다 (CR-251 YT-01 점검 중 찾음)
+  if (!show) {
+    box.classList.add('off'); stage.classList.remove('yt-small');
+    if (Yt.lay.pos) { Object.assign(box.style, { position: '', left: '', top: '', width: '', height: '' }); Yt.lay = {}; }
+    return;
+  }
   const sr = stage.getBoundingClientRect();
   const pad = Math.max(6, Math.round(sr.width * 0.012));
   const head = stage.querySelector('.song-head').getBoundingClientRect();

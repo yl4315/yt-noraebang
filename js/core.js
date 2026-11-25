@@ -473,6 +473,18 @@ function ytErrLines(code, skip) {
 }
 // 인터넷 탓에 못 튼 유튜브 곡을 건너뛸까 (CR-251 YT-07): 예약 차례로 저절로 시작한 그 곡(auto)이 지금 곡이고, 싱크 편집 중이 아니고, 다음 예약곡이 있을 때만
 const ytNetSkips = (auto, song, sync, queued) => !!song && auto === song && !sync && queued > 0;
+// 노래방에서 안 틀어지는 영상 (CR-251 YT-01): 100 지워짐·비공개 · 101·150 퍼가기 막음 → 곡 줄 ytBlocked에 오류 번호를 적는다 (곡은 지우지 않음).
+// 2·5·153·인터넷 끊김·플레이어 못 불러옴은 다시 하면 될 수 있어서 적지 않는다. 다시 골라서 틀어지면 지운다 (yt.js)
+const ytBlockCode = code => code === 100 || code === 101 || code === 150;
+const ytBlocked = s => isYtSong(s) && ytBlockCode(s.ytBlocked);
+const YT_BLOCK_TAG = '노래방에서 안 틀어짐';
+const YT_BLOCK_TIP = '이 영상은 노래방에서 안 틀어져요 · 예약하면 차례에 건너뛰어요 · 눌러서 고르면 한 번 더 해 봐요';
+// 예약 줄에서 안 틀어지는 곡을 건너뛸 때: 노래방 화면 알림 · 그 곡을 예약한 손님 폰 알림 (guest.js)
+const ytSkipText = s => `${s.no} ${s.title} · 노래방에서 안 틀어져서 건너뛰었어요`;
+function guestSkipText(title) {
+  const t = String(title ?? '').replace(/\s+/g, ' ').trim();
+  return `${t || '예약한'} 곡은 노래방에서 안 틀어져서 넘어갔어요`;
+}
 // TV 유튜브 앱에서 찾을 말: "제목 가수 노래방" (ytSearchQuery와 같은 규칙). 제목을 모르는 곡("유튜브 영상 <번호>")이면 ''
 function ytAppFindWords(title, artist) {
   const t = String(title ?? '').replace(/\s+/g, ' ').trim();
@@ -928,11 +940,13 @@ function guestRateOk(log, now, perSec = GUEST_PER_SEC) {
   log.push(now); return true;
 }
 const guestKind = s => s && (s.source === 'yt' || s.ytId) ? 'yt' : s && s.video ? 'video' : 'mr';
+// 노래방에서 안 틀어지는 유튜브 곡(CR-251 YT-01)은 blocked:true (그런 곡에만 칸이 붙음 — 예전 손님 화면은 모르는 칸을 그냥 둔다)
+const guestBlock = s => ytBlocked(s) ? { blocked: true } : {};
 // 손님 검색 답: 번호·제목·가수·종류만, 30개까지 (♡·재생목록·녹음·점수·파일 정보 없음). total = 곡 창고 곡 수
 function guestSearchResult(songs, q) {
   const all = (songs || []).filter(s => s && !s.deleted && Number.isInteger(s.no));
   const hit = searchIn(all, q);
-  return { total: all.length, n: hit.length, items: hit.slice(0, GUEST_RESULTS).map(s => ({ no: s.no, title: guestCut(s.title, 80), artist: guestCut(s.artist, 60), kind: guestKind(s) })) };
+  return { total: all.length, n: hit.length, items: hit.slice(0, GUEST_RESULTS).map(s => ({ no: s.no, title: guestCut(s.title, 80), artist: guestCut(s.artist, 60), kind: guestKind(s), ...guestBlock(s) })) };
 }
 // 예약 목록의 어느 줄이 손님 예약인지 짝짓기. res = [{ rid, gid, id, nick }] (먼저 넣은 것부터).
 // 같은 곡이 여러 번 있으면 뒤에서부터 짝짓는다 (손님 예약은 보통 맨 뒤에 붙음). 짝이 없는 예약(이미 불렀거나 방장이 뺌)은 live에서 빠진다
@@ -951,7 +965,7 @@ function guestTurnText(nick) {
 // 손님 모두에게 같이 가는 상태: 지금 곡(제목·가수·종류·진행·키)과 예약 목록 제목 10개.
 // 손님 예약 줄에는 예약 표(r)만 붙는다 (10개 뒤의 손님 예약 표는 rest). 손님 폰은 자기가 받은 표만 "내 예약"으로 안다
 function guestStateMsg({ now, playing, t, d, key, keyOk, queue, songOf, map, keyOn, yt }) {
-  const row = (id, i) => { const s = songOf(id); const r = { title: guestCut(s?.title, 80), artist: guestCut(s?.artist, 60), kind: guestKind(s) }; if (map.at[i]) r.r = map.at[i].rid; return r; };
+  const row = (id, i) => { const s = songOf(id); const r = { title: guestCut(s?.title, 80), artist: guestCut(s?.artist, 60), kind: guestKind(s), ...guestBlock(s) }; if (map.at[i]) r.r = map.at[i].rid; return r; };
   return {
     v: GUEST_V, t: 'state',
     now: now ? { title: guestCut(now.title, 80), artist: guestCut(now.artist, 60), kind: guestKind(now), playing: !!playing, t: Math.max(0, Math.round(t || 0)), d: Math.max(0, Math.round(d || 0)), key: key | 0, keyOk: !!keyOk } : null,
@@ -1057,7 +1071,7 @@ function myCleanSongs(list) {
   const out = [];
   for (const s of Array.isArray(list) ? list : []) {
     if (!s || typeof s !== 'object' || !myTextOk(s.id, 100)) continue;
-    out.push({ id: s.id, no: Number.isInteger(s.no) ? s.no : 0, title: myStr(s.title, 200), artist: myStr(s.artist, 200), video: !!s.video, local: !!s.local });
+    out.push({ id: s.id, no: Number.isInteger(s.no) ? s.no : 0, title: myStr(s.title, 200), artist: myStr(s.artist, 200), video: !!s.video, local: !!s.local, ...(s.blocked === true ? { blocked: true } : {}) });   // blocked: 노래방에서 안 틀어지는 유튜브 곡 (CR-251 YT-01)
   }
   return out;
 }

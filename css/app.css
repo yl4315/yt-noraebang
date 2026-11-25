@@ -82,6 +82,7 @@ select{background:var(--btn-bg);border:1px solid var(--btn-line);border-radius:v
 .song .a{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;display:flex;align-items:baseline}
 .song .a .an{min-width:0;overflow:hidden;text-overflow:ellipsis}
 .song .a .stag{flex:none}
+.stag.yblk,.ov-row .nm small.yblk,#idleQueue small.yblk{color:var(--danger-ink)}   /* 노래방에서 안 틀어지는 유튜브 곡 (CR-251 YT-01) */
 .song .acts{display:flex;gap:2px}
 .icon-btn{background:none;border:0;color:var(--muted);padding:4px;border-radius:6px;display:inline-flex}
 @media (hover:hover){.icon-btn:hover{color:var(--ink);background:var(--line)}}

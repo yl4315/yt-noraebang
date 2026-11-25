@@ -33,7 +33,7 @@ function remoteState() {
   return {
     now: s ? { id: s.id, no: s.no, title: s.title, artist: s.artist || '', playing: state.playing, t: Math.round(curTime()), dur: Math.round(dur()), key: state.key || 0 } : null,
     queue: state.queue.filter(songById),
-    songs: state.songs.map(x => ({ id: x.id, no: x.no, title: x.title, artist: x.artist || '', video: !!x.video, local: onDevice(x) })),
+    songs: state.songs.map(x => ({ id: x.id, no: x.no, title: x.title, artist: x.artist || '', video: !!x.video, local: onDevice(x), ...(ytBlocked(x) ? { blocked: true } : {}) })),   // blocked: CR-251 YT-01
     profiles: liveProfiles().map(p => ({ id: p.id, name: p.name, color: avColor(p) })),
     me: me().id, favorites: me().favorites, playlists: me().playlists.map(p => ({ id: p.id, name: p.name, songs: p.songs })),
     tv: state.tv, rec: state.armed, mrVol: settings.mrVol,

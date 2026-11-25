@@ -1,4 +1,4 @@
-// 손님 방 (CR-228, X1~X8): 방장 PC 1 + 손님 폰 2로 본다. 가짜 허브(fakehub.mjs)의 가짜 Realtime 공개 broadcast만 쓰고 진짜 허브에는 연결 0.
+// 손님 방 (CR-228, X1~X8 · CR-251 YT-01 안 틀어지는 유튜브 곡 X12): 방장 PC 1 + 손님 폰 2로 본다. 가짜 허브(fakehub.mjs)의 가짜 Realtime 공개 broadcast만 쓰고 진짜 허브에는 연결 0.
 // Edge를 셋 켠다: 방장 · 손님 A(+ 꽉 참·옛 QR 손님) · 손님 B. 따로 켠 Edge = 따로 저장소 (손님 폰에 남는 것이 없는지 보려고).
 // 방 이름·연결 코드·허브 주소·키는 이 점검의 기록·결과표에도 쓰지 않는다: Node 변수에만 두고 "몇 개 보였나"만 센다.
 // 시험 곡·사용자 이름은 방장 Edge 임시 프로필에만 넣고, 점검이 끝나면 프로필째 지운다 (run.mjs).
@@ -412,6 +412,51 @@ export default async function guest(ctx) {
       if (turn) await shot(host, 'cr251-tv-1920-guest-turn.png');
     } finally { await host.emulate(PC); await sleep(200); }
     ok('X5', turn, 'TV 대기 중 손님 예약이 바로 시작돼도 "QA손님하나님 차례예요" (CR-251 YT-24)');
+  });
+
+  // X12: 노래방에서 안 틀어지는 유튜브 곡 (CR-251 YT-01)
+  await step('노래방에서 안 틀어지는 유튜브 곡 (CR-251 YT-01): 손님 검색·예약 목록에 "노래방에서 안 틀어짐" · 차례가 오면 바로 건너뜀 · 예약한 손님 폰에만 "OO 곡은 노래방에서 안 틀어져서 넘어갔어요"', ['X12'], async () => {
+    await host.eval(`(async()=>{ cancelNext(); stopPlayback(); hideScore(); closeOverlays(); if (state.tv) exitTV(); state.queue.length=0; saveQueue(); renderQueue(); })()`);
+    await closeDialogs();
+    // 방장 Edge에만: "노래방에서 안 틀어짐"으로 기억된 유튜브 곡 하나 (플레이어·가사 찾기를 부르지 않게 곡 줄을 바로 넣음)
+    const blk = await host.eval(`(async()=>{ const s={ id:uid(), no:nextSongNumbers(state.songs,1)[0], source:'yt', ytId:'QAytBlk0001', title:'QA 손님 막힌 영상', artist:'QA가수Y', lyrics:'', lyricOffset:0, createdAt:Date.now(), updatedAt:Date.now(), ytBlocked:150 };
+      state.songs.push(s); await DB.put('songs', songRecord(s)); renderSongs(); return {id:s.id, no:s.no, b:ytBlocked(s)} })()`);
+    try {
+      await A.p.tap('.tabs [data-tab="tabFind"]');
+      const from = R.log.length;
+      await A.p.eval(`$('#q').value=''`); await A.p.tap('#q'); await A.p.type('QA 손님 막힌');
+      const got = await A.p.until(`document.querySelectorAll('#findList .li').length===1`, 5000);
+      const t2 = await A.p.eval(`(document.querySelector('#findList .li .t2')||{}).textContent||''`);
+      const found = R.log.slice(from).filter(e => e.op === 'broadcast' && e.t === 'found').pop() || {};
+      ok('X12', blk.b && got && /유튜브 · 노래방에서 안 틀어짐$/.test(t2) && (found.keys || []).includes('blocked'), `손님 찾기 결과: "${t2}" · 방장이 돌려준 곡 칸 ${(found.keys || []).join(',')}`);
+      const mk_ = await marks(A.p);
+      await tapReserve(A, 'QA 손님 막힌 영상');
+      ok('X12', await sawToast(A.p, /예약했어요 · 1번째/, mk_), 'A 알림: ' + await txt(A.p, '#toast'));
+      await host.eval(`reserve(songById(${JSON.stringify(songs[2].id)}), false)`);      // 다음 곡은 방장이 넣은 MR
+      await host.until(`state.queue.length===2`, 4000);
+      await A.p.tap('.tabs [data-tab="tabQueue"]');
+      const chip = await A.p.until(`[...document.querySelectorAll('#queueList .chip.blk')].some(c=>c.textContent==='노래방에서 안 틀어짐')`, 5000);
+      const st = R.log.filter(e => e.op === 'broadcast' && e.t === 'state').pop() || {};
+      ok('X12', chip && (st.qKeys || []).includes('blocked') && (st.qKeys || []).every(k => ['artist', 'blocked', 'kind', 'r', 'title'].includes(k)), `손님 예약 목록 표시 ${chip} · 방장이 보낸 예약 목록 칸 ${(st.qKeys || []).join(',')}`);
+      await shot(A.p, 'cr251-yt01-guest-queue-mark.png');
+      // 차례: 방장은 건너뛰고 다음 곡 · 예약한 A에게만 알림 (B에게는 안 감)
+      const mkA = await marks(A.p), mkB = await marks(B.p), mkH = await marks(host), from2 = R.log.length;
+      await host.eval('startNext()');
+      const hf = await sawFlash(host, /QA 손님 막힌 영상 · 노래방에서 안 틀어져서 건너뛰었어요/, mkH, 4000);
+      const next = await host.until(`state.playing && state.song && state.song.title==='QA 손님 셋째곡'`, 15000);
+      const ta = await sawToast(A.p, /^QA 손님 막힌 영상 곡은 노래방에서 안 틀어져서 넘어갔어요$/, mkA, 5000);
+      const toastA = await txt(A.p, '#toast');
+      await shot(A.p, 'cr251-yt01-guest-skip.png');
+      await sleep(600);
+      const tb = await B.p.eval(`__ui.toasts.slice(${mkB.t}).filter(x=>/넘어갔어요/.test(x.text)).length`);
+      const sk = R.log.slice(from2).filter(e => e.op === 'broadcast' && e.event === 'h' && e.t === 'skip');
+      ok('X12', hf && next && ta && tb === 0 && sk.length === 1 && (sk[0].top || []).slice().sort().join(',') === 't,title,to,v',
+        `방장: 건너뜀 알림 ${hf} · 다음 곡(QA 손님 셋째곡) 재생 ${next} · A 폰 "${toastA}" ${ta} · B 폰 알림 ${tb}개 · 보낸 'skip' ${sk.length}번 (칸 ${sk[0] ? (sk[0].top || []).join(',') : '-'})`);
+    } finally {
+      await host.eval(`(async()=>{ cancelNext(); stopPlayback(); hideScore(); closeOverlays(); const id=${JSON.stringify(blk && blk.id)}; state.queue=state.queue.filter(x=>x!==id); saveQueue();
+        state.songs=state.songs.filter(s=>s.id!==id); try { await DB.del('songs', id); } catch {} renderSongs(); renderQueue(); })()`);
+      await A.p.tap('.tabs [data-tab="tabFind"]').catch(() => {});
+    }
   });
 
   // X8: 방 닫기 → G6a · 옛 QR → G6b · 새 QR = 새 방 · 허브 연결 끊으면 방도 닫힘

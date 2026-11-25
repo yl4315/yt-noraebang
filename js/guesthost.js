@@ -11,6 +11,7 @@ const Guest = {
   guests: new Map(),     // 손님 표 → { rate: [시각…], seen, nick }
   res: [],               // 손님 예약 [{ rid, gid, id, nick }] (core.js guestQueueMap으로 예약 목록 줄과 짝지음)
   all: [], last: '', lastAt: 0, tick: 0, note: '',
+  nowRes: null,          // 지금 예약 차례로 시작한 곡의 손님 예약 표 (처음 못 튼 유튜브 영상도 그 손님에게 알림, CR-251 YT-01)
   empty: 0,              // 손님이 0명이 된 시각 (0 = 손님 있음). 0명으로 GUEST_IDLE_MS가 지나면 방을 닫는다 (CR-251 YT-19)
   tvQr: lsGet('nb-guest-tv') !== '0',     // TV 대기 화면에 QR 보이기 (이 기기 설정)
   keyOn: lsGet('nb-guest-key') !== '0',   // 손님이 지금 곡 키 바꾸기 (−2~+2)
@@ -85,7 +86,7 @@ async function guestOpen() {
 async function guestClose(quiet) {
   const { ch, sb } = Guest;
   clearInterval(Guest.tick);
-  Object.assign(Guest, { on: false, sb: null, ch: null, room: null, url: null, qr: null, qrPx: 0, guests: new Map(), res: [], all: [], last: '', lastAt: 0, tick: 0, empty: 0 });
+  Object.assign(Guest, { on: false, sb: null, ch: null, room: null, url: null, qr: null, qrPx: 0, guests: new Map(), res: [], all: [], last: '', lastAt: 0, tick: 0, empty: 0, nowRes: null });
   if (ch) {
     try { await ch.send({ type: 'broadcast', event: 'h', payload: { v: GUEST_V, t: 'closed' } }); } catch {}
     try { await (sb ? sb.removeChannel(ch) : ch.unsubscribe()); } catch {}
@@ -147,6 +148,7 @@ async function guestYtReserve(m, g) {
   const rid = guestId();
   Guest.res.push({ rid, gid: m.gid, id: s.id, nick: g.nick }); renderQueue();
   guestReply(m, { t: 'ok', rid, pos: state.queue.lastIndexOf(s.id) + 1 });
+  if (ytBlocked(s) && !state.queue.includes(s.id)) guestTellSkip({ gid: m.gid }, s);   // TV 대기 화면에서 바로 차례가 와서 건너뜀 (예약 표를 넣기 전이라 startNext가 손님을 모름, CR-251 YT-01)
   guestSendState();
 }
 async function guestYtSearch(m) {
@@ -155,7 +157,7 @@ async function guestYtSearch(m) {
     try { items = ((await ytGuestSearch(m.q)) || []).filter(x => x && typeof x.ytId === 'string' && /^[A-Za-z0-9_-]{11}$/.test(x.ytId)); } catch {}
   }
   if (!Guest.on) return;
-  items = items.slice(0, GUEST_RESULTS).map(x => ({ ytId: x.ytId, title: String(x.title || '').slice(0, 80), artist: String(x.artist || '').slice(0, 60), kind: 'yt' }));
+  items = items.slice(0, GUEST_RESULTS).map(x => ({ ytId: x.ytId, title: String(x.title || '').slice(0, 80), artist: String(x.artist || '').slice(0, 60), kind: 'yt', ...guestBlock(findYtSong(state.songs, x.ytId)) }));
   guestReply(m, { t: 'found', kind: 'yt', n: items.length, items });
 }
 function guestUnreserve(m) {
@@ -204,6 +206,25 @@ function guestTick() {
   }
   if (gone) guestRender();
   guestSendState();
+}
+// 노래방에서 안 틀어지는 유튜브 곡 (CR-251 YT-01): 손님이 예약한 곡이 그래서 넘어가면 그 손님 폰에만 "OO 곡은 노래방에서 안 틀어져서 넘어갔어요" (guest.js 'skip').
+// guestResAt: 예약 목록 i번째 줄의 손님 예약 표 (karaoke.js startNext가 곡을 빼기 전에 부름) · guestStarted: 차례로 시작한 곡의 표를 기억 ·
+// guestTellNow: 그 곡이 처음으로 못 튼 영상이면(yt.js ytMarkBlocked) 기억한 손님에게 알림
+function guestResAt(i) {
+  if (!Guest.on || !Guest.res.length) return null;
+  return guestQueueMap(state.queue, Guest.res).at[i] || null;
+}
+function guestTellSkip(r, s) {
+  if (!r || !s) return;
+  const gid = r.gid, title = guestCut(s.title, 80);
+  // 한 박자 뒤에 보낸다: TV 대기 화면이면 예약하자마자 차례가 와서 건너뛰는데, 그때 "예약했어요" 답보다 먼저 가면 손님 폰 알림이 덮인다
+  setTimeout(() => { if (Guest.on && Guest.guests.has(gid)) guestReply({ gid }, { t: 'skip', title }); }, 0);
+}
+function guestStarted(r, s) { Guest.nowRes = r && s ? { gid: r.gid, rid: r.rid, id: s.id } : null; }
+function guestTellNow(s) {
+  const r = Guest.nowRes;
+  if (!r || !s || r.id !== s.id) return;
+  Guest.nowRes = null; guestTellSkip(r, s);
 }
 // 예약 목록 줄의 손님 이름 (karaoke.js renderQueue·renderQueueList가 부름). 방이 닫혀 있으면 ''
 function guestNickAt(i) {

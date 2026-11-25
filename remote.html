@@ -284,7 +284,7 @@ function render() {
 }
 function songItem(s, acts) {
   const li = el('li', 'item'), t = el('span', 't', s.title);
-  t.append(el('small', '', (s.artist || '') + (s.video ? ' · 영상' : '') + (s.local ? '' : ' · ☁')));
+  t.append(el('small', '', (s.artist || '') + (s.video ? ' · 영상' : '') + (s.local ? '' : ' · ☁') + (s.blocked === true ? ' · 노래방에서 안 틀어짐' : '')));   // CR-251 YT-01
   const a = el('span', 'acts');
   for (const [txt, cls, fn] of acts) { const b = el('button', 'sb ' + cls, txt); b.type = 'button'; b.onclick = fn; a.append(b); }
   li.append(el('span', 'no', s.no), t, a);

@@ -47,3 +47,45 @@ test('인터넷 탓에 못 튼 곡을 건너뛸까 (YT-07): 예약 차례로 시
   assert.equal(C.ytNetSkips(a, a, true, 3), false, '싱크 편집 중에는 넘어가지 않음');
   assert.equal(C.ytNetSkips(null, null, false, 3), false);
 });
+
+const D = load(['ytBlockCode', 'ytBlocked', 'YT_BLOCK_TAG', 'ytSkipText', 'guestSkipText', 'guestSearchResult', 'guestStateMsg', 'guestQueueMap', 'myCleanSongs']);
+const yt = (id, extra = {}) => ({ id, no: 30000 + id.length, title: `유튜브 ${id}`, artist: '가수', source: 'yt', ytId: 'abcdefghij' + id.slice(-1), ...extra });
+
+test('노래방에서 안 틀어지는 영상 기억 (YT-01): 100·101·150만 · 유튜브 곡만', () => {
+  for (const c of [100, 101, 150]) assert.equal(D.ytBlockCode(c), true, `오류 ${c}`);
+  for (const c of [2, 5, 153, 'offline', 'api', null, undefined, '150', 0]) assert.equal(D.ytBlockCode(c), false, `오류 ${c}는 다시 하면 될 수 있어서 적지 않음`);
+  assert.equal(D.ytBlocked(yt('a', { ytBlocked: 150 })), true);
+  assert.equal(D.ytBlocked(yt('b', { ytBlocked: 100 })), true);
+  assert.equal(D.ytBlocked(yt('c')), false, '표시 없는 유튜브 곡');
+  assert.equal(D.ytBlocked(yt('d', { ytBlocked: 5 })), false, '적지 않는 번호');
+  assert.equal(D.ytBlocked({ id: 'm', no: 1, title: 'MR', ytBlocked: 150 }), false, '내 MR 곡에는 표시하지 않음');
+  assert.equal(D.ytBlocked(null), false);
+  assert.equal(D.YT_BLOCK_TAG, '노래방에서 안 틀어짐');
+});
+
+test('건너뛸 때 알림 글 (YT-01): 노래방 화면 · 손님 폰', () => {
+  assert.equal(D.ytSkipText({ no: 30012, title: '첫눈' }), '30012 첫눈 · 노래방에서 안 틀어져서 건너뛰었어요');
+  assert.equal(D.guestSkipText('첫눈'), '첫눈 곡은 노래방에서 안 틀어져서 넘어갔어요');
+  assert.equal(D.guestSkipText('  첫  눈 \n'), '첫 눈 곡은 노래방에서 안 틀어져서 넘어갔어요', '빈칸 정리');
+  assert.equal(D.guestSkipText(''), '예약한 곡은 노래방에서 안 틀어져서 넘어갔어요');
+  assert.equal(D.guestSkipText(undefined), '예약한 곡은 노래방에서 안 틀어져서 넘어갔어요');
+});
+
+test('표시가 손님 화면·내 폰 리모컨으로 가는 칸 (YT-01): blocked:true는 그런 곡에만', () => {
+  const songs = [yt('a', { no: 30001, title: '시험 막힘', ytBlocked: 101 }), yt('b', { no: 30002, title: '시험 됨' }), { id: 'm', no: 10002, title: '시험 MR', artist: '' }];
+  const r = D.guestSearchResult(songs, '시험');
+  const by = Object.fromEntries(r.items.map(x => [x.no, x]));
+  assert.equal(by[30001].blocked, true);
+  assert.equal('blocked' in by[30002], false, '안 막힌 곡에는 칸이 없음 (예전 손님 화면 그대로)');
+  assert.deepEqual(Object.keys(by[10002]).sort(), ['artist', 'kind', 'no', 'title']);
+  const of = Object.fromEntries(songs.map(s => [s.id, s]));
+  const q = ['a', 'b', 'm'], map = D.guestQueueMap(q, [{ rid: 'r1', gid: 'g1', id: 'a', nick: '손님' }]);
+  const st = D.guestStateMsg({ now: null, queue: q, songOf: id => of[id], map, keyOn: false, yt: true });
+  assert.equal(st.q[0].blocked, true);
+  assert.equal(st.q[0].r, 'r1');
+  assert.equal('blocked' in st.q[1], false);
+  assert.equal('blocked' in st.q[2], false);
+  // 내 폰 리모컨 곡 목록: blocked는 true일 때만 남고, 다른 값은 버림
+  assert.deepEqual(plain(D.myCleanSongs([{ id: 'a', no: 1, title: 't', artist: 'r', video: false, local: true, blocked: true }, { id: 'b', no: 2, title: 'u', artist: '', blocked: 'yes' }])),
+    [{ id: 'a', no: 1, title: 't', artist: 'r', video: false, local: true, blocked: true }, { id: 'b', no: 2, title: 'u', artist: '', video: false, local: false }]);
+});
