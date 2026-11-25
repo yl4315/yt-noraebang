@@ -73,6 +73,8 @@ const ctx = {
   },
   wants(...areas) { return !ONLY || areas.some(a => ONLY.includes(a)); },
   netLog: [], lrcLog: [], lrcRules: [], ytLog: [], ytRules: [],
+  // 유튜브 Data API playlistItems·videos (CR-244 재생목록, 열쇠 길): ctx.ytListApi(kind, searchParams) → { status, body } (checks/ytlist.mjs가 정함, 없으면 404) · 로그 { kind, list, n, page, key, status }
+  ytListApi: null, ytListLog: [],
   // LRCLIB /api/get (CR-227 자동 싱크): 규칙 { track: 정규식, status, body, neterr, times } · 로그 { params(보낸 이름들), track, status }. 맞는 규칙이 없으면 404
   lrcGetLog: [], lrcGetRules: [],
   hub: makeFakeHub(),     // 가짜 허브 (fakehub.mjs). 진짜 허브에는 요청 0
@@ -169,6 +171,14 @@ function makeRouter(page) {
       ctx.ytLog.push({ q, key: key === YT_FAKE_KEY ? '가짜 열쇠' : key ? '다른 열쇠' : '없음', status: rule.status || 200, embeddable: u.searchParams.get('videoEmbeddable'), type: u.searchParams.get('type') });
       ctx.netLog.push({ kind: '가짜 답', url: u.origin + u.pathname + '?q=' + q });
       return { fulfill: { status: rule.status || 200, body: rule.body ?? { items: [] } } };
+    }
+    if (u.hostname === 'www.googleapis.com' && /^\/youtube\/v3\/(playlistItems|videos)$/.test(u.pathname)) {
+      const kind = u.pathname.split('/').pop(), sp = u.searchParams, key = sp.get('key') || '';
+      const r = (typeof ctx.ytListApi === 'function' && ctx.ytListApi(kind, sp)) || { status: 404, body: { error: { code: 404, errors: [{ reason: kind === 'videos' ? 'videoNotFound' : 'playlistNotFound' }] } } };
+      ctx.ytListLog.push({ kind, list: sp.get('playlistId') || '', n: (sp.get('id') || '').split(',').filter(Boolean).length, page: sp.get('pageToken') || '',
+        key: key === YT_FAKE_KEY ? '가짜 열쇠' : key ? '다른 열쇠' : '없음', status: r.status || 200 });
+      ctx.netLog.push({ kind: '가짜 답', url: u.origin + u.pathname });
+      return { fulfill: { status: r.status || 200, body: r.body ?? {} } };
     }
     if (u.hostname === 'i.ytimg.com') {
       ctx.netLog.push({ kind: '가짜 답', url: u.origin + u.pathname });
@@ -389,7 +399,7 @@ try {
   if ((!ONLY && !CHECKS) || SHOTS_ONLY) shots = await shotMod.default(ctx);
   // 2) 기능 점검
   if (!SHOTS_ONLY) {
-    const order = ['basics', 'songs', 'bulk', 'video', 'reserve', 'profiles', 'keys', 'syncedit', 'tv', 'touch', 'tvtoast', 'record', 'mic', 'settings', 'backup', 'remote', 'mr', 'youtube', 'align', 'offline', 'devsync', 'hide', 'hub', 'guest', 'myremote'];
+    const order = ['basics', 'songs', 'bulk', 'video', 'reserve', 'profiles', 'keys', 'syncedit', 'tv', 'touch', 'tvtoast', 'record', 'mic', 'settings', 'backup', 'remote', 'mr', 'youtube', 'ytlist', 'align', 'offline', 'devsync', 'hide', 'hub', 'guest', 'myremote'];
     // 마이크는 '거부' 상태로 시작한다 (마이크가 꺼진 채의 안내를 먼저 본다. 가짜 마이크는 mic 점검에서 켠다)
     await ctx.p.eval(`localStorage.setItem('__ui-mic','deny')`);
     ctx.ids = {};
