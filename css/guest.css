@@ -73,6 +73,7 @@ input.field{padding:0 var(--space-xl)}
 .li .chips{display:flex;gap:6px;margin-top:4px}
 .more,.empty{padding:14px 0}
 .chip{display:inline-flex;align-items:center;height:22px;border-radius:var(--radius-xs);padding:0 6px;font-size:11px;font-weight:700;background:var(--color-selected);color:var(--color-text-muted-strong);white-space:nowrap}
+.chip.blk{color:var(--color-danger);background:transparent;border:1px solid var(--color-danger)}   /* 노래방에서 안 틀어짐 (CR-251 YT-01) */
 .chip.me{color:var(--color-info);background:transparent;border:1px solid var(--color-info)}
 .card{background:var(--color-surface);border-radius:var(--radius-lg);padding:var(--space-card);margin-top:4px}
 .now-t{font:var(--font-title-sheet);margin-top:6px;overflow-wrap:anywhere}

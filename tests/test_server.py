@@ -85,6 +85,14 @@ class ServerTest(ServerBase):
         # 이미 가져간 명령은 다시 오지 않는다
         self.assertEqual(json.loads(self.get(f"/api/remote/poll?since={data['last']}")[1])['cmds'], [])
 
+    def test_poll_tells_server_boot_mark(self):
+        # CR-251 YT-r12: 서버를 껐다 켜면 명령 번호가 0부터 다시 → 화면이 알아채도록 켤 때마다 새 표(boot)를 같이 준다
+        a = json.loads(self.get('/api/remote/poll?since=0')[1])
+        b = json.loads(self.get('/api/remote/poll?since=0')[1])
+        self.assertRegex(a['boot'], r'^[0-9a-f]{8}$')
+        self.assertEqual(a['boot'], b['boot'])
+        self.assertEqual(a['boot'], server.BOOT)
+
     def test_too_big_request_is_refused(self):
         # 2MB가 넘는 요청은 몸통을 읽지 않고 거절한다 (CR-019: N14 "2MB 넘는 요청은 거절"의 테스트)
         import http.client
@@ -122,6 +130,52 @@ class ServerTest(ServerBase):
         self.post('/api/remote/cmd', {'pin': server.PIN, 'cmd': 'reserve', 'args': 'oops'})
         data = json.loads(self.get('/api/remote/poll?since=0')[1])
         self.assertEqual(data['cmds'][0]['args'], {})
+
+
+class PinLimitTest(unittest.TestCase):
+    """옛 폰 리모컨 4자리 코드 (CR-251 YT-21): IP마다 10번 → 1분 쉬기는 그대로, 모든 기기 합쳐 1분에 20번 틀리면 10분 쉬기"""
+
+    def setUp(self):
+        server.fails.clear()
+        self.addCleanup(server.fails.clear)
+        self.now = 1_000_000.0
+        p = mock.patch.object(server.time, 'time', side_effect=lambda: self.now)
+        p.start(); self.addCleanup(p.stop)
+
+    def ask(self, ip, pin):
+        h = server.Handler.__new__(server.Handler)   # 요청 없이 코드 확인만 (시험용 주소 192.0.2.x = 문서용)
+        h.client_address = (ip, 50000)
+        return h.pin_ok(pin)
+
+    def wrong(self):
+        return '0000' if server.PIN != '0000' else '1111'
+
+    def test_per_ip_rest_kept(self):
+        for _ in range(10):
+            self.assertFalse(self.ask('192.0.2.1', self.wrong()))
+        self.assertFalse(self.ask('192.0.2.1', server.PIN))        # 그 IP는 1분 쉬기
+        self.assertTrue(self.ask('192.0.2.2', server.PIN))         # 다른 기기는 그대로 (전체 10번 < 20번)
+        self.now += 61
+        self.assertTrue(self.ask('192.0.2.1', server.PIN))
+
+    def test_all_devices_rest_10_minutes(self):
+        for i in range(19):                                       # IP를 바꿔 가며 (IP마다는 10번이 안 됨)
+            self.assertFalse(self.ask('192.0.2.%d' % (i % 3 + 1), self.wrong()))
+        self.assertTrue(self.ask('192.0.2.9', server.PIN))         # 19번까지는 맞는 코드가 통함
+        self.assertFalse(self.ask('192.0.2.4', self.wrong()))      # 20번째 → 모든 기기 10분 쉬기
+        self.assertFalse(self.ask('192.0.2.9', server.PIN))
+        self.now += 599
+        self.assertFalse(self.ask('192.0.2.9', server.PIN))
+        self.now += 2
+        self.assertTrue(self.ask('192.0.2.9', server.PIN))
+
+    def test_window_resets_after_a_minute(self):
+        for i in range(15):
+            self.assertFalse(self.ask('192.0.2.%d' % (i % 3 + 1), self.wrong()))
+        self.now += 61                                            # 1분이 지나면 다시 셈
+        for i in range(15):
+            self.assertFalse(self.ask('192.0.2.%d' % (i % 3 + 5), self.wrong()))
+        self.assertTrue(self.ask('192.0.2.9', server.PIN))
 
 
 class SecondStartTest(unittest.TestCase):

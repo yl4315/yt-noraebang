@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <!-- 이 화면이 불러오는 스크립트·요청 주소 (CR-227). 새 바깥 주소를 쓰면 여기에 더해요. blob: = 소리 녹음(AudioWorklet)·키 바꾸기(Worker) -->
-<meta http-equiv="Content-Security-Policy" content="script-src 'self' blob: https://accounts.google.com https://cdnjs.cloudflare.com https://www.youtube.com https://s.ytimg.com; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://lrclib.net https://cdnjs.cloudflare.com https://www.googleapis.com https://accounts.google.com https://oauth2.googleapis.com https://*.googleusercontent.com; object-src 'none'; base-uri 'self'">
+<meta http-equiv="Content-Security-Policy" content="script-src 'self' blob: https://accounts.google.com https://www.youtube.com https://s.ytimg.com; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://lrclib.net https://www.googleapis.com https://accounts.google.com https://oauth2.googleapis.com https://*.googleusercontent.com; object-src 'none'; base-uri 'self'">
 <title>예태 노래방</title>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#121316">
@@ -124,6 +124,7 @@
               <span id="guestCardLine">같이 있는 사람이 폰으로 곡을 찾아 예약해요</span>
               <small id="guestCardSub" hidden></small>
               <button class="btn small" id="guestCardBtn" type="button" hidden>손님 QR 켜기</button>
+              <button class="btn small ghost" id="guestCardClose" type="button" hidden>방 닫기</button>
             </div>
           </div>
         </div>

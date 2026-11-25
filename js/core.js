@@ -455,6 +455,36 @@ const ytErrToApp = code => code === 101 || code === 150;
 // www.youtube.com (그 브라우저의 유튜브 로그인 쿠키를 씀). 값은 이 기기 localStorage에만 — 백업 파일·Drive·허브·손님 폰에 안 간다
 const YT_WWW_KEY = 'nb-yt-www';
 const ytHostFor = www => www ? 'https://www.youtube.com' : 'https://www.youtube-nocookie.com';
+// 못 트는 유튜브 곡 안내 두 줄 { head, why } (yt.js ytShowErr). code = 플레이어 오류 번호 · 'offline'(인터넷 끊김) · 'api'(플레이어를 못 불러옴).
+// skip (CR-251 YT-07): 예약곡이 저절로 이어지던 중이라 3초 뒤 다음 예약곡으로 넘어간다 → 인터넷 탓 두 가지는 "못 틀어서 건너뛰어요"
+// (영상 오류는 skip이어도 글이 같다: 그때도 예전부터 다음 곡 카드가 3초를 센다)
+const YT_ERR_WHY = {
+  2: '영상 주소가 잘못됐어요', 5: '이 브라우저에서 틀 수 없는 영상이에요', 100: '지워졌거나 비공개인 영상이에요',
+  101: '올린 사람이 다른 곳에서 틀지 못하게 막았어요', 150: '올린 사람이 다른 곳에서 틀지 못하게 막았어요',
+  153: '유튜브가 이 화면 주소를 확인하지 못했어요',
+};
+function ytErrLines(code, skip) {
+  const head = code === 'offline' ? '인터넷이 끊겨서 유튜브 곡을 틀 수 없어요'
+    : code === 'api' ? '유튜브 플레이어를 불러오지 못했어요' : '이 영상은 노래방에서 틀 수 없어요';
+  const why = skip && (code === 'offline' || code === 'api') ? '못 틀어서 건너뛰어요 · 인터넷이 되면 이 곡을 다시 골라 주세요'
+    : code === 'offline' ? '인터넷이 다시 되면 곡을 다시 골라 주세요'
+    : code === 'api' ? '인터넷 연결을 확인하고 곡을 다시 골라 주세요' : (YT_ERR_WHY[code] || `유튜브 오류 (${code})`);
+  return { head, why };
+}
+// 인터넷 탓에 못 튼 유튜브 곡을 건너뛸까 (CR-251 YT-07): 예약 차례로 저절로 시작한 그 곡(auto)이 지금 곡이고, 싱크 편집 중이 아니고, 다음 예약곡이 있을 때만
+const ytNetSkips = (auto, song, sync, queued) => !!song && auto === song && !sync && queued > 0;
+// 노래방에서 안 틀어지는 영상 (CR-251 YT-01): 100 지워짐·비공개 · 101·150 퍼가기 막음 → 곡 줄 ytBlocked에 오류 번호를 적는다 (곡은 지우지 않음).
+// 2·5·153·인터넷 끊김·플레이어 못 불러옴은 다시 하면 될 수 있어서 적지 않는다. 다시 골라서 틀어지면 지운다 (yt.js)
+const ytBlockCode = code => code === 100 || code === 101 || code === 150;
+const ytBlocked = s => isYtSong(s) && ytBlockCode(s.ytBlocked);
+const YT_BLOCK_TAG = '노래방에서 안 틀어짐';
+const YT_BLOCK_TIP = '이 영상은 노래방에서 안 틀어져요 · 예약하면 차례에 건너뛰어요 · 눌러서 고르면 한 번 더 해 봐요';
+// 예약 줄에서 안 틀어지는 곡을 건너뛸 때: 노래방 화면 알림 · 그 곡을 예약한 손님 폰 알림 (guest.js)
+const ytSkipText = s => `${s.no} ${s.title} · 노래방에서 안 틀어져서 건너뛰었어요`;
+function guestSkipText(title) {
+  const t = String(title ?? '').replace(/\s+/g, ' ').trim();
+  return `${t || '예약한'} 곡은 노래방에서 안 틀어져서 넘어갔어요`;
+}
 // TV 유튜브 앱에서 찾을 말: "제목 가수 노래방" (ytSearchQuery와 같은 규칙). 제목을 모르는 곡("유튜브 영상 <번호>")이면 ''
 function ytAppFindWords(title, artist) {
   const t = String(title ?? '').replace(/\s+/g, ' ').trim();
@@ -853,10 +883,28 @@ const guestRoomName = rng => 'nbr-' + guestRand(32, rng);
 // 손님 표(손님 폰이 만듦)·예약 표(방장이 만듦): 16바이트 난수 22자. 이름·기기 정보가 아님
 const guestId = rng => guestRand(16, rng);
 // QR 주소: <노래방 폴더>/guest.html#r=<방 이름>&c=<연결 코드>. 값은 # 뒤에만 (서버 기록·Referer에 안 남게), ? 없음
-function guestUrl(base, room, code) {
-  const b = String(base || '').replace(/[?#].*$/, '').replace(/[^/]*$/, '');
+// pub (CR-251 YT-06): 방장 화면을 PC 바로가기(localhost·사설 IP·이름만 있는 주소·http)로 열었으면 손님 폰은 그 주소에 못 들어온다
+// → 공개 주소 pub(https만)을 바탕으로 쓴다. 손님 화면은 허브에만 붙으므로 어느 주소에서 열어도 같은 방. pub가 없으면 예전 그대로
+function guestUrl(base, room, code, pub) {
+  let b = String(base || '').replace(/[?#].*$/, '').replace(/[^/]*$/, '');
   if (!/^https?:\/\/[^/?#]+\//.test(b) || !GUEST_ROOM_RE.test(String(room)) || !hubCodeParse(code).ok) return null;
+  const p = String(pub || '').replace(/[?#].*$/, '').replace(/[^/]*$/, '');
+  if (/^https:\/\/[^/?#]+\//.test(p)) {
+    const host = b.replace(/^https?:\/\/(?:[^@/]*@)?([^/]+)\/.*$/, '$1').replace(/:\d+$/, '').replace(/^\[|\]$/g, '').toLowerCase();
+    const local = /^http:/.test(b) || !host.includes('.') && !host.includes(':')
+      || /(^|\.)(localhost|local|lan|home|internal)$/.test(host)
+      || /^(127|10)\.\d+\.\d+\.\d+$|^192\.168\.\d+\.\d+$|^172\.(1[6-9]|2\d|3[01])\.\d+\.\d+$|^169\.254\.\d+\.\d+$|^0\.0\.0\.0$/.test(host)
+      || /^(::1?|f[cd][0-9a-f]{0,2}:.*|fe[89ab][0-9a-f]?:.*)$/.test(host);
+    if (local) b = p;
+  }
   return b + 'guest.html#r=' + room + '&c=' + code;
+}
+// 손님 방 저절로 닫기 (CR-251 YT-19): 손님이 0명인 채로 ms(2시간)가 지나면 닫는다. 손님이 있으면 시계를 0으로 되돌린다.
+// emptySince = 손님이 0명이 된 시각 (0 = 지금 손님 있음). 돌려줌 { emptySince, close }
+function guestIdleStep(emptySince, guests, now, ms) {
+  if (guests > 0) return { emptySince: 0, close: false };
+  const since = emptySince > 0 ? emptySince : now;
+  return { emptySince: since, close: now - since >= ms };
 }
 // 손님 폰: 주소의 # 읽기. 맞으면 { ok:true, room, u, k }, 아니면 { ok:false } (틀린 값은 돌려주지 않는다)
 function guestUrlParse(hash) {
@@ -892,11 +940,13 @@ function guestRateOk(log, now, perSec = GUEST_PER_SEC) {
   log.push(now); return true;
 }
 const guestKind = s => s && (s.source === 'yt' || s.ytId) ? 'yt' : s && s.video ? 'video' : 'mr';
+// 노래방에서 안 틀어지는 유튜브 곡(CR-251 YT-01)은 blocked:true (그런 곡에만 칸이 붙음 — 예전 손님 화면은 모르는 칸을 그냥 둔다)
+const guestBlock = s => ytBlocked(s) ? { blocked: true } : {};
 // 손님 검색 답: 번호·제목·가수·종류만, 30개까지 (♡·재생목록·녹음·점수·파일 정보 없음). total = 곡 창고 곡 수
 function guestSearchResult(songs, q) {
   const all = (songs || []).filter(s => s && !s.deleted && Number.isInteger(s.no));
   const hit = searchIn(all, q);
-  return { total: all.length, n: hit.length, items: hit.slice(0, GUEST_RESULTS).map(s => ({ no: s.no, title: guestCut(s.title, 80), artist: guestCut(s.artist, 60), kind: guestKind(s) })) };
+  return { total: all.length, n: hit.length, items: hit.slice(0, GUEST_RESULTS).map(s => ({ no: s.no, title: guestCut(s.title, 80), artist: guestCut(s.artist, 60), kind: guestKind(s), ...guestBlock(s) })) };
 }
 // 예약 목록의 어느 줄이 손님 예약인지 짝짓기. res = [{ rid, gid, id, nick }] (먼저 넣은 것부터).
 // 같은 곡이 여러 번 있으면 뒤에서부터 짝짓는다 (손님 예약은 보통 맨 뒤에 붙음). 짝이 없는 예약(이미 불렀거나 방장이 뺌)은 live에서 빠진다
@@ -907,10 +957,15 @@ function guestQueueMap(queue, res) {
   }
   return { at, live: res.filter((_, j) => used.has(j)) };
 }
+// 손님 차례 알림 글 (CR-251 YT-r14): 손님이 예약한 곡이 시작되면 TV에 "OO님 차례예요" (이름이 없으면 "손님 차례예요"). 손님 예약이 아니면 ''
+function guestTurnText(nick) {
+  const n = String(nick || '').trim();
+  return !n ? '' : n === '손님' ? '손님 차례예요' : `${n}님 차례예요`;
+}
 // 손님 모두에게 같이 가는 상태: 지금 곡(제목·가수·종류·진행·키)과 예약 목록 제목 10개.
 // 손님 예약 줄에는 예약 표(r)만 붙는다 (10개 뒤의 손님 예약 표는 rest). 손님 폰은 자기가 받은 표만 "내 예약"으로 안다
 function guestStateMsg({ now, playing, t, d, key, keyOk, queue, songOf, map, keyOn, yt }) {
-  const row = (id, i) => { const s = songOf(id); const r = { title: guestCut(s?.title, 80), artist: guestCut(s?.artist, 60), kind: guestKind(s) }; if (map.at[i]) r.r = map.at[i].rid; return r; };
+  const row = (id, i) => { const s = songOf(id); const r = { title: guestCut(s?.title, 80), artist: guestCut(s?.artist, 60), kind: guestKind(s), ...guestBlock(s) }; if (map.at[i]) r.r = map.at[i].rid; return r; };
   return {
     v: GUEST_V, t: 'state',
     now: now ? { title: guestCut(now.title, 80), artist: guestCut(now.artist, 60), kind: guestKind(now), playing: !!playing, t: Math.max(0, Math.round(t || 0)), d: Math.max(0, Math.round(d || 0)), key: key | 0, keyOk: !!keyOk } : null,
@@ -1016,7 +1071,7 @@ function myCleanSongs(list) {
   const out = [];
   for (const s of Array.isArray(list) ? list : []) {
     if (!s || typeof s !== 'object' || !myTextOk(s.id, 100)) continue;
-    out.push({ id: s.id, no: Number.isInteger(s.no) ? s.no : 0, title: myStr(s.title, 200), artist: myStr(s.artist, 200), video: !!s.video, local: !!s.local });
+    out.push({ id: s.id, no: Number.isInteger(s.no) ? s.no : 0, title: myStr(s.title, 200), artist: myStr(s.artist, 200), video: !!s.video, local: !!s.local, ...(s.blocked === true ? { blocked: true } : {}) });   // blocked: 노래방에서 안 틀어지는 유튜브 곡 (CR-251 YT-01)
   }
   return out;
 }
@@ -1043,6 +1098,39 @@ function remoteModePick({ status, body } = {}) {
   if (status === 403 && obj && body.error === 'local only') return 'server';
   return 'hub';
 }
+// 소리 메모리 비우기 (CR-251 YT-r1 = YT-08): 곡을 고를 때마다 풀어 둔 반주(AudioBuffer, 4분 곡에 약 80MB)가 끝없이 쌓이지 않게,
+// keep(지금 곡·다음 예약 곡·녹음 중인 곡, 곡 또는 곡 id)과 데모 곡(만들기가 오래 걸려서)은 늘 두고, 나머지 풀어 둔 내 MR 곡은
+// 최근에 고른 것(usedAt 숫자가 큰 것)부터 합친 크기가 budget(바이트) 안이면 두고, 넘는 곡부터 그보다 오래된 곡은 모두 놓을 곡으로 돌려준다.
+// budget이 0·없음이면 모두 놓는다. 크기 = 길이 × 채널 수 × 4바이트 (AudioBuffer는 float32)
+function songBuffersToFree(songs, keep, budget, usedAt) {
+  const k = new Set((keep || []).filter(Boolean));
+  const list = (songs || []).filter(s => s && s.buffer && !s.demo && !k.has(s) && !k.has(s.id));
+  const max = Number(budget) > 0 ? Number(budget) : 0;
+  if (!max) return list;
+  const at = s => { const n = typeof usedAt === 'function' ? Number(usedAt(s)) : 0; return Number.isFinite(n) ? n : 0; };
+  const bytes = b => Math.max(0, Number(b.length) || 0) * Math.max(1, Number(b.numberOfChannels) || 1) * 4;
+  const out = []; let used = 0, over = false;
+  for (const s of list.slice().sort((x, y) => at(y) - at(x))) {
+    if (!over && used + bytes(s.buffer) <= max) used += bytes(s.buffer); else { over = true; out.push(s); }
+  }
+  return out;
+}
+// 최근 것만 두는 Map (CR-251 YT-r1, 녹음 미리듣기 캐시): 넣은 것을 맨 뒤로, max개를 넘으면 가장 오래 안 쓴 것부터 뺀다
+function lruSet(map, key, value, max) {
+  map.delete(key); map.set(key, value);
+  while (map.size > Math.max(1, max | 0)) map.delete(map.keys().next().value);
+  return map;
+}
+// 옛 폰 리모컨 받아 오기 (server.py /api/remote/poll, CR-251 YT-r12): 검은 서버 창을 껐다 켜면 명령 번호가 0부터 다시 시작한다.
+// prev = 화면이 가진 { since, boot }, res = 서버 답 { last, boot }. 서버 표(boot)가 바뀌었거나 번호가 줄었으면 restarted:
+// 그 답의 명령은 실행하지 않고 since = 0으로 돌려 다음 번에 새 서버의 명령을 처음부터 받는다 (화면은 상태도 다시 올림)
+function remotePollNext(prev, res) {
+  const p = prev || {}, r = res || {}, since = Number.isInteger(p.since) && p.since >= 0 ? p.since : 0;
+  const last = Number.isInteger(r.last) && r.last >= 0 ? r.last : since;
+  const boot = typeof r.boot === 'string' && r.boot ? r.boot : (p.boot || null);
+  const restarted = (!!p.boot && !!boot && boot !== p.boot) || last < since;
+  return { since: restarted ? 0 : last, boot, restarted };
+}
 // TV 대기 화면 내 폰 리모컨 QR 주소 (CR-228 ④ L6): 노래방을 연 곳과 같은 곳의 remote.html.
 // 방 이름·코드·계정은 넣지 않는다 (`?`·`#`·사용자 이름 없음). 방 이름은 폰이 허브 열쇠 칸에서 읽는다
 function myRemoteUrl(href) {
@@ -1059,6 +1147,15 @@ const SMALL_BITRATE = 128000;      // AAC-LC 128kbps 스테레오 (4분 곡 약 
 // 눈에 안 보이는 글자: 제어 글자(0~1F, 7F~9F), 소프트 하이픈, 폭 없는 공백·방향 표시(200B~200F, 2028~202E, 2060~206F), BOM(FEFF)
 const INVISIBLE_CHARS = new RegExp('[' + [[0x00, 0x1f], [0x7f, 0x9f], [0xad, 0xad], [0x200b, 0x200f], [0x2028, 0x202e], [0x2060, 0x206f], [0xfeff, 0xfeff]]
   .map(([a, b]) => String.fromCharCode(a) + '-' + String.fromCharCode(b)).join('') + ']', 'g');
+// 녹음 저장 알림 글 (CR-251 YT-r11 = YT-16): 녹음 백업(설정 "녹음도 Drive에 백업하기")이 꺼져 있으면 이 기기에만 있다고, 켜는 곳과 같이 알린다
+// (백업은 저절로 켜지 않는다: 4분 녹음에 약 23MB라 켜는 것은 사람이)
+function recSavedText(title, len, backupOn) {
+  return `녹음 저장됨 · ${title} (${len})${backupOn ? '' : ' · 이 기기에만 있어요 · 백업 켜기: 설정 › 곡 창고'} · 박자가 어긋나면 '싱크·믹스 조절'에서 고칠 수 있어요`;
+}
+// 녹음 줄 "백업 안 됨" 표 (CR-251 YT-16): 녹음 백업이 꺼져 있고 Drive에도 아직 없는 녹음 (Drive에 올라간 녹음은 fileId가 있다)
+function recBackupMissing(rec, backupOn) {
+  return !backupOn && !!rec && !rec.fileId;
+}
 // 녹음 파일 이름: 곡이름_YYYYMMDD-HHMM.확장자 (시각 = 녹음한 시각, 이 기기 시간). 한글 그대로.
 // 풀어 쓴 한글(NFD) → 한 글자로(NFC), 눈에 안 보이는 제어 글자 빼기, \ / : * ? " < > | → _, 앞뒤 공백·점 빼기, 제목 50자, 빈 제목은 "녹음"
 function recFileName(title, createdAt, ext) {

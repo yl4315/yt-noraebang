@@ -11,12 +11,18 @@ const Guest = {
   guests: new Map(),     // 손님 표 → { rate: [시각…], seen, nick }
   res: [],               // 손님 예약 [{ rid, gid, id, nick }] (core.js guestQueueMap으로 예약 목록 줄과 짝지음)
   all: [], last: '', lastAt: 0, tick: 0, note: '',
+  nowRes: null,          // 지금 예약 차례로 시작한 곡의 손님 예약 표 (처음 못 튼 유튜브 영상도 그 손님에게 알림, CR-251 YT-01)
+  empty: 0,              // 손님이 0명이 된 시각 (0 = 손님 있음). 0명으로 GUEST_IDLE_MS가 지나면 방을 닫는다 (CR-251 YT-19)
   tvQr: lsGet('nb-guest-tv') !== '0',     // TV 대기 화면에 QR 보이기 (이 기기 설정)
   keyOn: lsGet('nb-guest-key') !== '0',   // 손님이 지금 곡 키 바꾸기 (−2~+2)
 };
 const GUEST_ROOM_PER_SEC = 30;     // 방 전체 1초 30개까지 (손님이 아닌 표가 보내는 hello도 셈)
 const GUEST_SEEN_MS = 60000;       // 손님 폰은 20초마다 hello. 60초 소식이 없으면 나간 것으로 셈
 const GUEST_EVERY_MS = 20000;      // 상태가 안 바뀌어도 20초마다 한 번 (손님 폰은 60초 동안 소식이 없으면 끊김으로 봄)
+const GUEST_IDLE_MS = 2 * 3600e3;  // 손님 0명으로 2시간이면 방을 저절로 닫음 (CR-251 YT-19: QR 사진이 퍼져도 방이 계속 열려 있지 않게)
+// 손님 QR 바탕 주소 (CR-251 YT-06): 이 화면을 localhost·사설 IP·http로 열었으면 손님 폰이 못 들어오니 공개 Pages 주소로 (core.js guestUrl).
+// 화면 점검(tests/ui/checks/guest.mjs)은 가짜 서버로 열려고 이 값을 바꾼다
+let GUEST_PUBLIC_BASE = 'https://yl4315.github.io/yt-noraebang/';
 const guestYtOn = () => typeof ytReserve === 'function';   // 유튜브 곡 예약 (CR-030 yt.js가 있을 때만)
 
 /* ---------------- QR 그림 (js/vendor/toqr-0.1.1.mjs, 이 저장소 안 사본) ---------------- */
@@ -67,7 +73,7 @@ async function guestOpen() {
     return false;
   }
   Object.assign(Guest, { on: true, busy: false, sb, ch, room, qr: null, qrPx: 0, guests: new Map(), res: [], all: [], last: '', lastAt: 0,
-    url: guestUrl(location.href, room, hubCodeMake(Hub.conf.u, Hub.conf.k)) });
+    empty: Date.now(), url: guestUrl(location.href, room, hubCodeMake(Hub.conf.u, Hub.conf.k), GUEST_PUBLIC_BASE) });
   clearInterval(Guest.tick); Guest.tick = setInterval(guestTick, 1000);
   guestRender(); guestSendState(true);
   const url = Guest.url;
@@ -80,7 +86,7 @@ async function guestOpen() {
 async function guestClose(quiet) {
   const { ch, sb } = Guest;
   clearInterval(Guest.tick);
-  Object.assign(Guest, { on: false, sb: null, ch: null, room: null, url: null, qr: null, qrPx: 0, guests: new Map(), res: [], all: [], last: '', lastAt: 0, tick: 0 });
+  Object.assign(Guest, { on: false, sb: null, ch: null, room: null, url: null, qr: null, qrPx: 0, guests: new Map(), res: [], all: [], last: '', lastAt: 0, tick: 0, empty: 0, nowRes: null });
   if (ch) {
     try { await ch.send({ type: 'broadcast', event: 'h', payload: { v: GUEST_V, t: 'closed' } }); } catch {}
     try { await (sb ? sb.removeChannel(ch) : ch.unsubscribe()); } catch {}
@@ -142,6 +148,7 @@ async function guestYtReserve(m, g) {
   const rid = guestId();
   Guest.res.push({ rid, gid: m.gid, id: s.id, nick: g.nick }); renderQueue();
   guestReply(m, { t: 'ok', rid, pos: state.queue.lastIndexOf(s.id) + 1 });
+  if (ytBlocked(s) && !state.queue.includes(s.id)) guestTellSkip({ gid: m.gid }, s);   // TV 대기 화면에서 바로 차례가 와서 건너뜀 (예약 표를 넣기 전이라 startNext가 손님을 모름, CR-251 YT-01)
   guestSendState();
 }
 async function guestYtSearch(m) {
@@ -150,7 +157,7 @@ async function guestYtSearch(m) {
     try { items = ((await ytGuestSearch(m.q)) || []).filter(x => x && typeof x.ytId === 'string' && /^[A-Za-z0-9_-]{11}$/.test(x.ytId)); } catch {}
   }
   if (!Guest.on) return;
-  items = items.slice(0, GUEST_RESULTS).map(x => ({ ytId: x.ytId, title: String(x.title || '').slice(0, 80), artist: String(x.artist || '').slice(0, 60), kind: 'yt' }));
+  items = items.slice(0, GUEST_RESULTS).map(x => ({ ytId: x.ytId, title: String(x.title || '').slice(0, 80), artist: String(x.artist || '').slice(0, 60), kind: 'yt', ...guestBlock(findYtSong(state.songs, x.ytId)) }));
   guestReply(m, { t: 'found', kind: 'yt', n: items.length, items });
 }
 function guestUnreserve(m) {
@@ -192,8 +199,32 @@ function guestTick() {
   const now = Date.now(); let gone = false;
   for (const [gid, g] of Guest.guests) if (now - g.seen > GUEST_SEEN_MS) { Guest.guests.delete(gid); gone = true; }
   Guest.res = guestQueueMap(state.queue, Guest.res).live;    // 이미 부른 곡·방장이 뺀 곡의 손님 예약은 잊는다
+  const idle = guestIdleStep(Guest.empty, Guest.guests.size, now, GUEST_IDLE_MS); Guest.empty = idle.emptySince;
+  if (idle.close) {   // CR-251 YT-19: 손님 0명으로 2시간 → 방을 닫음 (다시 켜면 새 방·새 QR)
+    const msg = '손님이 2시간 동안 없어서 손님 방을 닫았어요 · 다시 켜려면 [손님 QR 켜기]';
+    guestClose(true); guestNote(msg); toast(msg, 6000); return;
+  }
   if (gone) guestRender();
   guestSendState();
+}
+// 노래방에서 안 틀어지는 유튜브 곡 (CR-251 YT-01): 손님이 예약한 곡이 그래서 넘어가면 그 손님 폰에만 "OO 곡은 노래방에서 안 틀어져서 넘어갔어요" (guest.js 'skip').
+// guestResAt: 예약 목록 i번째 줄의 손님 예약 표 (karaoke.js startNext가 곡을 빼기 전에 부름) · guestStarted: 차례로 시작한 곡의 표를 기억 ·
+// guestTellNow: 그 곡이 처음으로 못 튼 영상이면(yt.js ytMarkBlocked) 기억한 손님에게 알림
+function guestResAt(i) {
+  if (!Guest.on || !Guest.res.length) return null;
+  return guestQueueMap(state.queue, Guest.res).at[i] || null;
+}
+function guestTellSkip(r, s) {
+  if (!r || !s) return;
+  const gid = r.gid, title = guestCut(s.title, 80);
+  // 한 박자 뒤에 보낸다: TV 대기 화면이면 예약하자마자 차례가 와서 건너뛰는데, 그때 "예약했어요" 답보다 먼저 가면 손님 폰 알림이 덮인다
+  setTimeout(() => { if (Guest.on && Guest.guests.has(gid)) guestReply({ gid }, { t: 'skip', title }); }, 0);
+}
+function guestStarted(r, s) { Guest.nowRes = r && s ? { gid: r.gid, rid: r.rid, id: s.id } : null; }
+function guestTellNow(s) {
+  const r = Guest.nowRes;
+  if (!r || !s || r.id !== s.id) return;
+  Guest.nowRes = null; guestTellSkip(r, s);
 }
 // 예약 목록 줄의 손님 이름 (karaoke.js renderQueue·renderQueueList가 부름). 방이 닫혀 있으면 ''
 function guestNickAt(i) {
@@ -228,6 +259,7 @@ function guestRender() {
   $('#guestCardLine').textContent = showQr ? '폰 카메라로 찍으면 곡을 찾아 예약할 수 있어요' : '같이 있는 사람이 폰으로 곡을 찾아 예약해요';
   $('#guestCardSub').textContent = `로그인 없음 · 손님 ${n}명`; $('#guestCardSub').hidden = !showQr;
   const cb = $('#guestCardBtn'); cb.hidden = !showBtn; cb.disabled = Guest.busy;
+  const cc = $('#guestCardClose'); if (cc) { cc.hidden = !showQr; cc.disabled = Guest.busy; }   // TV에서 바로 방 닫기 (CR-251 YT-19)
   guestQrFit();
 }
 function guestSheet() {
@@ -249,6 +281,7 @@ function guestSheet() {
   on('#guestCloseBtn', 'click', () => guestClose());
   on('#guestDlgClose', 'click', () => $('#guestDialog').close());
   on('#guestCardBtn', 'click', () => guestOpen());
+  on('#guestCardClose', 'click', () => guestClose());
   on('#guestTvQr', 'change', e => { Guest.tvQr = e.target.checked; lsSet('nb-guest-tv', Guest.tvQr ? null : '0'); guestRender(); });
   on('#guestKeyOn', 'change', e => { Guest.keyOn = e.target.checked; lsSet('nb-guest-key', Guest.keyOn ? null : '0'); guestSendState(true); });
   on('#guestDialog', 'close', () => { if (!Guest.on) guestNote(''); });

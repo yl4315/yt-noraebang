@@ -18,6 +18,9 @@ const Yt = {
   www: lsGet(YT_WWW_KEY) === '1',   // 프리미엄 계정으로 틀기 (이 기기만, CR-251 ②)
   gen: 0,                  // 플레이어를 다시 만들 때마다 +1 (늦게 온 옛 플레이어 알림은 버림)
   errCode: null, errTv: null, qr: null,   // 지금 보이는 못 트는 영상 안내 · 그때 TV 화면이었나 · 그린 QR {id, src, px}
+  errSkip: false,          // 그 안내가 "못 틀어서 건너뛰어요"(3초 뒤 다음 예약곡)인가 (CR-251 YT-07)
+  auto: null, autoNext: null,   // 예약 차례로 저절로 시작한 곡 (재생이 시작되면 null) · startNext가 고르기 직전에 적는 곡
+  readyMs: 15000,          // 유튜브 API·플레이어 준비를 기다리는 시간 (화면 점검은 짧게)
 };
 const ytPlaceholder = id => '유튜브 영상 ' + id;
 const ytApiReady = () => !!(Yt.player && Yt.ready);
@@ -43,7 +46,7 @@ function ytLoadApi() {
   Yt.api = new Promise((res, rej) => {
     const prev = window.onYouTubeIframeAPIReady;
     const fail = why => { clearTimeout(timer); Yt.api = null; rej(new Error(why)); };
-    const timer = setTimeout(() => fail('yt-api-timeout'), 15000);
+    const timer = setTimeout(() => fail('yt-api-timeout'), Yt.readyMs);
     window.onYouTubeIframeAPIReady = () => { clearTimeout(timer); try { if (typeof prev === 'function') prev(); } catch {} res(window.YT); };
     const sc = document.createElement('script');
     sc.src = 'https://www.youtube.com/iframe_api'; sc.async = true;
@@ -63,17 +66,23 @@ function ytPlayer() {
     const el = document.createElement('div'); el.id = 'ytPlayerEl'; host.append(el);
     const vars = { playsinline: 1, controls: 1, rel: 0 };
     if (/^https?:$/.test(location.protocol)) vars.origin = location.origin;
-    const timer = setTimeout(() => rej(new Error('yt-player-timeout')), 15000);
-    const pl = Yt.player = new YT.Player(el, {
+    // 시간 안에 준비되지 않은 플레이어는 버린다 (CR-251 YT-07): 늦게 준비돼도 Yt.ready를 켜지 않고 알림도 받지 않는다.
+    // 예전에는 늦은 준비가 Yt.ready를 켜 둬서, 다음에 만든 새 플레이어가 준비 전부터 "준비됨"으로 보여 올린 영상이 사라졌다
+    let pl = null, dead = false;
+    const live = () => !dead && mine() && Yt.player === pl;
+    const timer = setTimeout(() => { dead = true; try { if (pl) pl.destroy(); } catch {} rej(new Error('yt-player-timeout')); }, Yt.readyMs);
+    Yt.ready = false;
+    pl = Yt.player = new YT.Player(el, {
       host: ytHostFor(Yt.www), width: '100%', height: '100%', playerVars: vars,
       events: {
         onReady: () => {
           clearTimeout(timer);
+          if (dead) return;
           if (!mine()) { try { pl.destroy(); } catch {} rej(new Error('yt-player-old')); return; }
           Yt.ready = true; res(pl);
         },
-        onStateChange: e => { if (mine()) ytOnState(e.data); },
-        onError: e => { if (mine()) ytOnError(e.data); },
+        onStateChange: e => { if (live()) ytOnState(e.data); },
+        onError: e => { if (live()) ytOnError(e.data); },
       },
     });
   })).catch(e => { if (Yt.playerP === p) { Yt.playerP = null; if (!Yt.ready) Yt.player = null; } throw e; });
@@ -106,15 +115,28 @@ function ytSelect(s) {
   // 못 튼 곡을 다시 고르면 다시 올린다 (CR-251: 같은 곡이라 안 올리면 오류가 다시 안 와서 안내가 사라지고 빈 플레이어만 남음)
   if (Yt.err != null) Yt.loaded = null;
   Yt.err = null; Yt.wantPlay = false; Yt.fresh = null; clearTimeout(Yt.blockTimer);
+  Yt.auto = s && Yt.autoNext === s ? s : null; Yt.autoNext = null;   // 예약 차례로 고른 곡인가 (CR-251 YT-07)
   ytShowTap(false); ytShowErr(null);
   if (s) {
     state.offset = 0; Yt.pending = null; Yt.last = 0;
-    if (!navigator.onLine) ytShowErr('offline');
+    if (!navigator.onLine) ytNetFail(s, 'offline');
     else ytPlayer().then(() => { if (state.song === s && Yt.loaded !== s.ytId) ytCue(s.ytId); ytFrame(true); })
-      .catch(e => { if (state.song === s && !ytOldErr(e)) ytShowErr('api'); });
+      .catch(e => { if (!ytOldErr(e)) ytNetFail(s, 'api'); });
   }
   updateTransportUI(); updateKeyUI();
   ytFrame(true);
+}
+// 예약 차례로 이 곡을 고른다 (karaoke.js startNext가 selectSong 바로 앞에서 부름, CR-251 YT-07)
+function ytAutoStart(s) { Yt.autoNext = s; }
+// 인터넷 탓(끊김 'offline' · 플레이어를 못 불러옴 'api')으로 못 틀 때 (CR-251 YT-07).
+// 예약 차례로 저절로 시작한 곡이고 다음 예약곡이 있으면: 101·150처럼 "못 틀어서 건너뛰어요"를 띄우고 3초 뒤 다음 예약곡 (예약 목록이 멈춰 서지 않게).
+// 손으로 고른 곡은 예전처럼 안내만. 건너뛰면 true
+function ytNetFail(s, code) {
+  if (!s || state.song !== s) return false;
+  const skip = ytNetSkips(Yt.auto, s, state.sync, state.queue.length);
+  ytShowErr(code, skip);
+  if (skip && nextAt == null) scheduleNext(3000);
+  return skip;
 }
 
 /* ---------------- 위치·길이 (R3 층이 부름) ---------------- */
@@ -144,13 +166,13 @@ function ytTime() {
 /* ---------------- 조작 (R3 층이 부름) ---------------- */
 async function ytPlay() {
   const s = state.song; if (!ytSong(s)) return;
-  if (!navigator.onLine) { ytShowErr('offline'); toast('인터넷이 끊겨서 유튜브 곡을 틀 수 없어요'); return; }
+  if (!navigator.onLine) { if (!ytNetFail(s, 'offline')) toast('인터넷이 끊겨서 유튜브 곡을 틀 수 없어요'); return; }
   if (Yt.err != null && Yt.err !== 'offline' && Yt.err !== 'api') { flash('이 영상은 노래방에서 틀 수 없어요'); return; }
   if (state.playing) return;
   cancelNext(); if (typeof pStop === 'function') pStop(true); hideScore();
   ytShowErr(null); Yt.err = null;
   let p;
-  try { p = await ytPlayer(); } catch (e) { if (state.song === s && !ytOldErr(e)) ytShowErr('api'); return; }
+  try { p = await ytPlayer(); } catch (e) { if (!ytOldErr(e)) ytNetFail(s, 'api'); return; }
   if (state.song !== s || state.playing) return;
   if (Yt.loaded !== s.ytId) ytCue(s.ytId);
   const d = ytDur();
@@ -198,6 +220,8 @@ function ytOnState(st) {
   if (!ytSong(s) || Yt.loaded !== s.ytId) return;   // 다른 곡을 고른 뒤 늦게 온 알림
   if (st === 1) {
     clearTimeout(Yt.blockTimer); ytShowTap(false);
+    Yt.auto = null;   // 틀어졌다 → 이 곡은 이제 손으로 다시 틀어도 안내만 (CR-251 YT-07)
+    if (s.ytBlocked != null) ytUnmark(s);   // 다시 골라서 틀어졌다 → "노래방에서 안 틀어짐" 표시를 지운다 (CR-251 YT-01)
     ytNoteMeta(s);
     if (!state.playing) {
       const fresh = Yt.fresh != null ? Yt.fresh : ytRawTime() < 0.5;
@@ -220,11 +244,6 @@ function ytOnState(st) {
   }
   ytFrame(true);
 }
-const YT_ERR_WHY = {
-  2: '영상 주소가 잘못됐어요', 5: '이 브라우저에서 틀 수 없는 영상이에요', 100: '지워졌거나 비공개인 영상이에요',
-  101: '올린 사람이 다른 곳에서 틀지 못하게 막았어요', 150: '올린 사람이 다른 곳에서 틀지 못하게 막았어요',
-  153: '유튜브가 이 화면 주소를 확인하지 못했어요',
-};
 function ytOnError(code) {
   const s = state.song;
   if (!ytSong(s)) return;
@@ -233,10 +252,21 @@ function ytOnError(code) {
   state.playing = false; state.offset = 0; state.score = null;
   updateTransportUI();
   ytShowErr(Yt.err);
+  if (ytBlockCode(Yt.err)) ytMarkBlocked(s, Yt.err);   // 지워짐·비공개·퍼가기 막힘은 곡에 기억 (CR-251 YT-01)
   // 바로 넘어가지 않고 안내를 보여 준 뒤 3초 뒤 다음 예약곡
   if (starting && !state.sync && state.queue.length) scheduleNext(3000);
   ytFrame(true);
 }
+// 노래방에서 안 틀어지는 영상(100 지워짐·비공개 · 101·150 퍼가기 막힘)을 곡에 기억한다 (CR-251 YT-01): s.ytBlocked = 오류 번호.
+// 곡 줄·예약 목록·리모컨·손님 화면에 "노래방에서 안 틀어짐", 예약 차례가 오면 바로 건너뜀 (karaoke.js startNext). 곡은 지우지 않고 다른 칸은 그대로.
+// 이 기기 IndexedDB에만 둔다 — SONG_FIELDS에 넣지 않아서 Drive library.json·백업 파일·허브에는 안 간다 (칸을 늘리면 예전 판이 지움).
+// 막힘을 피해 가지 않는다: 다시 고르면 한 번 더 그대로 틀어 보고, 틀어지면 표시를 지운다 (ytUnmark)
+function ytMarkBlocked(s, code) {
+  if (Yt.auto === s && typeof guestTellNow === 'function') guestTellNow(s);   // 손님 예약 차례였으면 그 손님에게 "넘어갔어요"
+  if (s.ytBlocked === code) return;
+  s.ytBlocked = code; persistSong(s, false, true); ytRefreshSong(s);
+}
+function ytUnmark(s) { delete s.ytBlocked; persistSong(s, false, true); ytRefreshSong(s); }
 // 플레이어가 아는 제목·길이를 곡에 적는다 (제목은 아직 "유튜브 영상 …"일 때만, 길이는 0.5초 넘게 다를 때만)
 function ytNoteMeta(s) {
   if (!ytApiReady() || Yt.loaded !== s.ytId) return;
@@ -256,15 +286,13 @@ function ytNoteMeta(s) {
 }
 
 /* ---------------- 안내: 재생 못 함 · 눌러서 시작 ---------------- */
-function ytShowErr(code) {
+// skip = 3초 뒤 다음 예약곡으로 넘어가는 중 (인터넷 탓이면 "못 틀어서 건너뛰어요", CR-251 YT-07 · 글은 core.js ytErrLines)
+function ytShowErr(code, skip = false) {
   const box = $('#ytErr'); if (!box) return;
-  Yt.errCode = code; Yt.errTv = !$('#tv').hidden;
+  Yt.errCode = code; Yt.errTv = !$('#tv').hidden; Yt.errSkip = code != null && !!skip;
   if (code == null) { box.hidden = true; ytFrame(true); return; }
   const s = state.song, id = s?.ytId;
-  const head = code === 'offline' ? '인터넷이 끊겨서 유튜브 곡을 틀 수 없어요'
-    : code === 'api' ? '유튜브 플레이어를 불러오지 못했어요' : '이 영상은 노래방에서 틀 수 없어요';
-  const why = code === 'offline' ? '인터넷이 다시 되면 곡을 다시 골라 주세요'
-    : code === 'api' ? '인터넷 연결을 확인하고 곡을 다시 골라 주세요' : (YT_ERR_WHY[code] || `유튜브 오류 (${code})`);
+  const { head, why } = ytErrLines(code, skip);
   $('#ytErrHead').textContent = head; $('#ytErrWhy').textContent = why;
   // 퍼가기를 막은 영상(101·150, CR-251 ①): 폰·PC는 큰 [유튜브 앱으로 열기], TV는 링크 대신 "TV 유튜브 앱에서 찾기" + QR.
   // 그 밖의 오류는 예전 그대로 작은 [유튜브에서 열기]
@@ -330,7 +358,7 @@ function ytFrame(force) {
   const s = state.song, yt = ytSong(s), tvOn = !$('#tv').hidden;
   ytBand(tvOn && yt);
   // TV 화면에 들어가거나 나오면 못 트는 영상 안내를 그 화면에 맞게 다시 (CR-251 ①: TV는 QR, 폰·PC는 큰 단추)
-  if (Yt.errCode != null && Yt.errTv !== tvOn && !$('#ytErr').hidden) { ytShowErr(Yt.errCode); return; }
+  if (Yt.errCode != null && Yt.errTv !== tvOn && !$('#ytErr').hidden) { ytShowErr(Yt.errCode, Yt.errSkip); return; }
   stage.classList.toggle('yt-nolyr', yt && !(state.lines || []).some(l => String(l.text || '').trim()));
   if (yt && ytApiReady() && Yt.rate !== clamp(state.rate || 1, 0.25, 2)) ytApplyRate();   // 싱크 편집에서 바꾼 배속
   if (yt && !state.playing && Yt.st === 2 && !Yt.pending) state.offset = ytTime();   // 영상 안 단추로 위치를 옮겨도 따라감
@@ -345,7 +373,13 @@ function ytFrame(force) {
   stage.classList.toggle('yt-split', split);
   stage.classList.toggle('yt-narrow', narrow);
   stage.classList.toggle('yt-grow', split && phoneWin);
-  if (!show) { box.classList.add('off'); stage.classList.remove('yt-small'); return; }
+  // 숨길 때는 자리·크기도 CSS 기본(320×180)으로 되돌린다: 넓은 화면 자리가 남으면 폰을 세로로 돌리거나
+  // 창을 좁혔을 때 숨은 상자가 화면 밖으로 삐져나가 폰이 화면 전체를 작게 줄여 보였다 (CR-251 YT-01 점검 중 찾음)
+  if (!show) {
+    box.classList.add('off'); stage.classList.remove('yt-small');
+    if (Yt.lay.pos) { Object.assign(box.style, { position: '', left: '', top: '', width: '', height: '' }); Yt.lay = {}; }
+    return;
+  }
   const sr = stage.getBoundingClientRect();
   const pad = Math.max(6, Math.round(sr.width * 0.012));
   const head = stage.querySelector('.song-head').getBoundingClientRect();
@@ -381,8 +415,9 @@ addEventListener('resize', () => ytFrame(true));
 addEventListener('scroll', () => ytFrame(true), { passive: true });
 // 화면이 숨으면 멈춘다 (유튜브 곡은 백그라운드 재생을 하지 않음)
 document.addEventListener('visibilitychange', () => { if (document.hidden && ytSong() && (state.playing || Yt.wantPlay)) ytPause(); });
-addEventListener('online', () => { if (ytSong() && Yt.err === 'offline') ytSelect(state.song); });
-addEventListener('offline', () => { if (ytSong() && !state.playing) ytShowErr('offline'); });
+// 인터넷이 돌아오면 그 곡을 다시 올린다 (다음 예약곡으로 넘어가는 중이면 그대로 넘어간다, CR-251 YT-07)
+addEventListener('online', () => { if (ytSong() && Yt.err === 'offline' && nextAt == null) ytSelect(state.song); });
+addEventListener('offline', () => { if (ytSong() && !state.playing) ytNetFail(state.song, 'offline'); });
 
 /* ---------------- TV 유튜브 띠 (시안 T1) ----------------
    유튜브 곡이 TV 화면에 있으면 #tv에 yt-mode: 영상은 위 칸(무대)에만, 아래 68px 띠에 [곡 검색 S] [예약 목록 L] [일시정지 Space] [⏭ 다음 곡 N] [나가기 T].
@@ -708,7 +743,7 @@ function ytSetWww(on) {
   Yt.www = on; lsSet(YT_WWW_KEY, on ? '1' : null);
   ytWwwUI();
   ytRebuild();
-  toast(on ? '유튜브 로그인 정보(쿠키)를 써요. 광고가 그대로면 끄세요' : '유튜브 기본 플레이어로 돌아왔어요 (로그인 정보를 안 써요)', 5000);
+  toast(on ? '유튜브 로그인 정보(쿠키)를 써요. 광고가 계속 나오면 다시 꺼 주세요' : '유튜브 기본 플레이어로 돌아왔어요 (로그인 정보를 안 써요)', 5000);
 }
 $('#ytWww').onchange = e => ytSetWww(e.target.checked);
 ytWwwUI();

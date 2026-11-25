@@ -110,14 +110,20 @@ export default async function myremote(ctx) {
     const want = base + '/remote.html';
     await closeDialogs();
     await host.eval('enterTV()');
-    const shown = await host.until(`state.tv && !$('#tvIdle').hidden && !$('#remoteInfo').hidden && (!!$('#remoteInfo img.qr') || ${ctx.conds.W === false})`, 10000);
-    const st = await host.eval(`(()=>{ const b=$('#remoteInfo'), img=b.querySelector('img.qr'); let same=false;
-      if (img && typeof qrcode==='function') { const g=qrcode(0,'M'); g.addData(${q(want)}); g.make(); same = img.src===g.createDataURL(4,2); }
+    const shown = await host.until(`state.tv && !$('#tvIdle').hidden && !$('#remoteInfo').hidden && !!$('#remoteInfo img.qr')`, 10000);   // CR-251 YT-r16: 앱 안 toqr라 인터넷 조건 없이 늘 나와야 함
+    // QR 그림을 칸마다 읽어 toqr(앱 안 사본)로 만든 같은 주소 무늬와 맞춰 본다 (cdnjs qrcode 라이브러리는 안 불러야 함)
+    const st = await host.eval(`(async()=>{ const b=$('#remoteInfo'), img=b.querySelector('img.qr'); let same=false;
+      if (img) { await img.decode().catch(()=>{}); const { toQR } = await import(new URL('js/vendor/toqr-0.1.1.mjs', document.baseURI).href);
+        const m = toQR(${q(want)}, 0), n = Math.round(Math.sqrt(m.length)), cell = img.naturalWidth / (n + 4);
+        const cv = document.createElement('canvas'); cv.width = cv.height = img.naturalWidth; const g = cv.getContext('2d'); g.drawImage(img, 0, 0);
+        const px = g.getImageData(0, 0, cv.width, cv.height).data; same = Number.isInteger(cell) && cell > 0;
+        for (let y = 0; same && y < n; y++) for (let x = 0; x < n; x++) { const i = (Math.floor((y + 2.5) * cell) * cv.width + Math.floor((x + 2.5) * cell)) * 4; if ((px[i] < 128) !== !!m[y * n + x]) { same = false; break; } } }
+      const cdn = [...document.scripts].some(x => /cdnjs/.test(x.src)) || typeof qrcode !== 'undefined';
       return { title:b.querySelector('.my-tv b')?.textContent||'', line:b.querySelector('.my-tv span')?.textContent||'', old:b.querySelector('.my-tv-old')?.textContent||'', T:MY_TV_TEXT,
-        t:b.textContent, qr:b.querySelectorAll('img.qr').length, same, alt:img?.alt||'', url:myRemoteUrl(location.href), html:b.innerHTML.replace(/ src="[^"]*"/g,'') }; })()`);
+        t:b.textContent, qr:b.querySelectorAll('img.qr').length, same, cdn, alt:img?.alt||'', url:myRemoteUrl(location.href), html:b.innerHTML.replace(/ src="[^"]*"/g,'') }; })()`);
     const oldVis = await visible(host, '#remoteInfo .my-tv-old');
-    ok('L6', shown && await visible(host, '#remoteInfo') && st.title === st.T.title && st.line === st.T.line && (st.qr === 1 || ctx.conds.W === false) && (st.same || ctx.conds.W === false),
-      `TV 대기 화면: "${st.title}" · "${st.line}" · QR ${st.qr}개${st.same ? ' (= 같은 곳 remote.html)' : ''}`);
+    ok('L6', shown && await visible(host, '#remoteInfo') && st.title === st.T.title && st.line === st.T.line && st.qr === 1 && st.same && !st.cdn,
+      `TV 대기 화면: "${st.title}" · "${st.line}" · QR ${st.qr}개${st.same ? ' (= 같은 곳 remote.html, 앱 안 toqr)' : ''}${st.cdn ? ' · cdnjs QR 라이브러리를 불렀음' : ''}`);
     ok('L6', st.url === want && !/[?#]/.test(st.url) && !/remote\.html|https?:|nbm-/.test(st.html) && !/remote\.html|https?:/.test(st.t) && st.alt === st.T.alt,
       `QR 주소 = 같은 곳 remote.html (?·# 없음 = 방 이름·코드 0) · 화면 글·HTML에 주소 없음 · 그림 설명 "${st.alt}"`);
     ok('L6', oldVis && st.old === st.T.old && /YT\s노래방\s켜기/.test(st.old) && /옛\s폰\s리모컨\sQR/.test(st.old),
@@ -282,13 +288,32 @@ export default async function myremote(ctx) {
   });
 
   let room2 = '';
+  // CR-251 YT-r4: 폰 화면이 30초 넘게 꺼졌다 켜져도(PC는 그대로) "꺼져 있어요"로 굳지 않고 저절로 다시 이어진다.
+  // 폰 페이지의 시계만 31초 앞으로 돌려 "30초 소식 없음"을 만든다 (PC·가짜 허브는 그대로)
+  await step('폰 30초 소식 없음 (화면 꺼짐 흉내) → 끝난 방으로 적지 않고 같은 방에 저절로 다시 이어짐', ['X11'], async () => {
+    const before = await ph.until(APP_ON, 8000);
+    const l0 = R.log.length;
+    await ph.eval(`(() => { const o = Date.now.bind(Date); window.__dn = o; Date.now = () => o() + 31000; })()`);
+    const waitSeen = await ph.until(`!$('#hubView').hidden || !(${APP_ON})`, 5000);
+    const back = await ph.until(APP_ON, 15000);
+    const hellos = R.log.slice(l0).filter(e => e.op === 'broadcast' && e.event === 'p' && e.t === 'hello').length;
+    await sleep(1500);
+    const still = await ph.eval(APP_ON);
+    await ph.eval(`if (window.__dn) { Date.now = window.__dn; delete window.__dn; }`);
+    ok('X11', before && back && still && hellos >= 1 && await host.until('My.phones.size===1', 5000),
+      `30초 소식 없음 → ${waitSeen ? '"연결하는 중"을 거쳐 ' : ''}같은 방에 다시 hello ${hellos}번 → 다시 "연결됨"${back ? '' : ' (안 됨)'} · "꺼져 있어요"로 굳지 않음`);
+  });
+
   await step('끄기 → 폰 "[폰 리모컨 받기]를 켜 주세요" · 열쇠 칸 비움 · 다시 켜면 새 방 (옛 방 이름은 안 통함) · [다시 해 보기]', ['X9', 'X11'], async () => {
     await host.eval(`$('#myRemoteOn').click()`);
     const off = await host.until(`!My.on && !My.busy && !$('#myRemoteOn').checked`, 6000);
     const seen = await ph.until(VIEW(H_OFF), 8000);
     const st = await ph.eval(`({p:$('#hubP').textContent, retry:!$('#hubRetry').hidden, open:!$('#hubOpen').hidden, connHid:$('#conn').hidden})`);
-    ok('X9', off && slot() === undefined && await host.eval(`localStorage.getItem('nb-myremote')===null && $('#myRemoteSub').textContent==='꺼짐 · 노래방을 띄운 PC에서 켜요'`),
-      `끄면: 열쇠 칸 ${slot() === undefined ? '비움' : '남음'} · 기억 지움 · "${await txt(host, '#myRemoteSub')}"`);
+    // PC는 끌 때 "closed"를 먼저 보내고 → 채널을 뗀 뒤 → 열쇠 칸을 비운다 (myClose). 폰이 "꺼져 있어요"를 띄운 바로 그때는 칸이 아직 남아 있을 수 있어
+    // (보통 10~20ms 뒤 비움), 칸이 비워질 때까지 5초 기다린다. 다시 켜기도 칸 비우기가 끝난 뒤에 눌러서, 늦은 비우기가 새 방 칸을 지우는 겹침을 막는다
+    const cleared = await waitNode(() => slot() === undefined, 5000);
+    ok('X9', off && cleared && await host.eval(`localStorage.getItem('nb-myremote')===null && $('#myRemoteSub').textContent==='꺼짐 · 노래방을 띄운 PC에서 켜요'`),
+      `끄면: 열쇠 칸 ${cleared ? '비움' : '남음 (5초 넘게)'} · 기억 지움 · "${await txt(host, '#myRemoteSub')}"`);
     ok('L6', off && await host.eval(`$('#remoteInfo').hidden && !$('#remoteInfo').childElementCount`), '끄면 TV 대기 화면 내 폰 리모컨 QR 바로 숨김 (새로 고침 없이)');
     ok('X11', seen && /\[폰\s리모컨\s받기\]를\s켜\s주세요/.test(st.p) && st.retry && !st.open && st.connHid, `폰: "${H_OFF}" · [다시 해 보기] · 연결 점 ${st.connHid ? '숨김' : '보임'}`);
     await shot(ph, 'x-my-phone-off.png');
@@ -317,16 +342,25 @@ export default async function myremote(ctx) {
     await ph.eval(`Object.defineProperty(document,'visibilityState',{configurable:true,get:()=>'hidden'})`);
     const t0 = Date.now(), reload = host.goto(base + '/index.html', READY_DEMO, 150000);
     // 닫히는 페이지가 pagehide에서 보내는 "closed"는 가짜 점검 다리(CDP)가 못 받는다 → 그때는 폰의 30초 끊김 길(LOST_MS)로 꺼짐. 바로 뜨는지는 기기 확인(X10)
-    const seen = await ph.until(VIEW(H_OFF), 45000), seenS = ((Date.now() - t0) / 1000).toFixed(1);
-    const closedN = R.log.filter(e => e.op === 'broadcast' && e.t === 'closed' && e.from === 'page').length - closed0;
+    // CR-251 YT-r4: 30초 끊김 뒤 폰은 열쇠 칸을 다시 읽는다 → PC가 그사이 새 방을 열었으면 새 방에 저절로 이어지고(새 PC 화면이 폰 1대), 아니면 "꺼져 있어요".
+    // 폰은 끊김을 알아챌 때까지(30초) 옛 방의 "연결됨" 화면을 그대로 두므로, 폰 화면의 "연결됨"만으로는 이어졌다고 보지 않는다
     await reload;
     const on = await host.until(`My.on && !My.busy`, 20000);
     const room3 = on ? await host.eval('My.room') : '';
     if (room3) secrets.add(room3);
+    let seen = false, autoBack = false;
+    for (const end = Date.now() + 45000; Date.now() < end && !seen; await sleep(500)) {
+      if (await ph.eval(VIEW(H_OFF))) seen = true;
+      else if (on && await host.eval('My.phones.size===1') && await ph.eval(APP_ON)) seen = autoBack = true;
+    }
+    const seenS = ((Date.now() - t0) / 1000).toFixed(1);
+    const closedN = R.log.filter(e => e.op === 'broadcast' && e.t === 'closed' && e.from === 'page').length - closed0;
     const why = [!seen && `폰 꺼짐 안내 안 보임(PC closed ${closedN}개)`, !on && 'PC가 다시 안 켬', on && !ROOM_RE.test(room3) && '이름 모양 틀림', on && room3 === room2 && '옛 방 이름', on && slot() !== room3 && '열쇠 칸 ≠ 새 방'].filter(Boolean);
-    ok('X9', !why.length, `새로 고침: 폰 "${H_OFF}" (${seen ? seenS + '초 · ' + (closedN ? 'PC closed 받음' : '30초 끊김 길 — 가짜 다리는 닫히는 페이지 메시지를 못 받음, 바로 뜨는지 기기 확인') : '못 봄'}) → 다시 연 화면은 로그인한 채라 새 방으로 저절로 켬 (열쇠 칸 = 새 방)${why.length ? ' · 틀림: ' + why.join(', ') : ''}`);
+    ok('X9', !why.length, `새로 고침: 폰 ${autoBack ? '새 방에 저절로 다시 이어짐' : '"' + H_OFF + '"'} (${seen ? seenS + '초 · ' + (closedN ? 'PC closed 받음' : '30초 끊김 길 — 가짜 다리는 닫히는 페이지 메시지를 못 받음, 바로 뜨는지 기기 확인') : '못 봄'}) → 다시 연 화면은 로그인한 채라 새 방으로 저절로 켬 (열쇠 칸 = 새 방)${why.length ? ' · 틀림: ' + why.join(', ') : ''}`);
     // 폰 화면을 다시 보이게 하고 [다시 해 보기] → 새 방 (열쇠 칸에서 새 이름을 읽음)
     await ph.eval(`delete document.visibilityState`);
+    // CR-251 YT-r4: 30초 끊김 뒤 폰이 아직 옛 방에 다시 붙어 보는 중이면(답 기다림 WAIT_MS+9초) "꺼져 있어요" 또는 새 방 연결이 될 때까지 기다린다
+    await ph.until(`(${VIEW(H_OFF)}) || (${APP_ON})`, 30000);
     const still = await ph.eval(VIEW(H_OFF));
     if (still) await ph.tap('#hubRetry');
     ok('X9', await ph.until(APP_ON, 20000) && await host.until('My.phones.size===1', 8000), `폰 ${still ? '[다시 해 보기]' : '저절로 다시 봄'} → 새 방에 이어짐 (PC 폰 1대)`);

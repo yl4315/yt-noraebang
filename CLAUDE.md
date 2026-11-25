@@ -25,7 +25,7 @@ npm run test:ui                  # 화면 자동 점검: 헤드리스 Edge가 �
   - 이 점검은 같이 쓰는 탭에서 맨 마지막에 돌고 넣은 것을 지운다.
 - 점검 도구는 npm 패키지 없이 CDP로 Edge를 움직인다 (`tests/ui/edge.mjs`).
 - 끝 정리는 **이번 점검이 켠 Edge 프로필만** 끄고 지운다 (`run.mjs` `myProfiles`). 같은 PC에서 다른 가지(worktree)의 점검이 동시에 돌 수 있어서, 이름 앞부분(`yt-ui-edge-`, 옛 이름 `yt-ui-check-edge-`)으로 모두 끄지 않는다.
-- 시험 서버 `tests/ui/serve.py`는 `server.PIN_FILE`을 임시 폴더로 바꾸고 127.0.0.1에만 켠다 (저장소 `.remote.json`을 안 건드림). 밖으로 나가는 요청은 글꼴·QR 라이브러리만 허용, `lrclib.net`(`/api/search`·`/api/get`)은 가짜 답, Google은 막음.
+- 시험 서버 `tests/ui/serve.py`는 `server.PIN_FILE`을 임시 폴더로 바꾸고 127.0.0.1에만 켠다 (저장소 `.remote.json`을 안 건드림). 밖으로 나가는 요청은 글꼴만 허용 (QR은 앱 안 toqr라 cdnjs 0, 조건 W = 그 파일을 불러올 수 있는지), `lrclib.net`(`/api/search`·`/api/get`)은 가짜 답, Google은 막음.
 - 허브(CR-227)는 `tests/ui/fakehub.mjs`의 **메모리 가짜 허브**로만 본다: 만든 주소(`qafakehub…`)·가짜 공개 키·점검이 만든 가짜 계정. 로그인·`hub_push`·`hub_pull`·`hub_secret`을 키트 규칙대로 흉내 낸다. 진짜 허브에 요청하면 공통 점검이 실패한다. `checks/hub.mjs`는 새 Edge에 기기 둘(127.0.0.1·localhost = 다른 저장소)을 열고, 끝에서 두 번째로 돈다.
 - 손님 방(CR-228)은 `fakehub.mjs`의 `makeFakeRealtime`(가짜 Realtime: 페이지의 `WebSocket`을 바꿔 끼우고 CDP 바인딩으로 Node의 메모리 broadcast에 잇는다, Phoenix vsn 2.0.0 글·이진 틀)으로만 본다. `checks/guest.mjs`가 맨 마지막: 새 Edge 셋(방장 PC · 손님 폰 A · 손님 폰 B, 저장소가 따로)에 방장 1 + 손님 2, 가짜 손님은 Node가 방에 직접 보낸다(`R.inject`). 방 이름·연결 코드는 점검 기록·결과표에도 쓰지 않는다(개수만 셈). 손님 주소로 갈 때 `p.goto` 대신 `Page.navigate`(실패 글에 주소가 남지 않게).
 - 내 폰 리모컨(CR-228 ③)은 `checks/myremote.mjs`(손님 점검 다음, 맨 마지막): 새 Edge 둘(노래방 PC · 내 폰, 둘 다 정적 서버 = Pages처럼 `server.py` 없음)에 같은 가짜 허브·가짜 Realtime. 폰은 같은 주소의 노래방 앱에서 가짜 계정으로 로그인한 뒤 `remote.html`. 가짜 폰은 Node가 방에 직접 보낸다(`R.injectRoom`). 방 이름은 기록·결과표에 쓰지 않는다(개수만 셈). `server.py` 주소의 `remote.html`이 옛 코드 화면 그대로인지도 본다.
@@ -59,6 +59,8 @@ npm run test:ui                  # 화면 자동 점검: 헤드리스 Edge가 �
   - 새 코드·고정 설정은 `POST /api/remote/pin`(이 PC에서만).
 - 이 PC 전용 창구 `/api/remote/info`·`/api/remote/pin`·`/api/remote/poll`·`POST /api/remote/state`와 코드 없는 `GET /api/remote/state`는 보낸 곳이 이 PC이고 `Host`가 `localhost`·`127.0.0.1`·`[::1]`(포트는 아무거나)일 때만 답한다 (`local_host()`, DNS 리바인딩 막기). 휴대폰이 쓰는 길(`POST /api/remote/cmd`, 코드를 붙인 `GET /api/remote/state?pin=`)과 앱 파일은 `Host`를 보지 않는다.
 - 휴대폰 `remote.html`은 맞은 코드를 `localStorage['yt-remote-pin']`에 기억한다 (이 키 이름은 바꾸지 않는다). 홈 화면 아이콘용 `remote.webmanifest`가 따로 있다.
+- **서버를 껐다 켜도 이어짐 (CR-251 YT-r12)**: `server.py`가 켤 때마다 새 표 `boot`를 `/api/remote/poll` 답에 같이 준다. 화면(`remote.js`)은 core.js `remotePollNext`로 표가 바뀌었거나 `last`가 `since`보다 작으면 번호를 0으로 돌리고 (그 답의 명령은 실행하지 않고 다음 poll에서 다시 받음) 상태를 바로 다시 올린다. poll은 한 번에 하나만, 상태 올리기에 실패하면 다음에 다시 올린다.
+- **코드 틀림 쉬기 (CR-251 YT-21)**: `pin_ok`는 IP마다 10번 틀리면 1분 쉬기(예전 그대로)에 더해 모든 기기를 합친 틀린 횟수(`fails['*']`)도 센다. 1분에 20번 틀리면 10분 동안 모든 기기가 쉰다 (`FAIL_ALL_MAX`·`FAIL_ALL_SEC`·`FAIL_ALL_REST`). 쉬는 동안은 맞는 코드도 받지 않는다 (붙어 있던 폰도 그동안 명령이 안 됨). 시험은 `tests/test_server.py` `PinLimitTest`.
 
 ## 구조
 
@@ -90,7 +92,7 @@ npm run test:ui                  # 화면 자동 점검: 헤드리스 Edge가 �
 | `js/hub.js` | 허브 연결(CR-227): 설정 창 "허브 연결" 칸(코드·로그인·끊기), 곡 설정 보내기·받기(`hubSync`), 허브 열쇠 칸 읽기(`hubYoutubeKey`) |
 | `js/guesthost.js` | 손님 방 방장 쪽(CR-228): 설정 "손님" 줄·손님 초대 QR 시트·TV 대기 카드, 허브 Realtime 공개 broadcast 방 열기·닫기, 손님 메시지 처리 (`hub.js` 다음) |
 | `js/myremote.js` | 내 폰 리모컨 PC 쪽(CR-228 ③): 설정 고급 "내 폰 리모컨 (허브)" 칸, 켤 때마다 새 방 + 허브 열쇠 칸 `remote_room`, 폰 명령 → `remoteRun`, 상태 → 폰 (`guesthost.js` 다음) |
-| `js/vendor/toqr-0.1.1.mjs` | **남의 라이브러리 그대로** (toqr, MIT, `block-calendar` node_modules 사본). 손님 QR 그림만 `import()`로 씀. 고치지 않는다 |
+| `js/vendor/toqr-0.1.1.mjs` | **남의 라이브러리 그대로** (toqr, MIT, `block-calendar` node_modules 사본). 손님 QR과 리모컨 QR(`remote.js` `qrLoad`, CR-251 YT-r16)이 `import()`로 씀. 고치지 않는다 |
 | `js/autosync.js` | 무대 [자동 맞추기](LRCLIB `/api/get` → 검색), 싱크 한 줄, [자동 맞춤 · 확인해 주세요] (코드 이름·id는 옛 `sync` 그대로) |
 | `js/ytlist.js` | 유튜브 재생목록 넣기 (CR-244): 목록 링크 읽기·계획(`ytListPlan`)·카드 글(`ytListView`)은 DOM 없이(단위 시험 `tests/ytlist.test.js`), 목록 읽기(열쇠 길 `ytListFetchKey` · 열쇠 없는 길 `ytListFetchPlayer`)·곡 목록에 넣기(`ytListAdd`)·카드 DOM(`ytListCard`). `yt.js` 바로 앞 |
 | `js/yt.js` | 유튜브 곡 (CR-030): 공식 IFrame 플레이어, 검색 창 [유튜브 노래방 검색] 탭(링크·열쇠 검색·열어 찾기), 폰 [공유] 받기, 재생 못 함·눌러서 시작 안내, TV 유튜브 띠. `main.js` 바로 앞 |
@@ -124,6 +126,7 @@ npm run test:ui                  # 화면 자동 점검: 헤드리스 Edge가 �
   - 새 파일의 함수를 다른 파일에서 부를 때는 `typeof 이름 === 'function'`으로 감싼다 (배포 직후 캐시로 옛 `index.html` + 새 JS가 섞이면 그 파일이 없을 수 있다. 예: `backup.js`의 `deviceId`·`saveDevStats`).
 - `js/core.js`에는 DOM 코드를 넣지 않는다 (테스트가 브라우저 없이 돈다). 새 순수 로직은 여기에 두고 `tests/core.test.js`에 테스트를 더한다.
 - 데모곡(반주·멜로디)을 바꾸면 `js/demo.js`의 `DEMO_CACHE_KEY` 숫자를 올린다. 안 올리면 예전 반주가 계속 나온다.
+- **곡 반주 메모리 (CR-251 YT-r1 = YT-08)**: 곡을 고르면(`selectSong`) 지금 곡·다음 예약 곡·녹음 중인 곡·데모는 늘 두고, 다른 곡의 `s.buffer`는 최근에 고른 것부터 합친 크기가 `SONG_MEM_BUDGET`(songs.js, 160MB) 안이면 두고 넘는 것부터 놓는다 (core.js `songBuffersToFree`, 4분 곡 하나에 약 80MB, 고른 차례는 `songUsed` WeakMap — 곡 객체에 넣지 않음). 다 놓으면 예약 곡 이어 부르기가 매번 다시 풀어 늦어져서 한도를 둠. 다른 곡의 `s.buffer`가 남아 있다고 보지 말고, 필요하면 `songReady(s)`로 보고 `loadSongBuffer(s)`로 다시 푼다 (곡을 다시 고르면 저절로). 녹음 미리듣기 캐시 `recCache`도 최근 2개만 (`REC_CACHE_MAX`, core.js `lruSet`).
 - 곡·녹음 내용이 바뀌면 `persistSong(s)` / `recTouch(r)`로 `updatedAt`을 남긴다. Drive 동기화는 `updatedAt`이 더 나중인 쪽이 이기고, 지운 것은 지움 기록(tombstone)으로 남긴다.
 - **기기 맞추기**:
   - 점수·부른 횟수는 `library.json`·`SONG_FIELDS`에 넣지 않는다 (예전 판이 지운다).
@@ -150,11 +153,15 @@ npm run test:ui                  # 화면 자동 점검: 헤드리스 Edge가 �
 - 열쇠가 없을 때 곡 제목은 플레이어가 재생할 때 알려 주는 제목(`getVideoData`)으로 채운다. oEmbed 같은 바깥 접속을 더하지 않는다.
 - 폰 [공유]: `manifest.webmanifest` `share_target`(GET `./`, title·text·url) → 켤 때 `ytHandleShare`가 주소 칸을 지우고 확인 창. `sw.js`는 공유 주소를 가로채거나 저장하지 않는다. `start_url`·`scope`는 바꾸지 않는다.
 - TV에서 유튜브 곡이면 `#tv.yt-mode`: 무대는 위 칸, `#tvRemote`가 아래 68px 띠. 이때 `flash()`와 `toast()`는 무대 가운데·띠 왼쪽 대신 띠 안(`ytBandNote`)에 뜬다 (yt.js가 두 함수를 감쌈).
+- 영상을 숨길 때(`ytFrame`의 `!show`) `#ytBox`의 자리·크기 인라인 값을 지우고 `Yt.lay = {}`로 되돌린다 (CSS 기본 320×180). 넓은 화면 자리가 남으면 폰을 세로로 돌리거나 창을 좁혔을 때 숨은 상자가 문서를 넓혀 폰이 화면 전체를 작게 줄여 보였다 (CR-251 YT-01 점검 V19가 문서 폭·배율로 본다).
 - 폰(무대 폭 640 아래, TV 아님)에서 창(`YT_SPLIT`)이 열리면: 멈춘 영상은 숨기고(창이 무대를 다 씀), 재생 중이면 무대에 `yt-grow`를 붙여 `--yt-cut` + 창 높이만큼 길게 한다 (위 영상 · 아래 창).
 - 폰(폭 560 아래)에서 재생 전에 곡 검색 창을 열면 무대가 `min(600px,78vh)`로 길어지고 창이 무대 폭을 다 쓴다. 검색 줄 단추는 다음 줄 오른쪽(높이 36), 썸네일 96×54, ✕ 48×48 (`app.css` 맨 끝, 무대가 `.main` 안일 때만 → TV 화면은 그대로). 못 트는 영상 안내(`#ytErr`)가 보이면 곡 제목 카드·가사를 숨긴다.
 - 퍼가기를 막은 영상(오류 101·150, `core.js ytErrToApp`, CR-251 ①): `#ytErr`에 큰 `[유튜브 앱으로 열기]`(`.yt-err-app`, 새 창 `ytWatchUrl`, 키보드 PC는 `.for-keys` 글 "유튜브에서 열기") + 한 줄 `#ytErrNote`(녹음·점수·예약곡 이어 부르기는 안 됨). TV 화면(`#tv` 보임)은 링크를 숨기고 `#ytErrTv`: "TV 유튜브 앱에서 이 곡 찾기" + 찾을 말(`ytAppFindWords` = 제목 가수 노래방) + 영상 링크 QR(`guestQrMake` = 앱 안 toqr 사본, `qrFitPx` 96 아래로 안 줄임). TV에 들어가거나 나오면 `ytFrame`이 안내를 그 화면 것으로 다시 그린다. 그 밖의 오류(100·2·5·153·offline·api)는 예전 그대로 작은 `[유튜브에서 열기]`.
 - 3초 뒤 다음 예약곡(V7)은 그대로. 큰 단추를 누르면 `cancelNext()` (유튜브 앱에서 부르는 동안 뒤에서 다음 곡이 시작되지 않게, 예약 목록은 그대로). 넘어가면 안내는 사라진다. 못 튼 곡을 다시 고르면 다시 올려서(`ytSelect`: `Yt.err`가 있으면 `Yt.loaded`를 비움) 안내가 다시 나온다. 무대(`.stage`)는 `overflow:clip` — `.lights`(inset -20%) 때문에 `hidden`만이면 `scrollIntoView`·focus가 무대를 옆으로 밀어 가운데 안내가 폰에서 잘렸다. 좁은 무대(폭 300 아래, 글자 130% 폰)는 `@container`로 카드 여백을 줄여 곡 머리(번호·제목)와 겹치지 않게 한다.
-- 설정 › 더 보기 (고급) › 유튜브 곡 › **프리미엄 계정으로 틀기 (이 기기만)** (`#ytWww`, CR-251 ②): 기본 꺼짐, 값은 이 기기 localStorage `nb-yt-www`(`'1'`)에만 — 백업 파일·Drive·허브·손님 폰에 넣지 않는다. 바꾸면 `ytSetWww` → `ytRebuild`: 플레이어를 `destroy`하고 `Yt.player`·`ready`·`playerP`·`loaded`를 비운 뒤 host `ytHostFor(켜짐)`으로 다시 만든다 (`Yt.gen`으로 늦게 온 옛 플레이어 알림은 버림). 지금 곡이 유튜브 곡이면 멈춘 뒤 같은 자리에 멈춘 채로 다시 올린다 (자동 재생 안 함). 켤 때 알림 "유튜브 로그인 정보(쿠키)를 써요. 광고가 그대로면 끄세요". **광고를 막거나 숨기거나 건너뛰는 코드는 넣지 않는다** (프리미엄이 광고를 없애는지는 유튜브와 그 계정에 달림).
+- 노래방에서 안 틀어지는 영상 기억 (CR-251 YT-01, V19·X12): 오류 100·101·150(`core.js ytBlockCode`)이면 `ytOnError` → `ytMarkBlocked(s, code)`가 곡에 `s.ytBlocked = 오류 번호`를 적는다 (`persistSong(s, false, true)` = 고친 시각·Drive 예약 그대로, 곡은 안 지움). **이 칸은 `SONG_FIELDS`에 넣지 않는다** → 이 기기 IndexedDB에만 (Drive `library.json`·백업 파일·허브에는 안 감, 기기마다 따로 배움). 2·5·153·인터넷 탓은 다시 하면 될 수 있어서 적지 않는다. 표시 글 `YT_BLOCK_TAG` "노래방에서 안 틀어짐": 곡 목록 `.stag.yblk` · 예약 창·대기 화면 예약 목록 `small.yblk` · 옛 리모컨·내 폰 리모컨 곡 목록(`remoteState` → `myCleanSongs`, `blocked:true`는 그런 곡에만) · 손님 찾기 결과·예약 목록(`guestBlock`, guest.js `.chip.blk`). `startNext`는 그런 곡을 플레이어에 올리지 않고 바로 건너뛴다 (`flash(ytSkipText(s), 4000)`). 손님 예약이면 곡을 빼기 전에 `guestResAt(0)`로 예약 표를 읽어 두고 `guestTellSkip` → 그 손님에게만 `{t:'skip', title}` (guest.js: `guestSkipText` 5초 알림, 예전 손님 화면은 모르는 종류라 그냥 버림). 처음 못 튼 영상이 손님 차례였으면 `guestStarted`가 기억한 표로 `guestTellNow`. `guestTellSkip`은 한 박자 뒤(`setTimeout 0`)에 보낸다 — TV 대기 화면에서 예약하자마자 건너뛰면 "예약했어요" 답이 뒤에 와서 알림을 덮기 때문. 다시 시도: 손으로 고르면(`selectSong`) 그대로 한 번 더 틀어 보고, 틀어지면(`ytOnState` 1) `ytUnmark`로 표시를 지운다. 따로 [다시 시도] 단추는 없다. 막힘을 피해 가는 길은 만들지 않는다.
+- 인터넷 탓에 못 튼 예약곡 (CR-251 YT-07, V18): `startNext`가 고르기 직전에 `ytAutoStart(s)` → `ytSelect`가 `Yt.auto`로 받는다 (재생이 시작되면 비움). 끊김(`'offline'`)·플레이어를 못 불러옴(`'api'`)은 모두 `ytNetFail(s, code)`로: `core.js ytNetSkips`(예약 차례로 시작한 그 곡 · 싱크 편집 아님 · 다음 예약곡 있음)면 `ytShowErr(code, true)`(둘째 줄 "못 틀어서 건너뛰어요 · 인터넷이 되면 이 곡을 다시 골라 주세요", 글은 `core.js ytErrLines`) + `scheduleNext(3000)`, 아니면 예전 안내만. 건너뛰는 중에 인터넷이 돌아와도 그대로 넘어간다 (`online`은 `nextAt == null`일 때만 다시 올림). 끊김이 길면 예약된 유튜브 곡이 차례로 모두 넘어간다 (101·150과 같음, [멈추기]·Esc로 멈춤).
+- 플레이어 준비 시간 초과 (`Yt.readyMs`, 기본 15초 · API 불러오기도 같은 값): 시간이 지난 플레이어는 `destroy`하고 버린다 — 늦게 준비돼도 `Yt.ready`를 켜지 않고 알림도 받지 않는다 (`dead`·`live()`). 새로 만들 때는 `Yt.ready = false`부터. 예전에는 늦은 준비가 `Yt.ready`를 켜 둬서 다음 새 플레이어가 준비 전부터 준비된 것으로 보여 올린 영상이 사라졌다. 화면 점검은 `window.__ytReadyMs`(가짜 플레이어 준비 시간)와 `Yt.readyMs`로 흉내 낸다.
+- 설정 › 더 보기 (고급) › 유튜브 곡 › **프리미엄 계정으로 틀기 (이 기기만)** (`#ytWww`, CR-251 ②): 기본 꺼짐, 값은 이 기기 localStorage `nb-yt-www`(`'1'`)에만 — 백업 파일·Drive·허브·손님 폰에 넣지 않는다. 바꾸면 `ytSetWww` → `ytRebuild`: 플레이어를 `destroy`하고 `Yt.player`·`ready`·`playerP`·`loaded`를 비운 뒤 host `ytHostFor(켜짐)`으로 다시 만든다 (`Yt.gen`으로 늦게 온 옛 플레이어 알림은 버림). 지금 곡이 유튜브 곡이면 멈춘 뒤 같은 자리에 멈춘 채로 다시 올린다 (자동 재생 안 함). 켤 때 알림 "유튜브 로그인 정보(쿠키)를 써요. 광고가 계속 나오면 다시 꺼 주세요". **광고를 막거나 숨기거나 건너뛰는 코드는 넣지 않는다** (프리미엄이 광고를 없애는지는 유튜브와 그 계정에 달림).
 - **재생목록 넣기** (`js/ytlist.js`, CR-244): 유튜브 탭 검색 칸에 목록 링크(`parseYouTubeListId`: `playlist?list=` · `watch?v=…&list=`)가 오면 `renderYtTab`이 미리 보기 카드(`ytListShow` → `ytListCard`)를 그린다. [곡 목록에 다 넣기]는 곡 목록에만 넣고 **예약하지 않는다**. 곡 목록에 있는 곡은 건너뛰고, 한 번에 앞 200곡(`YT_LIST_MAX`)까지. 내 목록(WL·LL…)·자동 믹스(RD…)는 "넣을 수 없어요" 카드, 영상 링크에 붙은 자동 믹스·내 목록은 카드 없이 영상 줄만.
   - 열쇠 길: Data API `playlistItems`(50개씩 200개까지) + `videos`(status·snippet) = 많아야 8번. 퍼가기 막힌 곡은 "M곡은 노래방 안에서 못 틀어요 (유튜브 앱에서는 돼요)" + 기본 빼고 [그 곡도 넣기] 스위치. 지운·비공개 곡은 뺀다. 403·400·429면 `Yt.keyBlocked` → 열쇠 없는 길. 막힌 곡을 피해 가는 방법은 넣지 않는다 (유튜브 앱으로만).
   - 열쇠 없는 길: 목록마다 **새 플레이어**를 검색 목록 바로 뒤 보이는 칸(`.yt-list-box`, 200 넘게)에 만들어 `cuePlaylist({list})` → `getPlaylist()`로 영상 번호만 읽고 바로 `destroy` (틀지 않음 · 같은 플레이어에 둘째 목록을 올리면 첫 목록이 남는다 11-24 ⓪). host는 `ytHostFor(Yt.www)` (CR-251 설정). 제목은 틀 때 `getVideoData`로 (첫 곡만 미리).
@@ -206,7 +213,7 @@ npm run test:ui                  # 화면 자동 점검: 헤드리스 Edge가 �
 - 키 두 층: 사용자별 키(`me().keys`)가 이기고, 없으면 허브를 쓸 때만 곡 기본 키(`keyOf`).
 - 허브 코드가 없으면(`nb-hub` 없음) 요청·타이머 0, 지금과 똑같이 돈다 (W12). 허브 함수를 다른 파일에서 부를 때는 `typeof … === 'function'`.
 - 허브 열쇠 칸(YouTube 검색 열쇠)은 `hubYoutubeKey()` 읽기 하나: 로그인 뒤 한 번 읽어 **메모리에만**, `ytSetKey`(CR-030 `yt.js`)가 있으면 넘긴다. 로그아웃·끊기에서 지운다.
-- **CSP** (`index.html` `<meta>`): `script-src`·`connect-src`만 정한다. 새 바깥 주소(스크립트·fetch)를 쓰면 여기에 더한다. 지금: Google 로그인·Drive, cdnjs(QR), YouTube, LRCLIB, `*.supabase.co`(허브·손님 방 Realtime `wss`). 손님 화면 `guest.html`은 따로 CSP (아래 "손님 방"). 허브·LRCLIB·사용자 글은 `textContent`로만 넣는다.
+- **CSP** (`index.html` `<meta>`): `script-src`·`connect-src`만 정한다. 새 바깥 주소(스크립트·fetch)를 쓰면 여기에 더한다. 지금: Google 로그인·Drive, YouTube, LRCLIB, `*.supabase.co`(허브·손님 방 Realtime `wss`). 손님 화면 `guest.html`은 따로 CSP (아래 "손님 방"). 허브·LRCLIB·사용자 글은 `textContent`로만 넣는다. cdnjs는 CR-251 마무리에서 뺐다 (QR은 YT-r16부터 앱 안 사본 `js/vendor/toqr-0.1.1.mjs`).
 
 ## 자동 맞추기 (`js/autosync.js`, CR-227 1단계 · 화면 말은 CR-236에서 "싱크" → "맞추기·시각")
 
@@ -229,13 +236,15 @@ npm run test:ui                  # 화면 자동 점검: 헤드리스 Edge가 �
 ## 손님 방 (`js/guesthost.js` · `guest.html`, CR-228)
 
 - 방 = 회사 허브 Realtime **공개 broadcast** 채널 하나 (`private`·presence·표 변경 0). 방 이름은 열 때마다 새 256비트 난수 `nbr-…`(core.js `guestRoomName`). 방장(노래방)이 먼저 붙고, 손님 메시지는 이벤트 `g`, 방장 답은 `h`.
+- **QR 주소 앞부분 (CR-251 YT-06)**: 노래방을 `http:`·localhost·사설 IP(127·10·192.168·172.16~31·169.254)·`.local`·`.lan` 같은 집 안 이름·점 없는 이름으로 열었으면 손님 QR 앞부분을 `GUEST_PUBLIC_BASE`(guesthost.js, GitHub Pages https 주소)로 바꾼다 (core.js `guestUrl`의 4번째 값 `pub`). 공개 https 주소로 연 화면은 그 주소 그대로. 손님 화면은 Pages 판이라 PC 사본과 판이 다를 수 있다. 화면 점검(`guest.mjs`)은 시험 주소로 붙도록 `GUEST_PUBLIC_BASE = ''`로 비운다.
 - QR 주소 = `…/guest.html#r=<방 이름>&c=<허브 연결 코드 nbhub1.…>` (core.js `guestUrl`). **값은 `#` 뒤에만, `?` 없음.** 손님 화면은 열자마자 `history.replaceState`로 `#`을 지우고 값은 메모리에만 둔다 (`guestUrlParse`).
 - **방 이름·연결 코드·허브 주소·키는 콘솔·기록·화면 글에 찍지 않는다** (QR 그림 안에만). 손님은 로그인·허브 표·RPC 0, 저장(localStorage·sessionStorage·IndexedDB·쿠키·서비스 워커) 0.
 - 메시지 모양은 core.js `guestMsgOk`(종류 `hello`·`search`·`reserve`·`unreserve`·`key`·`bye`, 4KB까지, 키 −2~2, 손님 표 16~32자, 이름 10자). 모르는 종류·모양 틀림·안 들어온(hello 안 한) 손님 메시지는 답 없이 버린다. 손님 6명(`GUEST_MAX`), 한 사람 1초 4개(`guestRateOk`), 방 전체 1초 30개.
 - 방장이 대신 처리하고 **결과만** 돌려준다: 찾기 = MR 창고에서 번호·제목·가수·종류만 30개(`guestSearchResult`), 예약 = 곡 번호가 진짜 있는지 다시 확인, 빼기 = 그 손님이 넣은 예약만(`guestQueueMap`), 상태 = 지금 곡·다음·예약 제목 10개(`guestStateMsg`, 바뀔 때와 20초마다).
 - 답: `welcome`·`full`·`found`·`ok{rid,pos}`(pos 0 = 바로 시작)·`ok{gone}`·`no{why: many·nosong·gone·keyoff·nokey·yt}`·`state`·`closed`.
 - 유튜브 곡(`reserve{ytId}`·`search{kind:'yt'}`)은 `typeof ytReserve === 'function'`(CR-030 `yt.js`)일 때만 처리. 없으면 `no{why:'yt'}`, 손님 화면 유튜브 칸은 숨김(`state.yt`).
-- 방을 닫는 때: [방 닫기] · [새 QR 만들기](새 방) · 노래방 화면 닫기(`pagehide`) · 허브 연결 끊기·바꾸기(`guestTick`이 1초마다 `Hub.sb`를 봄). 닫으면 손님에게 `closed`를 보내고 방 이름·손님 이름·예약 표를 메모리에서도 지운다.
+- 방을 닫는 때: [방 닫기](설정 시트, TV 카드 `#guestCardClose` = CR-251 YT-19) · [새 QR 만들기](새 방) · 노래방 화면 닫기(`pagehide`) · 허브 연결 끊기·바꾸기(`guestTick`이 1초마다 `Hub.sb`를 봄) · **손님 0명으로 2시간** (CR-251 YT-19: `GUEST_IDLE_MS`, `Guest.empty` = 손님이 0명이 된 시각, `guestTick`이 core.js `guestIdleStep`으로 셈. 닫으면 `guestNote`와 토스트 6초 "손님이 2시간 동안 없어서 손님 방을 닫았어요…"). 닫으면 손님에게 `closed`를 보내고 방 이름·손님 이름·예약 표를 메모리에서도 지운다.
+- **손님 차례 알림 (CR-251 YT-r14)**: `startNext`가 곡을 꺼내기 전에 `guestNickAt(0)`로 이름을 읽어 두고, 재생이 시작되면 TV에 `flash(guestTurnText(이름))` 4초 ("OO님 차례예요", 이름 없는 손님은 "손님 차례예요"). 방장이 넣은 예약·방이 닫혀 있으면 없음.
 - 예약 목록의 손님 이름은 `guestNickAt(i)`(karaoke.js `renderQueue`·`renderQueueList`가 `typeof`로 부름). 방이 닫혀 있으면 ''.
 - 이 기기 설정: `nb-guest-tv`(`'0'` = TV에 QR 안 보임) · `nb-guest-key`(`'0'` = 손님 키 바꾸기 끔). 기본은 둘 다 켬이라 키를 안 만든다.
 - TV 대기 카드 `#guestCard`: 방이 열려 있으면 QR(`#tvIdle.guest-on`이면 옛 리모컨 안내 `#remoteInfo`는 숨김), 닫혀 있으면 허브가 있을 때만 [손님 QR 켜기]. 카드가 보이면 점수 칸은 시계 옆(`.idle-right>.best` 1행 2열)·팁은 고급이어도 한 줄, QR은 `max(96px,16cqw)` (디자인 확인 CR-228 #1~#3). QR 이미지는 1칸 = 1px로 그리고(`guestQrMake` → `Guest.qrPx`), 보이는 크기는 `guestQrFit`가 그 배수로 내린다 (core.js `qrFitPx`, 카드는 최소 96px라 모자라면 한 배 위로, 창 `#guestQrImg`는 220px 안). 낮은 화면(높이 480px 이하)에서는 카드가 한 줄 `#guestCardMini` "손님 QR: 설정 › 손님"만 (CR-228 L1). 카드 바탕은 `--panel` (L8). `server.py` 휴대폰 리모컨(N1~N21)은 그대로.
@@ -245,11 +254,12 @@ npm run test:ui                  # 화면 자동 점검: 헤드리스 Edge가 �
 ## 내 폰 리모컨 (`js/myremote.js` · `js/myphone.js`, CR-228 ③)
 
 - 옛 폰 리모컨(`server.py` `/api/remote/*`, N1~N21)은 그대로 두고, `server.py` 없이(GitHub Pages) **내 폰이 허브로** 같은 16가지 명령을 보내는 길을 더했다.
-- **기본 길 (④)**: 켜 둔 동안(`My.on`) `server.py` 없이 연 화면(`Remote.info` 없음)의 TV 대기 화면 `#remoteInfo`에 내 폰 리모컨 QR + 글 + 옛 길 안내 2줄 (`myTvRender`, `myRender`가 부름 → 켜기·끄기·방 끝·로그아웃을 새로 고침 없이 따라감). 글은 `myremote.js` 맨 위 `MY_TV_TEXT` 한 곳 (디자인실이 다듬음, 옛 길 안내는 바로가기 이름 안 빈칸이 `\u00a0`). 옛 QR(`remote.js` `renderRemoteInfo`) 이름도 "옛 폰 리모컨" (디자인실 K2). QR 주소는 core.js `myRemoteUrl` = 같은 곳의 `remote.html`(`?`·`#`·계정 없음), 주소 글은 화면에 안 씀. QR 라이브러리는 옛 QR과 같은 `qrLoad`·`qrImage`(remote.js, cdnjs qrcode-generator 1.4.4). `server.py`로 연 화면은 켜도 옛 QR·주소·코드 그대로. 손님 QR이 보이면 둘 다 숨김(`.tv-idle.guest-on .remote-info`). 스위치는 그대로 켜야 켜짐(기본 꺼짐: 폰에서 기본으로 켜면 방을 뺏음).
+- **기본 길 (④)**: 켜 둔 동안(`My.on`) `server.py` 없이 연 화면(`Remote.info` 없음)의 TV 대기 화면 `#remoteInfo`에 내 폰 리모컨 QR + 글 + 옛 길 안내 2줄 (`myTvRender`, `myRender`가 부름 → 켜기·끄기·방 끝·로그아웃을 새로 고침 없이 따라감). 글은 `myremote.js` 맨 위 `MY_TV_TEXT` 한 곳 (디자인실이 다듬음, 옛 길 안내는 바로가기 이름 안 빈칸이 `\u00a0`). 옛 QR(`remote.js` `renderRemoteInfo`) 이름도 "옛 폰 리모컨" (디자인실 K2). QR 주소는 core.js `myRemoteUrl` = 같은 곳의 `remote.html`(`?`·`#`·계정 없음), 주소 글은 화면에 안 씀. QR 라이브러리는 옛 QR과 같은 `qrLoad`·`qrImage`(remote.js, 앱 안 사본 `js/vendor/toqr-0.1.1.mjs` — CR-251 YT-r16 전에는 cdnjs라 인터넷이 안 되면 QR이 안 나왔다). `server.py`로 연 화면은 켜도 옛 QR·주소·코드 그대로. 손님 QR이 보이면 둘 다 숨김(`.tv-idle.guest-on .remote-info`). 스위치는 그대로 켜야 켜짐(기본 꺼짐: 폰에서 기본으로 켜면 방을 뺏음).
 - 방 = 회사 허브 Realtime **공개 broadcast** 채널 하나 (`private`·presence·표 변경 0, 손님 방과 따로). 이름은 켤 때마다 새 256비트 난수 `nbm-…`(core.js `myRoomName`, 손님 방 `nbr-…`과 모양이 달라 섞이지 않음). 폰 → PC 이벤트 `p`(`hello`·`cmd`·`bye`), PC → 폰 `m`(`welcome`·`songs`·`state`·`ok`·`no`·`full`·`closed`).
 - 방 이름 건네기 = 허브 열쇠 칸 `hub_secret_set`/`hub_secret('noraebang','remote_room')` (키트 0008, 새 SQL 없음) = 예나 계정만 읽는다. **방 이름은 주소(`?`·`#`)·QR·화면 글·콘솔·기록에 쓰지 않는다.**
 - PC(`myOpen`): 채널에 먼저 붙고 → 열쇠 칸에 쓰고 → 듣기. 여는 사이 로그아웃·끄기가 오면(`My.gen`) 붙은 채널을 떼고 칸도 되돌린다.
 - 방 끝: 끄기(`myClose`) · 이 화면 닫기·새로 고침(`pagehide` 잡기 단계 → `closed`, supabase가 소켓을 끊기 전. 가짜 점검 다리는 닫히는 페이지의 마지막 메시지를 못 받아 X9는 폰의 30초 끊김 길로 보고, 바로 뜨는지는 기기 확인 X10) · 로그아웃·허브 끊기(`myHubLeaving`, `hub.js`가 부름) · 허브 바뀜(`myTick`이 1초마다 `Hub.sb`). 폰에 `closed`를 보내고, 열쇠 칸이 아직 이 방이면 비운다. 다른 화면이 새로 켜서 칸이 다른 방이 되면 이 화면은 1분 안에 저절로 끈다 (안내 `myNote`).
+- **30초 끊김은 다시 붙음 (CR-251 YT-r4)**: 폰(`myphone.js`)이 30초 소식이 없으면(폰 화면 꺼짐 등) 끝난 방으로 적지 않고 열쇠 칸을 다시 읽어 붙는다 (PC가 그대로면 같은 방, 새로 열었으면 새 방). 다시 붙어도 답이 없을 때만 "꺼져 있어요". PC가 보낸 `closed`만 끝난 방.
 - 화면 이름은 "내 폰 리모컨 (허브)" (디자인실 R3), 코드 안 이름 `myremote`·`nb-myremote`·`nbm-`·열쇠 칸 `remote_room`은 그대로. 칸 글 `켜짐 · 폰 N대`(손님 줄 `켜짐 · 손님 N명`과 같은 모양) / `꺼짐 · 노래방을 띄운 PC에서 켜요`. 켜 둔(받는) 기기에는 [이 기기에서 리모컨 열기]를 숨긴다 (`myRender`, 같은 탭 링크라 누르면 이 화면을 떠나 방이 끝남, 디자인실 K2). 폰(꺼짐)에서는 보임.
 - 켜 둔 것은 이 기기 `nb-myremote`='1' (처음엔 꺼짐) → 다음에 열 때 로그인해 있으면 새 이름으로 다시 켠다 (`myHubChanged`, `hubSetState`가 부름). 로그아웃해도 이 값은 그대로.
 - PC가 지키는 것(`myOnMsg`): 모양 검사 core.js `myMsgOk`(종류 3가지·명령 `MY_CMDS` 16가지·명령마다 칸 모양 `myArgsOk`·4KB까지) · hello 안 한 폰의 명령 버림 · 폰 4대(`MY_MAX`, 5번째는 `full`) · 한 대 1초 8개 · 방 전체 1초 20개 · 곡·예약·사용자 다시 확인(`myCmdWhy` → `no{why: nosong·gone·noprofile}`). 버린 메시지에는 답하지 않는다.
@@ -262,6 +272,8 @@ npm run test:ui                  # 화면 자동 점검: 헤드리스 Edge가 �
 ## 녹음 구조
 
 목소리만 따로(16비트 PCM) 저장하고, 반주는 "녹음 몇 초 지점에 반주 몇 초(어떤 키)"인지(`parts`)만 기록한다. 그래서 녹음 뒤에도 타이밍·볼륨·효과를 바꿔 다시 섞을 수 있다(`buildMix`, `renderMix`).
+
+- **저장 알림·[백업 안 됨] 표 (CR-251 YT-r11 = YT-16)**: 녹음 백업(`nb-recbackup`, 설정 "녹음도 Drive에 백업하기")이 꺼져 있으면(기본) "· 이 기기에만 있어요 · 백업 켜기: 설정 › 곡 창고"를 붙여 6초 (core.js `recSavedText`). 켜져 있으면 예전 글·4.5초. 녹음 목록은 백업이 꺼져 있고 Drive에 안 올라간(`fileId` 없음) 녹음 줄마다 [백업 안 됨] 표(`.rec-tag`, core.js `recBackupMissing`). 누르면 `openRecBackup`이 설정 창을 열고 `#recBackup`으로 내려 초점을 둔다. `#recBackup`을 바꾸면 backup.js `onchange`가 끝난 뒤 `setTimeout(renderRecs, 0)`로 표를 다시 그린다. **백업은 저절로 켜지 않는다** (기본값 그대로).
 
 ### 녹음 나누기 (CR-031)
 - 내 녹음 줄과 싱크·믹스 조절 창(`#mxShare`, [WAV로 내보내기] 앞)에 단추 하나. 손가락 화면(`isTouch`)이고 공유 창에 파일을 실을 수 있으면 [공유], 아니면 작은 파일을 만들 수 있을 때 [작은 파일 저장], 둘 다 아니면 단추 없음 (core `shareChoice`). [WAV로 저장]·[WAV로 내보내기]·예전 녹음 [다운로드]는 그대로.

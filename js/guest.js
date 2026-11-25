@@ -63,9 +63,9 @@
     if (p === 'join') { const b = $('#joinBtn'); b.disabled = !!busy; b.textContent = busy ? '방에 붙는 중…' : '들어가기'; if (busy) setConn(false, '붙는 중'); }
   }
   let toastT = 0;
-  function gToast(text, ok) {
+  function gToast(text, ok, ms = 2600) {
     const t = $('#toast'); t.textContent = text; t.classList.toggle('ok', !!ok); t.hidden = false;
-    clearTimeout(toastT); toastT = setTimeout(() => { t.hidden = true; }, 2600);
+    clearTimeout(toastT); toastT = setTimeout(() => { t.hidden = true; }, ms);
   }
 
   /* ---------------- 방에 붙기 · 떼기 ---------------- */
@@ -129,6 +129,7 @@
       case 'found': return onFound(m);
       case 'ok': return onOk(m);
       case 'no': return onNo(m);
+      case 'skip': return gToast(guestSkipText(str(m.title, 80)), false, 5000);   // 내가 예약한 곡이 노래방에서 안 틀어져서 넘어감 (CR-251 YT-01)
     }
   }
   function onOk(m) {
@@ -196,7 +197,7 @@
       const li = el('div', 'li');
       li.append(el('span', 'no', yt ? '' : String(it.no)));
       const tx = el('div', 'tx'); tx.append(el('div', 't1', str(it.title, 80) || '제목 없음'));
-      const artist = str(it.artist, 60), k = kindLabel(it.kind);
+      const artist = str(it.artist, 60), k = kindLabel(it.kind) + (it.blocked === true ? ` · ${YT_BLOCK_TAG}` : '');   // CR-251 YT-01
       tx.append(el('div', 't2', artist ? `${artist} · ${k}` : k)); li.append(tx);
       const b = el('button', 'pill sec', '예약'); b.type = 'button';
       b.onclick = () => reserve(yt ? { ytId: it.ytId } : { no: it.no }, b);
@@ -240,7 +241,7 @@
     const next = $('#nextBox'); next.textContent = '';
     const row = el('div', 'row'), tx = el('div', 'tx'); row.append(tx);
     if (q[0]) {
-      tx.append(el('div', 't1', str(q[0].title, 80) || '제목 없음'), el('div', 't2', `${kindLabel(q[0].kind)} · 1번째`));
+      tx.append(el('div', 't1', str(q[0].title, 80) || '제목 없음'), el('div', 't2', `${kindLabel(q[0].kind)} · 1번째` + (q[0].blocked === true ? ` · ${YT_BLOCK_TAG}` : '')));
       if (me.mine.has(q[0].r)) row.append(chip('내 예약', 'me'));
     } else tx.append(el('div', 't1', '예약된 곡이 없어요'), el('div', 't2', '곡 찾기에서 예약해 보세요'));
     next.append(row);
@@ -253,6 +254,7 @@
       const li = el('div', 'li'); li.append(el('span', 'no idx', String(i + 1)));
       const t = el('div', 'tx'); t.append(el('div', 't1', str(it.title, 80) || '제목 없음'));
       const chips = el('div', 't2 chips'); chips.append(chip(kindLabel(it.kind)));
+      if (it.blocked === true) chips.append(chip(YT_BLOCK_TAG, 'blk'));   // 노래방에서 안 틀어지는 유튜브 곡 → 차례에 건너뜀 (CR-251 YT-01)
       const isMine = isRid(it.r) && me.mine.has(it.r);
       if (isMine) chips.append(chip('내 예약', 'me'));
       t.append(chips); li.append(t);

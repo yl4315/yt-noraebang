@@ -34,6 +34,7 @@ function renderSongs() {
     const st = songStatus(s);
     if (st) { const tg = el('span', 'stag ' + st.cls, st.text); tg.dataset.dl = s.id; li.querySelector('.a').append(tg); }
     if (lacksLyrics(s)) li.querySelector('.a').append(el('span', 'stag nolyr', '가사 없음'));
+    if (ytBlocked(s)) { const b = el('span', 'stag yblk', YT_BLOCK_TAG); b.title = YT_BLOCK_TIP; li.querySelector('.a').append(b); }   // 노래방에서 안 틀어지는 유튜브 곡 (CR-251 YT-01)
     const acts = li.querySelector('.acts');
     const ib = (html, tip, cls, fn) => { const b = document.createElement('button'); b.className = 'icon-btn ' + cls; b.type = 'button'; b.title = tip; b.innerHTML = html; b.onclick = e => { e.stopPropagation(); fn(b); }; acts.append(b); return b; };
     const rb = el('button', 'btn small', '예약'); rb.type = 'button'; rb.title = '예약 목록에 추가';
@@ -59,6 +60,9 @@ function confirmButton(btn, fn) {
   setTimeout(() => { if (btn.isConnected) { delete btn.dataset.armed; btn.innerHTML = old; btn.className = oldCls; } }, 3000);
 }
 
+// 다른 곡 반주를 풀어 둔 채로 둘 크기 (CR-251 YT-08): 최근에 고른 곡부터 160MB (4분 곡 2곡쯤)까지. 고른 차례는 곡 객체에 넣지 않고 따로 (저장·백업에 안 섞이게)
+let SONG_MEM_BUDGET = 160 * 2 ** 20;
+const songUsed = new WeakMap(); let songUseSeq = 0;
 async function loadSongBuffer(s) {
   if (s.buffer) return s.buffer;
   if (!s._loading) s._loading = (async () => {
@@ -81,6 +85,9 @@ async function selectSong(s) {
   $('#guideKnob').hidden = !s.demo;
   setupVideo(s);
   for (const x of state.songs) if (x !== s) x.keyCache = null;
+  // 다른 곡의 풀어 둔 반주는 최근에 고른 것부터 SONG_MEM_BUDGET까지만 두고 나머지는 놓는다 (CR-251 YT-08, 다시 고르면 파일에서 다시 풀기). 다음 예약 곡·녹음 중인 곡은 늘 둔다
+  songUsed.set(s, ++songUseSeq);
+  if (typeof songBuffersToFree === 'function') for (const x of songBuffersToFree(state.songs, [s, state.queue[0], typeof take !== 'undefined' && take && take.song], SONG_MEM_BUDGET, x => songUsed.get(x) || 0)) x.buffer = null;
   state.key = 0; state.keyBufs = null; keyJob++; updateKeyUI();
   $('#syncBtn').hidden = !!s.demo;
   if (typeof autoSyncUI === 'function') autoSyncUI();   // 자동 싱크 단추·한 줄 (autosync.js, CR-227)

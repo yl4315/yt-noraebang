@@ -1,6 +1,6 @@
 /*
  * 자동 생성, 직접 고치지 말 것 — 원본 departments/design/tokens/tokens.json
- * 다시 만들기: departments/design/tokens 에서 node build.mjs · 토큰 v1.4.0 (2026-11-12)
+ * 다시 만들기: departments/design/tokens 에서 node build.mjs · 토큰 v1.5.0 (2026-11-24)
  *
  * 회사 디자인 토큰 (값은 캘린더 "예나의 하루" 그대로).
  * - 기본은 다크(:root). 라이트: <html data-theme="light">, 폰·PC 설정 따라가기: data-theme="system"
@@ -39,6 +39,7 @@
   --color-danger: #FF6B68;
   --color-danger-strong: #FF6B68;
   --color-info: #6A9CFF;
+  --color-info-strong: #6A9CFF;
   --color-positive: #9CDCAE;
   --color-accent: #ECEEF1;
   --color-accent-on: #121316;
@@ -76,6 +77,7 @@
   --color-danger: #F0524F;
   --color-danger-strong: #C0423F;
   --color-info: #3D7BF0;
+  --color-info-strong: #2A64D6;
   --color-positive: #0A4D27;
   --color-accent: #1C1F24;
   --color-accent-on: #FFFFFF;
@@ -112,6 +114,7 @@
     --color-danger: #F0524F;
     --color-danger-strong: #C0423F;
     --color-info: #3D7BF0;
+    --color-info-strong: #2A64D6;
     --color-positive: #0A4D27;
     --color-accent: #1C1F24;
     --color-accent-on: #FFFFFF;
