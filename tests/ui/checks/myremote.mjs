@@ -351,6 +351,8 @@ export default async function myremote(ctx) {
     ok('X9', !why.length, `새로 고침: 폰 ${autoBack ? '새 방에 저절로 다시 이어짐' : '"' + H_OFF + '"'} (${seen ? seenS + '초 · ' + (closedN ? 'PC closed 받음' : '30초 끊김 길 — 가짜 다리는 닫히는 페이지 메시지를 못 받음, 바로 뜨는지 기기 확인') : '못 봄'}) → 다시 연 화면은 로그인한 채라 새 방으로 저절로 켬 (열쇠 칸 = 새 방)${why.length ? ' · 틀림: ' + why.join(', ') : ''}`);
     // 폰 화면을 다시 보이게 하고 [다시 해 보기] → 새 방 (열쇠 칸에서 새 이름을 읽음)
     await ph.eval(`delete document.visibilityState`);
+    // CR-251 YT-r4: 30초 끊김 뒤 폰이 아직 옛 방에 다시 붙어 보는 중이면(답 기다림 WAIT_MS+9초) "꺼져 있어요" 또는 새 방 연결이 될 때까지 기다린다
+    await ph.until(`(${VIEW(H_OFF)}) || (${APP_ON})`, 30000);
     const still = await ph.eval(VIEW(H_OFF));
     if (still) await ph.tap('#hubRetry');
     ok('X9', await ph.until(APP_ON, 20000) && await host.until('My.phones.size===1', 8000), `폰 ${still ? '[다시 해 보기]' : '저절로 다시 봄'} → 새 방에 이어짐 (PC 폰 1대)`);

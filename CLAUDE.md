@@ -125,7 +125,7 @@ npm run test:ui                  # 화면 자동 점검: 헤드리스 Edge가 �
   - 새 파일의 함수를 다른 파일에서 부를 때는 `typeof 이름 === 'function'`으로 감싼다 (배포 직후 캐시로 옛 `index.html` + 새 JS가 섞이면 그 파일이 없을 수 있다. 예: `backup.js`의 `deviceId`·`saveDevStats`).
 - `js/core.js`에는 DOM 코드를 넣지 않는다 (테스트가 브라우저 없이 돈다). 새 순수 로직은 여기에 두고 `tests/core.test.js`에 테스트를 더한다.
 - 데모곡(반주·멜로디)을 바꾸면 `js/demo.js`의 `DEMO_CACHE_KEY` 숫자를 올린다. 안 올리면 예전 반주가 계속 나온다.
-- **곡 반주 메모리 (CR-251 YT-r1)**: 곡을 고르면(`selectSong`) 지금 곡·다음 예약 곡·녹음 중인 곡·데모를 뺀 곡의 `s.buffer`를 놓는다 (core.js `songBuffersToFree`, 4분 곡 하나에 약 80MB). 다른 곡의 `s.buffer`가 남아 있다고 보지 말고, 필요하면 `songReady(s)`로 보고 `loadSongBuffer(s)`로 다시 푼다 (곡을 다시 고르면 저절로). 녹음 미리듣기 캐시 `recCache`도 최근 2개만 (`REC_CACHE_MAX`, core.js `lruSet`).
+- **곡 반주 메모리 (CR-251 YT-r1 = YT-08)**: 곡을 고르면(`selectSong`) 지금 곡·다음 예약 곡·녹음 중인 곡·데모는 늘 두고, 다른 곡의 `s.buffer`는 최근에 고른 것부터 합친 크기가 `SONG_MEM_BUDGET`(songs.js, 160MB) 안이면 두고 넘는 것부터 놓는다 (core.js `songBuffersToFree`, 4분 곡 하나에 약 80MB, 고른 차례는 `songUsed` WeakMap — 곡 객체에 넣지 않음). 다 놓으면 예약 곡 이어 부르기가 매번 다시 풀어 늦어져서 한도를 둠. 다른 곡의 `s.buffer`가 남아 있다고 보지 말고, 필요하면 `songReady(s)`로 보고 `loadSongBuffer(s)`로 다시 푼다 (곡을 다시 고르면 저절로). 녹음 미리듣기 캐시 `recCache`도 최근 2개만 (`REC_CACHE_MAX`, core.js `lruSet`).
 - 곡·녹음 내용이 바뀌면 `persistSong(s)` / `recTouch(r)`로 `updatedAt`을 남긴다. Drive 동기화는 `updatedAt`이 더 나중인 쪽이 이기고, 지운 것은 지움 기록(tombstone)으로 남긴다.
 - **기기 맞추기**:
   - 점수·부른 횟수는 `library.json`·`SONG_FIELDS`에 넣지 않는다 (예전 판이 지운다).
