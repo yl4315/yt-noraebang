@@ -40,7 +40,7 @@
     getVideoData() { const v = V(this.id); return { video_id: this.id, title: v.title || '', author: v.author || '' }; }
     setPlaybackRate(r) { log.calls.push(['rate', r]); this.t = this._now(); this.at = performance.now(); this.rate = r; }
     getPlayerState() { return this.st; }
-    destroy() {}
+    destroy() { log.calls.push(['destroy']); this.dead = true; }
   }
   // CR-244 재생목록 (열쇠 없이 목록 읽기, js/ytlist.js): cuePlaylist · getPlaylist · getPlaylistIndex · destroy.
   // 점검이 정하는 것: window.__ytLists[목록 번호] = { ids: [영상 번호…], err(첫 영상 오류 번호, 그래도 목록 번호는 줌), late(ms, 목록 번호가 늦게 옴) } ·

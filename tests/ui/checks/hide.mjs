@@ -81,7 +81,7 @@ export default async function hide(ctx) {
       await h.click('#settingsBtn');
       await h.until(`document.querySelector('#storeSum').textContent.length>0`, 3000);
       const cid = await h.eval('!!Cloud.clientId');
-      const SET_HID = ['#advBox', '#travelSec', '#bkExport', '#mrSec', '#mrServer', '#remoteSec', '#storeTxt', '#storeCounts', '#dlAllBtn', '#persistTxt'];
+      const SET_HID = ['#advBox', '#travelSec', '#bkExport', '#mrSec', '#mrServer', '#ytSec', '#remoteSec', '#storeTxt', '#storeCounts', '#dlAllBtn', '#persistTxt'];
       const off = await hiddenAll(h, SET_HID);
       const offV = await hiddenAll(h, ['#guestSec', '#storeSec .fold-btn', '#hubSec', '#advBtn', '.set-foot']);
       const o = await h.eval(`({sum:document.querySelector('#storeSum').textContent, aria:document.querySelector('#advBtn').getAttribute('aria-expanded'), cadv:getComputedStyle(document.querySelector('#clientAdv')).display})`);
@@ -92,7 +92,7 @@ export default async function hide(ctx) {
       ok('W13', hs.prev === 'storeSec' && hs.next === 'advBtn' && !hs.inAdv && /연결 안 됨/.test(hs.state), `허브 연결 칸: 앞 #${hs.prev} · 뒤 #${hs.next} · 고급 ${hs.inAdv ? '안' : '밖'} · "${hs.state}"`);
       // 고칠 것 1 (디자인 확인 CR-229 #1): PC 서버(리모컨 켜짐)에서는 작은 글 끝에 "옛 폰 리모컨"이 있음 (정적 Pages 흉내에서는 없음 — 맨 아래 단계)
       const sub = await h.eval(`document.querySelector('#advSub').innerText`);
-      ok('W13', sub === '여행 준비 · 백업 파일 · MR 만들기 서버 · 옛 폰 리모컨', `PC 서버: "더 보기 (고급)" 작은 글 "${sub}"`);
+      ok('W13', sub === '여행 준비 · 백업 파일 · MR 만들기 서버 · 옛 폰 리모컨 · 유튜브 프리미엄', `PC 서버: "더 보기 (고급)" 작은 글 "${sub}"`);
       await shot(h, 'cr229-04-settings-default-1280x800.png');
       // 곡 창고 한 줄 → 그 자리에서 펴짐
       await h.click('#storeSec .fold-btn'); await sleep(120);
@@ -186,11 +186,11 @@ export default async function hide(ctx) {
       const s0 = await st.eval(`({on:Remote.on, hid:document.querySelector('#remoteSec').hidden, sub:document.querySelector('#advSub').innerText})`);
       await st.click('#advBtn'); await sleep(150);
       const s1 = await st.eval(`({adv:document.documentElement.classList.contains('adv'), hid:document.querySelector('#remoteSec').hidden})`);
-      const v1 = await hiddenAll(st, ['#remoteSec', '#remoteSet', '#travelSec', '#mrSec']);
+      const v1 = await hiddenAll(st, ['#remoteSec', '#remoteSet', '#travelSec', '#mrSec', '#ytSec']);
       await st.click('#advBtn'); await sleep(100);
       await st.click('#cloudClose');
-      ok('W13', !s0.on && s0.hid && s1.adv && s1.hid && v1[0][1] && v1[1][1] && !v1[2][1] && !v1[3][1], `정적: 리모컨 ${s0.on ? '켜짐' : '꺼짐'} · 고급 켜도 ${list(v1)}`);
-      ok('W13', s0.sub === '여행 준비 · 백업 파일 · MR 만들기 서버', `정적: "더 보기 (고급)" 작은 글 "${s0.sub}" (펴면 나오는 구역 3개와 같음)`);
+      ok('W13', !s0.on && s0.hid && s1.adv && s1.hid && v1[0][1] && v1[1][1] && !v1[2][1] && !v1[3][1] && !v1[4][1], `정적: 리모컨 ${s0.on ? '켜짐' : '꺼짐'} · 고급 켜도 ${list(v1)}`);
+      ok('W13', s0.sub === '여행 준비 · 백업 파일 · MR 만들기 서버 · 유튜브 프리미엄', `정적: "더 보기 (고급)" 작은 글 "${s0.sub}" (펴면 나오는 구역 4개와 같음)`);
       await st.eval(`localStorage.setItem('nb-advanced','1')`);     // 다른 점검과 같은 상태로
       await st.close(); st = null;
     });

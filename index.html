@@ -94,7 +94,10 @@
           <div class="line bottom" id="lineBottom"><span class="dots"></span><span class="base"></span><span class="fill" aria-hidden="true"></span></div>
         </div>
         <button class="yt-tap" id="ytTap" type="button" hidden>▶ 눌러서 시작</button>
-        <div class="yt-err" id="ytErr" role="alert" hidden><b id="ytErrHead"></b><span id="ytErrWhy"></span><a class="btn small" id="ytErrLink" target="_blank" rel="noopener">유튜브에서 열기</a></div>
+        <div class="yt-err" id="ytErr" role="alert" hidden><b id="ytErrHead"></b><span id="ytErrWhy"></span><a class="btn small" id="ytErrLink" target="_blank" rel="noopener">유튜브에서 열기</a>
+          <!-- CR-251 ①: 퍼가기를 막은 영상(101·150)만 — 폰·PC는 위 링크가 큰 [유튜브 앱으로 열기], TV는 링크 대신 "TV 유튜브 앱에서 찾기" + 영상 링크 QR -->
+          <div class="yt-err-tv" id="ytErrTv" hidden><div class="yt-err-tv-txt"><b id="ytErrTvHead">TV 유튜브 앱에서 이 곡 찾기</b><span id="ytErrFindBox">찾을 말 <q id="ytErrFind"></q></span><small id="ytErrQrTip"></small></div><img class="yt-err-qr" id="ytErrQr" alt="이 영상 링크 QR (폰 카메라로 찍으면 폰 유튜브 앱에서 열려요)" width="148" height="148" hidden></div>
+          <small class="yt-err-note" id="ytErrNote" hidden>유튜브에서 부르면 녹음·점수·예약곡 이어 부르기는 안 돼요</small></div>
         <div class="tv-idle" id="tvIdle" hidden>
           <div>
             <div class="idle-h">예약 목록 <span id="idleCount"></span></div>
@@ -531,7 +534,7 @@
       <p class="hint">연결 코드와 로그인은 이 기기에만 저장돼요. 백업 파일과 Drive에는 안 들어가요. 비밀번호는 저장하지 않아요.</p>
     </section>
     <!-- 더 보기 (고급) (CR-229, W13): 처음엔 접힘, 한 번 펴면 이 기기(nb-advanced)에 기억. 켜면 앱의 다른 숨긴 칸(소리 설정 세부·가사 타이밍·클라이언트 ID 등)도 예전처럼 보인다 -->
-    <button class="set-adv-btn" id="advBtn" type="button" aria-expanded="false" aria-controls="advBox"><span><b>더 보기 (고급)</b><small id="advSub">여행 준비 · 백업 파일 · MR 만들기 서버<span id="advSubMy" hidden> · 내 폰 리모컨</span><span id="advSubRemote" hidden> · 옛 폰 리모컨</span></small></span><i aria-hidden="true">›</i></button>
+    <button class="set-adv-btn" id="advBtn" type="button" aria-expanded="false" aria-controls="advBox"><span><b>더 보기 (고급)</b><small id="advSub">여행 준비 · 백업 파일 · MR 만들기 서버<span id="advSubMy" hidden> · 내 폰 리모컨</span><span id="advSubRemote" hidden> · 옛 폰 리모컨</span> · 유튜브 프리미엄</small></span><i aria-hidden="true">›</i></button>
     <div class="adv-box adv-only" id="advBox">
     <section class="set-sec travel" id="travelSec">
       <h3>여행 준비</h3>
@@ -582,6 +585,12 @@
         <div class="set-row"><button class="btn small" id="remoteNewPin" type="button">새 코드 만들기</button><span class="hint" id="remotePinMsg"></span></div>
         <p class="hint" id="remotePinHint"></p>
       </div>
+    </section>
+    <section class="set-sec" id="ytSec">
+      <h3>유튜브 곡</h3>
+      <label class="guest-sw"><span><b>프리미엄 계정으로 틀기 (이 기기만)</b><small id="ytWwwSub">꺼짐 · 로그인 정보를 쓰지 않는 기본 플레이어</small></span><input type="checkbox" id="ytWww" role="switch"></label>
+      <p class="hint">이 브라우저에 유튜브 프리미엄 계정으로 로그인해 있으면 켜 보세요. 켜면 유튜브 로그인 정보(쿠키)를 써서 광고가 안 나올 수 있어요. 광고가 그대로면 꺼 주세요.</p>
+      <p class="hint">이 기기에만 저장돼요. 백업 파일·Drive·허브·손님 폰에는 안 들어가요. 퍼가기를 막은 영상(TJ 노래방 등)은 켜도 노래방에서 안 틀어져요. 안내에 나오는 유튜브 단추로 열어 불러요.</p>
     </section>
       <p class="hint">켜 둔 동안은 소리 설정 세부·가사 타이밍·클라이언트 ID처럼 숨겨 둔 칸도 모두 보여요. 위 "더 보기 (고급)"를 다시 누르면 접혀요.</p>
     </div>

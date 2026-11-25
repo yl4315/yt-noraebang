@@ -11,7 +11,7 @@ const NAMES = ['fmtMs', 'norm', 'chosung', 'pick', 'parseLyrics', 'toLRC', 'sear
   'STATS_CAP', 'statsFileName', 'cleanPlays', 'mergePlays', 'mergeScores', 'statsTotals', 'statsSig', 'buildStatsFile', 'parseStatsFile', 'pickStatsFiles', 'mergeBackupStats', 'planDownload', 'travelStatus',
   'MR_DEFAULT_SERVER', 'MR_MAX_FILES', 'MR_MAX_BYTES', 'normalizeMrServer', 'mrMessageOk',
   'MR_HUB_NAME', 'mrServerPick', 'mrHubValueOk', 'mrHubFill', 'MR_SAVE_TEXT', 'mrClearText', 'MR_NOSERVER_TEXT', 'MR_NOSERVER_SHORT',
-  'YT_ID_RE', 'isYtSong', 'parseYouTubeId', 'ytWatchUrl', 'ytSearchQuery', 'ytResultsUrl', 'htmlText', 'parseYtSearch', 'ytTitleParts', 'shareParams', 'stripShareParams', 'findYtSong',
+  'YT_ID_RE', 'isYtSong', 'parseYouTubeId', 'ytWatchUrl', 'ytErrToApp', 'YT_WWW_KEY', 'ytHostFor', 'ytAppFindWords', 'ytSearchQuery', 'ytResultsUrl', 'htmlText', 'parseYtSearch', 'ytTitleParts', 'shareParams', 'stripShareParams', 'findYtSong',
   'ADV_KEY', 'DECK_KEY', 'advOn', 'deckOpenAtStart', 'storeSummary',
   'MR_LRC_MAX', 'MR_LYR_MAX', 'mrLrcOk', 'mrLyricsFor', 'mrLyricsFromLrclib', 'alignLyricsText', 'canAlignSong', 'alignAsk', 'alignErrText', 'ALIGN_ERR_TEXT',
   'HUB_LRC_MAX', 'HUB_PUSH_MAX', 'HUB_PULL_MAX', 'hubPairOk', 'hubCodeParse', 'hubCodeMake', 'mrHashKey', 'songSettingsKey', 'settingsOf', 'settingsSig', 'settingsHas', 'settingsFromData',

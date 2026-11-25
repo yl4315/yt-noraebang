@@ -749,6 +749,23 @@ test('유튜브 링크 → 영상 번호: 링크 5종이 같은 영상, 재생�
   assert.equal(C.ytWatchUrl(id), 'https://www.youtube.com/watch?v=' + id);
 });
 
+test('CR-251: 유튜브 앱으로 넘길 오류는 101·150만 · 플레이어 host (기본 nocookie, 켠 기기만 www) · TV에서 찾을 말', () => {
+  for (const c of [101, 150]) assert.equal(C.ytErrToApp(c), true, String(c));
+  for (const c of [100, 2, 5, 153, 'offline', 'api', null, undefined, '150', 0]) assert.equal(C.ytErrToApp(c), false, String(c));
+  assert.equal(C.YT_WWW_KEY, 'nb-yt-www');
+  assert.ok(C.YT_WWW_KEY.startsWith('nb-') && !C.YT_WWW_KEY.startsWith('nb-hub'), 'nb- 접두어 · 허브 칸(nb-hub*) 아님');
+  assert.equal(C.ytHostFor(false), 'https://www.youtube-nocookie.com');
+  assert.equal(C.ytHostFor(undefined), 'https://www.youtube-nocookie.com');
+  assert.equal(C.ytHostFor(true), 'https://www.youtube.com');
+  assert.equal(C.ytAppFindWords('밤편지', '아이유'), '밤편지 아이유 노래방');
+  assert.equal(C.ytAppFindWords('  밤편지  ', ''), '밤편지 노래방');
+  assert.equal(C.ytAppFindWords('밤편지 (노래방)', '아이유'), '밤편지 (노래방) 아이유');
+  assert.equal(C.ytAppFindWords('밤편지 - 아이유', '아이유'), '밤편지 - 아이유 노래방', '가수가 제목에 있으면 두 번 안 붙임');
+  assert.equal(C.ytAppFindWords('유튜브 영상 dQw4w9WgXcQ', ''), '', '제목을 모르는 곡');
+  assert.equal(C.ytAppFindWords('', '아이유'), '');
+  assert.equal(C.ytAppFindWords(null, null), '');
+});
+
 test('유튜브 곡 판정·같은 영상 찾기·가사 없음에서 빠짐', () => {
   const yt = { id: 'y1', no: 10, title: '밤편지', source: 'yt', ytId: 'dQw4w9WgXcQ', lyrics: '' };
   assert.equal(C.isYtSong(yt), true);

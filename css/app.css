@@ -103,8 +103,10 @@ select{background:var(--btn-bg);border:1px solid var(--btn-line);border-radius:v
 
 /* stage */
 .main{display:flex;flex-direction:column;gap:14px;min-width:0}
-.stage{position:relative;aspect-ratio:16/9;max-height:62vh;width:100%;border-radius:14px;overflow:hidden;border:1px solid var(--line);
+.stage{position:relative;aspect-ratio:16/9;max-height:62vh;width:100%;border-radius:14px;overflow:hidden;overflow:clip;border:1px solid var(--line);
   background:radial-gradient(120% 90% at 50% 110%,#26307a 0%,#121845 45%,#070a1f 100%);isolation:isolate;container-type:inline-size}
+/* overflow:clip (CR-251): 무대는 옆으로 밀리지 않는다. hidden만이면 .lights(inset:-20%) 때문에 scrollIntoView·focus가 무대를 옆으로 밀어
+   가운데 안내(못 트는 영상 카드)가 폰에서 왼쪽으로 잘렸다. clip을 모르는 옛 브라우저는 hidden 그대로 */
 .lights{position:absolute;inset:-20%;z-index:-1;opacity:.55;
   background:
    radial-gradient(30% 25% at 20% 30%,rgba(255,79,163,.35),transparent 70%),
@@ -653,6 +655,19 @@ body:has(#tv:not([hidden])) .yt-box{z-index:20;border-radius:0}
 .yt-err span{color:var(--muted)}
 .yt-err .btn{min-height:48px}   /* [유튜브에서 열기] 손가락 자리 (디자인 확인 CR-030) */
 .stage:has(#ytErr:not([hidden])) :is(.title-card,.lyrics){visibility:hidden}   /* 못 트는 영상 안내 위로 곡 제목·가사가 비치지 않게 (디자인 확인 CR-030 #3) */
+/* 퍼가기를 막은 영상 (오류 101·150, CR-251 ①): 폰·PC는 큰 [유튜브 앱으로 열기] + 한 줄, TV는 "TV 유튜브 앱에서 이 곡 찾기" + 찾을 말 + 영상 링크 QR */
+.yt-err .btn.yt-err-app{min-height:56px;padding:0 1.4em;font-size:1.15em;font-weight:800;max-width:100%}
+.yt-err .btn span{color:inherit}
+.yt-err-note{color:var(--muted);font-size:.92em;line-height:1.35}
+.yt-err-tv{display:flex;align-items:center;justify-content:center;gap:1em;width:100%;text-align:left}
+.yt-err-tv-txt{display:flex;flex-direction:column;gap:.4em;min-width:0}
+.yt-err .yt-err-tv-txt b{font:700 1.1em/1.3 var(--ui);color:var(--amber)}
+#ytErrFind{quotes:none;color:var(--ink);font-weight:700;overflow-wrap:anywhere}
+#ytErrQrTip{color:var(--muted);font-size:.85em;line-height:1.35}
+.yt-err-qr{width:var(--qr-px,6.5em);height:var(--qr-px,6.5em);image-rendering:pixelated;background:#fff;border-radius:.3em;flex:none}
+.yt-err:has(#ytErrTv:not([hidden])){width:min(92%,36em)}
+/* 좁은 무대(글자 130% 폰 등, 무대 폭 300 아래): 안내 카드를 조금 줄여 위 곡 머리(번호·제목)와 겹치지 않게 (CR-251) */
+@container (max-width:300px){.yt-err{padding:10px 12px;gap:5px}.yt-err .btn.yt-err-app{min-height:48px}}
 /* 곡 검색 창: [내 MR 보관함 | 유튜브 노래방 검색] (높이 48) */
 .seg{display:flex;background:var(--room);border-radius:var(--radius-sm,8px);padding:2px;min-height:48px;flex:none}
 .seg-b{flex:1;border:0;border-radius:6px;background:none;color:var(--muted);font:600 1em var(--ui);white-space:nowrap;min-height:44px;padding:0 .6em}
