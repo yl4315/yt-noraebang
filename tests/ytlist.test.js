@@ -11,6 +11,7 @@ const ROOT = path.join(__dirname, '..');
 const plain = x => JSON.parse(JSON.stringify(x));
 const same = (actual, expected) => assert.deepEqual(plain(actual), plain(expected));
 const wait = ms => new Promise(r => setTimeout(r, ms));
+const until = async (f, ms = 5000) => { const t0 = Date.now(); while (!f()) { if (Date.now() - t0 > ms) throw new Error('기다려도 안 됨'); await wait(20); } };
 
 /* ---------- 작은 가짜 DOM ---------- */
 function fakeDom() {
@@ -63,7 +64,7 @@ function fakeDom() {
 /* ---------- 불러오기 ---------- */
 const NAMES = ['YT_LIST_MAX', 'YT_KY_CHANNEL', 'YT_LIST_HOST', 'YT_LIST_WHY', 'YT_LIST_ERR', 'parseYouTubeListId', 'ytRankOfficial', 'ytWithChannelIds', 'ytListPlan',
   'ytListItemsPage', 'ytVideosRead', 'ytListJoin', 'ytApiErrorKind', 'ytListView', 'ytListDoneText',
-  'YtList', 'ytListFetchKey', 'ytListFetchPlayer', 'ytListRead', 'ytListOpen', 'ytListClose', 'ytListPlanOf', 'ytListAdd', 'ytListCommit', 'ytListCard', 'ytListFocus',
+  'YtList', 'ytListBox', 'ytListFetchKey', 'ytListFetchPlayer', 'ytListRead', 'ytListOpen', 'ytListClose', 'ytListPlanOf', 'ytListAdd', 'ytListCommit', 'ytListCard', 'ytListFocus',
   'parseYtSearch', 'ytTitleParts', 'nextSongNumbers'];
 // dom: 가짜 DOM을 줄지 · fakeYt: tests/ui/fake-yt.js를 같이 불러올지 · extra: 컨텍스트에 더할 이름 (state·persistSong 등)
 function load({ dom = true, fakeYt = false, extra = {} } = {}) {
@@ -337,6 +338,34 @@ test('열쇠 없는 길: 받은 칸(box)에 플레이어를 두고 칸은 남긴
   stop();
 });
 
+test('열쇠 없는 길: 칸을 만드는 함수(box: () => …)를 주면 앞 플레이어를 없앤 뒤 anchor 뒤에 칸을 만들고, 다 읽으면 칸도 없앤다 (2단계)', async () => {
+  const { L: M, ctx, D, stop } = load({ fakeYt: true });
+  ctx.__ytLists = { A: { ids: [ID(1)], late: 80 }, B: { ids: [ID(2), ID(3)] } };
+  const wrap = D.doc.createElement('div'), anchor = D.doc.createElement('ul'); wrap.append(anchor); D.doc.body.append(wrap);
+  const mk = () => M.ytListBox(anchor);
+  const pa = M.ytListFetchPlayer('A', { YTns: ctx.YT, box: mk });
+  await wait(40);
+  const boxA = D.doc.querySelector('.yt-list-box');
+  assert.ok(boxA); assert.equal(boxA.parentNode, wrap); assert.equal(wrap.children[1], boxA);   // anchor 바로 뒤 · 읽는 동안 보임
+  assert.equal(M.YtList.boxMine, true);
+  same((await pa).items.map(x => x.id), [ID(1)]);
+  assert.equal(D.doc.querySelectorAll('.yt-list-box').length, 0); assert.equal(M.YtList.box, null);
+  // 읽는 중에 다른 목록: 앞 플레이어·칸을 없애고 새 칸에서 (칸이 떨어져 나가 플레이어가 안 보이는 일 없음)
+  ctx.__ytLists.A.late = 300;
+  const p1 = M.ytListFetchPlayer('A', { YTns: ctx.YT, box: mk, timeoutMs: 400 });
+  await wait(40);
+  const first = D.doc.querySelector('.yt-list-box');
+  const p2 = M.ytListFetchPlayer('B', { YTns: ctx.YT, box: mk });
+  await wait(5);
+  assert.equal(first.isConnected, false);
+  const r2 = await p2;
+  same(r2.items.map(x => x.id), [ID(2), ID(3)]);
+  assert.equal((await p1).ok, false);   // 앞 목록은 버림
+  assert.equal(D.doc.querySelectorAll('.yt-list-box').length, 0);
+  same(ctx.__ytFake.players.map(p => p.o.host), ['https://www.youtube-nocookie.com', 'https://www.youtube-nocookie.com', 'https://www.youtube-nocookie.com']);
+  stop();
+});
+
 test('열쇠 없는 길: 없는·비공개 목록, 빈 목록, 첫 곡이 막혀도 목록은 읽음, 플레이어를 못 불러옴', async () => {
   const { L: M, ctx, stop } = load({ fakeYt: true });
   ctx.__ytLists = { EMPTY: { ids: [] }, ERR: { ids: [ID(1), ID(2)], err: 150 } };
@@ -475,6 +504,64 @@ test('카드 상태: 열기 → 읽기(열쇠) → 계획 → [곡 목록에 다
   ctx.navigator = { onLine: false };
   const off = M.ytListOpen('PLother');
   assert.equal(off.phase, 'error'); assert.equal(off.kind, 'offline');
+});
+
+test('카드 상태: 못 읽은 목록은 다시 그려도 또 읽지 않고, [다시 해 보기](retry)·인터넷이 다시 되면 새로 읽는다', async () => {
+  const { L: M, ctx, stop } = load({ fakeYt: true });
+  vm.runInContext('var Yt = { keyBlocked: false, meta: new Map() }; function ytLoadApi() { return Promise.resolve(YT); }', ctx);
+  const opts = { box: null, onChange: () => {} };
+  ctx.__ytLists = {};
+  const st = M.ytListOpen('PLgone', opts);
+  await until(() => st.phase !== 'loading');
+  assert.equal(st.phase, 'error'); assert.equal(st.kind, 'player');
+  const cues = () => ctx.__ytFake.calls.filter(c => c[0] === 'cueList').length;
+  assert.equal(cues(), 1);
+  assert.equal(M.ytListOpen('PLgone', opts), st); assert.equal(M.ytListOpen('PLgone', opts), st);   // 다시 그리기: 그대로
+  assert.equal(cues(), 1);
+  ctx.__ytLists.PLgone = { ids: [ID(1)] };
+  const again = M.ytListOpen('PLgone', { ...opts, retry: true });
+  assert.notEqual(again, st); assert.equal(again.phase, 'loading');
+  await until(() => again.phase !== 'loading');
+  assert.equal(again.phase, 'ready'); assert.equal(cues(), 2);
+  M.ytListClose();
+  // 인터넷 끊김 → 다시 되면 같은 목록도 새로
+  ctx.navigator = { onLine: false };
+  const off = M.ytListOpen('PLnet');
+  assert.equal(off.kind, 'offline'); assert.equal(M.ytListOpen('PLnet'), off);
+  ctx.navigator = { onLine: true };
+  ctx.__ytLists.PLnet = { ids: [ID(2)] };
+  const on = M.ytListOpen('PLnet');
+  assert.notEqual(on, off); assert.equal(on.phase, 'loading');
+  await until(() => on.phase !== 'loading');
+  assert.equal(on.phase, 'ready');
+  M.ytListClose();
+  stop();
+});
+
+test('카드 상태: 다 넣은 뒤 알림 글을 카드에 남긴다 (done) → [다 넣었어요](막힘) · 못 트는 곡이 남았으면 스위치 · 켜면 다시 [곡 목록에 다 넣기]', async () => {
+  const api = fakeApi({ total: 3, blocked: [ID(3)] });
+  const { L: M, ctx } = addCtx();
+  vm.runInContext('var __key = "k"; function ytHasKey() { return !Yt.keyBlocked; } function ytKeyValue() { return __key; }', ctx);
+  ctx.fetch = api.fn;
+  const st = M.ytListOpen('PLdone');
+  await wait(20);
+  assert.equal(st.done, '');
+  await M.ytListCommit();
+  assert.equal(st.done, '1곡 넣었어요 · 있던 1곡 건너뜀 · 못 트는 1곡 뺌');
+  const v = M.ytListView({ ...st, plan: M.ytListPlanOf(st) });
+  same(v, { cls: 'yt-c-list-ready yt-c-list-done', head: '재생목록 3곡', lines: [
+    { text: '1곡 넣었어요 · 있던 1곡 건너뜀 · 못 트는 1곡 뺌' },
+    { text: '1곡은 노래방 안에서 못 틀어요 (유튜브 앱에서는 돼요)', toggle: { text: '그 곡도 넣기', on: false } },
+  ], btn: { text: '다 넣었어요', act: 'add', primary: false, disabled: true }, small: '곡 목록에서 골라 예약해요' });
+  st.includeBlocked = true;
+  const v2 = M.ytListView({ ...st, plan: M.ytListPlanOf(st) });
+  same(v2.btn, { text: '곡 목록에 다 넣기', act: 'add', primary: true, disabled: false }); assert.equal(v2.head, '재생목록 3곡');
+  await M.ytListCommit();
+  const v3 = M.ytListView({ ...st, plan: M.ytListPlanOf(st) });
+  same(v3.lines, [{ text: '1곡 넣었어요 · 있던 2곡 건너뜀' }]); assert.equal(v3.btn.text, '다 넣었어요');
+  // 넣는 중(adding)에는 done이 있어도 넣는 중 카드
+  assert.equal(M.ytListView({ ...st, phase: 'adding', plan: M.ytListPlan([item(9)], []) }).btn.text, '넣는 중…');
+  M.ytListClose();
 });
 
 /* ---------------- 카드 화면 (가짜 DOM) ---------------- */

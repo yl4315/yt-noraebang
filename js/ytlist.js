@@ -135,7 +135,7 @@ const YT_LIST_ERR = {
   offline: '인터넷이 끊겨 있어요 · 인터넷이 되면 다시 해 봐요',
   other: '유튜브가 답하지 않아요 · 잠시 후 다시 해 봐요',
 };
-// 미리 보기 카드에 쓸 글 (화면과 상관없음). st = { phase: 'loading'|'ready'|'adding'|'bad'|'error', why, kind, plan, keyUsed }
+// 미리 보기 카드에 쓸 글 (화면과 상관없음). st = { phase: 'loading'|'ready'|'adding'|'bad'|'error', why, kind, plan, keyUsed, done }
 // → { cls, head, lines: [{ text, toggle? }], btn: { text, act, primary, disabled } | null, small }
 function ytListView(st, { limit = YT_LIST_MAX } = {}) {
   const ph = st?.phase;
@@ -144,6 +144,13 @@ function ytListView(st, { limit = YT_LIST_MAX } = {}) {
     btn: st.kind === 'offline' ? null : { text: '다시 해 보기', act: 'retry', primary: false, disabled: false }, small: '' };
   if (ph !== 'ready' && ph !== 'adding') return { cls: 'yt-c-list-busy', head: '재생목록을 읽는 중…', lines: [], btn: null, small: '' };
   const p = st.plan || ytListPlan([], []), lines = [];
+  // 다 넣은 뒤 (넣을 곡이 더 없음): 넣은 알림 글을 카드에 남기고 단추는 [다 넣었어요](막힘). 못 트는 곡이 남았으면 스위치는 그대로
+  if (st.done && ph === 'ready' && !p.add.length) {
+    lines.push({ text: st.done });
+    if (p.blocked.length) lines.push({ text: `${p.blocked.length}곡은 노래방 안에서 못 틀어요 (유튜브 앱에서는 돼요)`, toggle: { text: '그 곡도 넣기', on: !!p.includeBlocked } });
+    return { cls: 'yt-c-list-ready yt-c-list-done', head: `재생목록 ${p.n}곡`, lines,
+      btn: { text: '다 넣었어요', act: 'add', primary: false, disabled: true }, small: '곡 목록에서 골라 예약해요' };
+  }
   if (p.have.length) lines.push({ text: `곡 목록에 있는 ${p.have.length}곡은 건너뛰어요` });
   if (p.blocked.length) lines.push({ text: `${p.blocked.length}곡은 노래방 안에서 못 틀어요 (유튜브 앱에서는 돼요)`, toggle: { text: '그 곡도 넣기', on: !!p.includeBlocked } });
   if (p.cut) lines.push({ text: `앞 ${limit}곡만 넣어요` });
@@ -166,7 +173,7 @@ function ytListDoneText({ added = 0, have = 0, blocked = 0, over = 0, fail = 0, 
 
 /* ---------------- 브라우저 부분 ---------------- */
 const YtList = {
-  st: null,           // 지금 카드 상태 { id, phase, kind, items, gone, more, maybeMore, keyUsed, includeBlocked }
+  st: null,           // 지금 카드 상태 { id, phase, kind, items, gone, more, maybeMore, keyUsed, includeBlocked, done(넣은 뒤 알림 글) }
   cache: new Map(),   // 이 화면 동안 읽은 목록 ('k:'·'p:' + 목록 번호 → 결과). 저장하지 않는다
   player: null, box: null, boxMine: false, gen: 0,
 };
@@ -207,7 +214,7 @@ async function ytListFetchKey(listId, key, { fetchFn = typeof fetch === 'functio
     return { ok: true, items: j.items, gone: gone + j.gone, more: Math.max(0, (total ?? raw) - raw), maybeMore: false, keyUsed: true };
   } catch { return { ok: false, kind: 'net' }; }
 }
-// 목록 플레이어 칸: anchor 바로 뒤(2단계: 검색 창 #searchList 뒤 — 목록을 다시 그려도 iframe이 지워지지 않게)에 보이는 칸을 만든다
+// 목록 플레이어 칸: anchor 바로 뒤(검색 창 #searchList 뒤 — 목록을 다시 그려도 iframe이 지워지지 않게)에 보이는 칸을 만든다
 function ytListBox(anchor) {
   if (YtList.box && YtList.box.isConnected) return YtList.box;
   const b = el('div', 'yt-list-box', '');
@@ -222,7 +229,7 @@ function ytListDropPlayer() {
   if (YtList.box && YtList.boxMine) { YtList.box.remove(); YtList.box = null; YtList.boxMine = false; }
 }
 // 열쇠 없는 길: 목록마다 새 플레이어를 만들어 cuePlaylist → getPlaylist() (11-24 ⓪: 같은 플레이어에 둘째 목록을 올리면 첫 목록이 남았다).
-// 틀지 않는다 (올려 두기만). 다 읽으면 destroy. host는 2단계에서 CR-251 설정 값과 잇는다 (지금 기본 youtube-nocookie).
+// 틀지 않는다 (올려 두기만). 다 읽으면 destroy. host는 yt.js가 CR-251 설정 값(ytHostFor(Yt.www))을 준다 (안 주면 youtube-nocookie).
 // → { ok:true, items:[{ id, title:'', channel:'', embeddable:null }], gone:0, more:0, maybeMore, keyUsed:false } | { ok:false, kind: 'api'|'timeout'|'empty'|'player', code }
 async function ytListFetchPlayer(listId, { box = null, host = YT_LIST_HOST, YTns = null, timeoutMs = 12000, settleMs = 3000, errMs = 1500 } = {}) {
   ytListDropPlayer();
@@ -232,8 +239,11 @@ async function ytListFetchPlayer(listId, { box = null, host = YT_LIST_HOST, YTns
     try { YT = await ytLoadApi(); } catch { return { ok: false, kind: 'api' }; }
   }
   const my = ++YtList.gen;
-  const holder = box || ytListBox(null);
-  if (box) { YtList.box = box; YtList.boxMine = false; }
+  // box: 칸(DOM) 또는 칸을 만드는 함수. 함수면 여기서(앞 플레이어를 없앤 뒤) 만든다 → 내 칸(boxMine)이라 다 읽으면 같이 없앤다
+  let holder = null;
+  if (typeof box === 'function') holder = box();
+  else if (box) { holder = box; YtList.box = box; YtList.boxMine = false; }
+  if (!holder) holder = ytListBox(null);
   const spot = document.createElement('div'); holder.append(spot);
   return new Promise(res => {
     let p = null, done = false, poll = 0, cuedAt = 0, errCode = null;
@@ -292,11 +302,14 @@ async function ytListRead(listId, { key, box, host, fetchFn, YTns } = {}) {
   if (r.ok) YtList.cache.set((r.keyUsed ? 'k:' : 'p:') + listId, r);
   return r;
 }
-// 카드 상태 열기 (2단계: renderYtTab이 목록 링크를 보면 부름). 같은 목록이면 그대로 둔다. onChange = 다 읽으면 다시 그리기
-function ytListOpen(listId, { box, host, onChange } = {}) {
-  if (YtList.st && YtList.st.id === listId && YtList.st.phase !== 'error') return YtList.st;
+// 카드 상태 열기 (renderYtTab이 목록 링크를 보면 부름). 같은 목록이면 그대로 둔다. onChange = 다 읽으면 다시 그리기.
+// 못 읽은 목록(error)은 [다시 해 보기](retry)나, 인터넷이 끊겼다가 다시 됐을 때만 새로 읽는다 (다시 그릴 때마다 또 읽지 않게)
+function ytListOpen(listId, { box, host, onChange, retry = false } = {}) {
+  const cur = YtList.st;
+  const again = !!cur && cur.phase === 'error' && (retry || (cur.kind === 'offline' && !(typeof navigator === 'object' && navigator.onLine === false)));
+  if (cur && cur.id === listId && !again) return cur;
   if (YtList.st) ytListClose();
-  const st = YtList.st = { id: listId, phase: 'loading', kind: null, items: [], gone: 0, more: 0, maybeMore: false, keyUsed: false, includeBlocked: false };
+  const st = YtList.st = { id: listId, phase: 'loading', kind: null, items: [], gone: 0, more: 0, maybeMore: false, keyUsed: false, includeBlocked: false, done: '' };
   if (typeof navigator === 'object' && navigator.onLine === false) { st.phase = 'error'; st.kind = 'offline'; return st; }
   ytListRead(listId, { box, host }).then(r => {
     if (YtList.st !== st) return;
@@ -338,10 +351,10 @@ async function ytListCommit(onChange) {
   const plan = ytListPlanOf(st);
   if (!plan.add.length) return null;
   st.phase = 'adding'; if (typeof onChange === 'function') onChange(st);
-  try { return await ytListAdd(plan); }
+  try { const r = await ytListAdd(plan); if (r && YtList.st === st) st.done = r.text; return r; }
   finally { if (YtList.st === st) { st.phase = 'ready'; if (typeof onChange === 'function') onChange(st); } }
 }
-// 미리 보기 카드 (ytCard 모양: 굵은 제목 · 줄들 · 작은 글 · 단추). DOM만 만든다 — 2단계에서 renderYtTab이 부른다.
+// 미리 보기 카드 (ytCard 모양: 굵은 제목 · 줄들 · 작은 글 · 단추). DOM만 만든다 — renderYtTab(yt.js)이 부른다.
 // v = ytListView(...) · on = { onToggle(켬), onAct('add'|'retry'), onExit() (맨 위에서 ↑: 검색 칸으로), focus('sw'|'add'|'retry': 다시 그린 뒤 둘 곳) }
 // TV 리모컨: ↑↓←→로 스위치·단추 사이를 옮기고(core.js pickByArrow), Enter·Space로 누른다. 이 키들은 카드 안에서 끝낸다 (노래방 단축키 Space 재생으로 새지 않게)
 function ytListCard(ul, v, on = {}) {
@@ -387,5 +400,5 @@ function ytListCard(ul, v, on = {}) {
   if (on.focus) { const f = li.querySelector(`[data-k="${on.focus}"]`); if (f && !f.disabled) f.focus(); }
   return li;
 }
-// 카드의 첫 스위치·단추로 (2단계: 검색 칸에서 ↓)
+// 카드의 첫 스위치·단추로 (검색 칸에서 ↓, yt.js ytSearchKey)
 function ytListFocus(li) { const f = li && [...li.querySelectorAll('input,button')].find(x => !x.disabled); if (f) f.focus(); return !!f; }
