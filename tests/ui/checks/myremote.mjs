@@ -339,14 +339,19 @@ export default async function myremote(ctx) {
     await ph.eval(`Object.defineProperty(document,'visibilityState',{configurable:true,get:()=>'hidden'})`);
     const t0 = Date.now(), reload = host.goto(base + '/index.html', READY_DEMO, 150000);
     // 닫히는 페이지가 pagehide에서 보내는 "closed"는 가짜 점검 다리(CDP)가 못 받는다 → 그때는 폰의 30초 끊김 길(LOST_MS)로 꺼짐. 바로 뜨는지는 기기 확인(X10)
-    // CR-251 YT-r4: 30초 끊김 뒤 폰은 열쇠 칸을 다시 읽는다 → PC가 그사이 새 방을 열었으면 새 방에 저절로 이어지고, 아니면 "꺼져 있어요"
-    const seen = await ph.until(`(${VIEW(H_OFF)}) || (${APP_ON})`, 45000), seenS = ((Date.now() - t0) / 1000).toFixed(1);
-    const autoBack = seen && await ph.eval(APP_ON);
-    const closedN = R.log.filter(e => e.op === 'broadcast' && e.t === 'closed' && e.from === 'page').length - closed0;
+    // CR-251 YT-r4: 30초 끊김 뒤 폰은 열쇠 칸을 다시 읽는다 → PC가 그사이 새 방을 열었으면 새 방에 저절로 이어지고(새 PC 화면이 폰 1대), 아니면 "꺼져 있어요".
+    // 폰은 끊김을 알아챌 때까지(30초) 옛 방의 "연결됨" 화면을 그대로 두므로, 폰 화면의 "연결됨"만으로는 이어졌다고 보지 않는다
     await reload;
     const on = await host.until(`My.on && !My.busy`, 20000);
     const room3 = on ? await host.eval('My.room') : '';
     if (room3) secrets.add(room3);
+    let seen = false, autoBack = false;
+    for (const end = Date.now() + 45000; Date.now() < end && !seen; await sleep(500)) {
+      if (await ph.eval(VIEW(H_OFF))) seen = true;
+      else if (on && await host.eval('My.phones.size===1') && await ph.eval(APP_ON)) seen = autoBack = true;
+    }
+    const seenS = ((Date.now() - t0) / 1000).toFixed(1);
+    const closedN = R.log.filter(e => e.op === 'broadcast' && e.t === 'closed' && e.from === 'page').length - closed0;
     const why = [!seen && `폰 꺼짐 안내 안 보임(PC closed ${closedN}개)`, !on && 'PC가 다시 안 켬', on && !ROOM_RE.test(room3) && '이름 모양 틀림', on && room3 === room2 && '옛 방 이름', on && slot() !== room3 && '열쇠 칸 ≠ 새 방'].filter(Boolean);
     ok('X9', !why.length, `새로 고침: 폰 ${autoBack ? '새 방에 저절로 다시 이어짐' : '"' + H_OFF + '"'} (${seen ? seenS + '초 · ' + (closedN ? 'PC closed 받음' : '30초 끊김 길 — 가짜 다리는 닫히는 페이지 메시지를 못 받음, 바로 뜨는지 기기 확인') : '못 봄'}) → 다시 연 화면은 로그인한 채라 새 방으로 저절로 켬 (열쇠 칸 = 새 방)${why.length ? ' · 틀림: ' + why.join(', ') : ''}`);
     // 폰 화면을 다시 보이게 하고 [다시 해 보기] → 새 방 (열쇠 칸에서 새 이름을 읽음)
