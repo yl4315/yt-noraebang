@@ -48,7 +48,9 @@ lock = threading.Lock()
 cmds = []            # (번호, 명령) — 휴대폰이 보낸 명령을 노래방 화면이 가져간다
 seq = 0
 tv_state = b'{}'     # 노래방 화면이 올려 둔 현재 상태 (곡 목록, 예약 등)
-fails = {}           # IP별 틀린 코드 횟수
+BOOT = '%08x' % random.SystemRandom().getrandbits(32)   # 켤 때마다 새 표: 화면이 "서버를 껐다 켰다"를 안다 (명령 번호가 0부터 다시, CR-251 YT-r12)
+fails = {}           # IP별 틀린 코드 횟수 · '*' = 모든 기기를 합친 틀린 횟수 (CR-251 YT-21)
+FAIL_ALL_MAX, FAIL_ALL_SEC, FAIL_ALL_REST = 20, 60, 600   # 모든 기기 합쳐 1분에 20번 틀리면 10분 쉬기 (IP를 바꿔 가며 맞혀 보기 막기)
 # 이 PC 전용 창구가 받는 주소창 이름: localhost·127.0.0.1·[::1] (포트는 아무거나). 불러올 때 한 번 만들어 둔다
 LOCAL_HOST = re.compile(r'(localhost|127[.]0[.]0[.]1|\[::1\])(:[0-9]+)?')
 
@@ -136,15 +138,22 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
     def pin_ok(self, pin):
         ip = self.client_address[0]
-        n, until = fails.get(ip, (0, 0))
-        if until > time.time():
+        now = time.time()
+        with lock:
+            start, total, rest = fails.get('*', (now, 0, 0))
+            n, until = fails.get(ip, (0, 0))
+            if rest > now or until > now:      # 쉬는 동안은 맞는 코드도 안 받음 (맞혔는지 알 수 없게)
+                return False
+            if str(pin) == PIN:
+                fails.pop(ip, None)
+                return True
+            n += 1
+            fails[ip] = (0, now + 60) if n >= 10 else (n, 0)   # 10번 틀리면 1분 쉬기 (IP마다, 예전 그대로)
+            if now - start >= FAIL_ALL_SEC:    # 1분 칸이 지났으면 다시 셈
+                start, total = now, 0
+            total += 1
+            fails['*'] = (now, 0, now + FAIL_ALL_REST) if total >= FAIL_ALL_MAX else (start, total, 0)   # CR-251 YT-21
             return False
-        if str(pin) == PIN:
-            fails.pop(ip, None)
-            return True
-        n += 1
-        fails[ip] = (0, time.time() + 60) if n >= 10 else (n, 0)   # 10번 틀리면 1분 쉬기
-        return False
 
     def send_json(self, obj=None, code=200, raw=None):
         body = raw if raw is not None else json.dumps(obj, ensure_ascii=False).encode()
@@ -180,7 +189,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             with lock:
                 out = [c for n, c in cmds if n > since]
                 last = seq
-            return self.send_json({'cmds': out, 'last': last})
+            return self.send_json({'cmds': out, 'last': last, 'boot': BOOT})
         if u.path == '/api/remote/state':
             # 이 PC 화면(주소창 localhost)은 코드 없이, 휴대폰(와이파이 주소)은 맞는 코드가 있어야 본다
             if not (self.is_local() and self.local_host()) and not self.pin_ok((q.get('pin') or [''])[0]):

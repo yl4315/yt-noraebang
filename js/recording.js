@@ -51,7 +51,9 @@ async function saveTake(t) {
   rec.updatedAt = rec.createdAt; Cloud.schedule();
   try { await DB.put('recs', rec); } catch { toast('녹음을 브라우저에 저장하지 못했어요. 새로고침 전에 WAV로 저장해 두세요.', 4500); }
   renderRecs();
-  toast(`녹음 저장됨 · ${rec.title} (${fmt(rec.duration)}) · 박자가 어긋나면 '싱크·믹스 조절'에서 고치세요`, 4500);
+  const backupOn = lsGet('nb-recbackup') === '1';   // 녹음 백업이 꺼져 있으면 "이 기기에만 있어요 · 백업 켜기" (CR-251 YT-r11 = YT-16)
+  toast(typeof recSavedText === 'function' ? recSavedText(rec.title, fmt(rec.duration), backupOn)
+    : `녹음 저장됨 · ${rec.title} (${fmt(rec.duration)}) · 박자가 어긋나면 '싱크·믹스 조절'에서 고치세요`, backupOn ? 4500 : 6000);
 }
 async function setArmed(on) {
   if (ytSong()) { flash('유튜브 곡은 녹음하지 않아요 · 내 MR 곡에서만 돼요'); updateTransportUI(); return; }   // 영상 소리가 섞인 파일을 남기지 않음 (CR-030). 켜 둔 녹음은 다음 내 MR 곡에서 그대로
@@ -63,9 +65,9 @@ async function setArmed(on) {
 $('#recBtn').onclick = () => setArmed(!state.armed);
 
 /* 녹음 믹스: 목소리 + 반주를 지정한 타이밍·볼륨으로 다시 합친다 (미리듣기와 WAV 내보내기 공용) */
-const recCache = new Map();
+const recCache = new Map(), REC_CACHE_MAX = 2;   // 미리듣기용으로 푼 녹음은 최근 2개만 (CR-251 YT-r1, 메모리)
 async function loadRecAudio(rec) {
-  if (recCache.has(rec.id)) return recCache.get(rec.id);
+  if (recCache.has(rec.id)) { const hit = recCache.get(rec.id); if (typeof lruSet === 'function') lruSet(recCache, rec.id, hit, REC_CACHE_MAX); return hit; }
   ensureCtx();
   await ensureRecMedia(rec);
   const i16 = new Int16Array(await rec.vocal.arrayBuffer());
@@ -76,7 +78,7 @@ async function loadRecAudio(rec) {
   const out = { vocalBuf: vb, mrBuf: mr, mrKeys: {} };
   // 키를 바꿔 부른 부분은 그 키의 반주로 섞는다
   if (mr) for (const k of new Set(rec.parts.map(p => p.key || 0))) if (k) { try { out.mrKeys[k] = (await keyBuffer(song, k)).mr; } catch {} }
-  recCache.set(rec.id, out);
+  if (typeof lruSet === 'function') lruSet(recCache, rec.id, out, REC_CACHE_MAX); else recCache.set(rec.id, out);
   return out;
 }
 function buildMix(c, out, data, parts, mix, from, when) {
@@ -145,6 +147,7 @@ function renderRecs() {
   $('#recCount').textContent = state.recs.length;
   $('#recEmpty').hidden = state.recs.length > 0;
   $('#recHint').hidden = !state.recs.some(r => r.v === 2);
+  const backupOn = lsGet('nb-recbackup') === '1';
   for (const r of state.recs) {
     const li = document.createElement('li'); li.className = 'rec';
     const d = new Date(r.createdAt);
@@ -152,6 +155,11 @@ function renderRecs() {
     li.querySelector('.t').textContent = r.title;
     const noMr = r.v === 2 && !state.songs.some(s => s.id === r.songId);
     li.querySelector('.sub').textContent = `${d.getMonth() + 1}월 ${d.getDate()}일 ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')} · ${fmt(r.duration)}${noMr ? ' · 반주 없음' : (r.v === 2 && !r.parts.length && r.mix.mrStart == null) ? ' · 반주 위치 맞추기 필요' : ''}`;
+    // CR-251 YT-16: 백업이 꺼져 있어 이 기기에만 있는 녹음은 "백업 안 됨" 표 → 누르면 설정의 "녹음도 Drive에 백업하기"로 (저절로 켜지 않음)
+    if (recMedia(r) && typeof recBackupMissing === 'function' && recBackupMissing(r, backupOn)) {
+      const tag = Object.assign(document.createElement('button'), { type: 'button', className: 'rec-tag', textContent: '백업 안 됨', title: '이 기기에만 있어요 · 눌러서 백업 켜기' });
+      tag.onclick = openRecBackup; li.querySelector('.row').append(tag);
+    }
     if (r.score != null) li.querySelector('.row').append(Object.assign(document.createElement('span'), { className: 'score-chip', textContent: r.score + '점' }));
     const btns = li.querySelector('.btns');
     const mk = (txt, cls, fn) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'btn small ' + cls; b.textContent = txt; b.onclick = () => fn(b); btns.append(b); return b; };
@@ -194,6 +202,13 @@ function renderRecs() {
   }
   renderPlayerUI(); renderShareUI();
 }
+// "백업 안 됨" 표를 누르면: 설정 창을 열고 "녹음도 Drive에 백업하기" 칸으로 (CR-251 YT-16). 켜고 끄면 표도 바로 다시 그림
+function openRecBackup() {
+  if (typeof openCloudDialog === 'function') openCloudDialog();
+  const c = $('#recBackup'); if (!c) return;
+  c.scrollIntoView({ block: 'center' }); c.focus({ preventScroll: true });
+}
+$('#recBackup')?.addEventListener('change', () => setTimeout(renderRecs, 0));   // backup.js가 nb-recbackup을 쓴 다음에 그림 (이 듣기가 먼저 붙어서)
 async function exportWav(rec, mix, b) {
   // CR-241 N4: 만드는 동안 눌림은 막고 흐리게 하지 않는다 (aria-busy → css .btn[aria-busy=true]:disabled · 디자인 보기 K4와 같음)
   const label = b.textContent; b.disabled = true; b.setAttribute('aria-busy', 'true'); b.textContent = '만드는 중…';

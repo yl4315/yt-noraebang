@@ -853,10 +853,28 @@ const guestRoomName = rng => 'nbr-' + guestRand(32, rng);
 // 손님 표(손님 폰이 만듦)·예약 표(방장이 만듦): 16바이트 난수 22자. 이름·기기 정보가 아님
 const guestId = rng => guestRand(16, rng);
 // QR 주소: <노래방 폴더>/guest.html#r=<방 이름>&c=<연결 코드>. 값은 # 뒤에만 (서버 기록·Referer에 안 남게), ? 없음
-function guestUrl(base, room, code) {
-  const b = String(base || '').replace(/[?#].*$/, '').replace(/[^/]*$/, '');
+// pub (CR-251 YT-06): 방장 화면을 PC 바로가기(localhost·사설 IP·이름만 있는 주소·http)로 열었으면 손님 폰은 그 주소에 못 들어온다
+// → 공개 주소 pub(https만)을 바탕으로 쓴다. 손님 화면은 허브에만 붙으므로 어느 주소에서 열어도 같은 방. pub가 없으면 예전 그대로
+function guestUrl(base, room, code, pub) {
+  let b = String(base || '').replace(/[?#].*$/, '').replace(/[^/]*$/, '');
   if (!/^https?:\/\/[^/?#]+\//.test(b) || !GUEST_ROOM_RE.test(String(room)) || !hubCodeParse(code).ok) return null;
+  const p = String(pub || '').replace(/[?#].*$/, '').replace(/[^/]*$/, '');
+  if (/^https:\/\/[^/?#]+\//.test(p)) {
+    const host = b.replace(/^https?:\/\/(?:[^@/]*@)?([^/]+)\/.*$/, '$1').replace(/:\d+$/, '').replace(/^\[|\]$/g, '').toLowerCase();
+    const local = /^http:/.test(b) || !host.includes('.') && !host.includes(':')
+      || /(^|\.)(localhost|local|lan|home|internal)$/.test(host)
+      || /^(127|10)\.\d+\.\d+\.\d+$|^192\.168\.\d+\.\d+$|^172\.(1[6-9]|2\d|3[01])\.\d+\.\d+$|^169\.254\.\d+\.\d+$|^0\.0\.0\.0$/.test(host)
+      || /^(::1?|f[cd][0-9a-f]{0,2}:.*|fe[89ab][0-9a-f]?:.*)$/.test(host);
+    if (local) b = p;
+  }
   return b + 'guest.html#r=' + room + '&c=' + code;
+}
+// 손님 방 저절로 닫기 (CR-251 YT-19): 손님이 0명인 채로 ms(2시간)가 지나면 닫는다. 손님이 있으면 시계를 0으로 되돌린다.
+// emptySince = 손님이 0명이 된 시각 (0 = 지금 손님 있음). 돌려줌 { emptySince, close }
+function guestIdleStep(emptySince, guests, now, ms) {
+  if (guests > 0) return { emptySince: 0, close: false };
+  const since = emptySince > 0 ? emptySince : now;
+  return { emptySince: since, close: now - since >= ms };
 }
 // 손님 폰: 주소의 # 읽기. 맞으면 { ok:true, room, u, k }, 아니면 { ok:false } (틀린 값은 돌려주지 않는다)
 function guestUrlParse(hash) {
@@ -906,6 +924,11 @@ function guestQueueMap(queue, res) {
     for (let j = res.length - 1; j >= 0; j--) if (!used.has(j) && res[j].id === queue[i]) { at[i] = res[j]; used.add(j); break; }
   }
   return { at, live: res.filter((_, j) => used.has(j)) };
+}
+// 손님 차례 알림 글 (CR-251 YT-r14): 손님이 예약한 곡이 시작되면 TV에 "OO님 차례예요" (이름이 없으면 "손님 차례예요"). 손님 예약이 아니면 ''
+function guestTurnText(nick) {
+  const n = String(nick || '').trim();
+  return !n ? '' : n === '손님' ? '손님 차례예요' : `${n}님 차례예요`;
 }
 // 손님 모두에게 같이 가는 상태: 지금 곡(제목·가수·종류·진행·키)과 예약 목록 제목 10개.
 // 손님 예약 줄에는 예약 표(r)만 붙는다 (10개 뒤의 손님 예약 표는 rest). 손님 폰은 자기가 받은 표만 "내 예약"으로 안다
@@ -1043,6 +1066,39 @@ function remoteModePick({ status, body } = {}) {
   if (status === 403 && obj && body.error === 'local only') return 'server';
   return 'hub';
 }
+// 소리 메모리 비우기 (CR-251 YT-r1 = YT-08): 곡을 고를 때마다 풀어 둔 반주(AudioBuffer, 4분 곡에 약 80MB)가 끝없이 쌓이지 않게,
+// keep(지금 곡·다음 예약 곡·녹음 중인 곡, 곡 또는 곡 id)과 데모 곡(만들기가 오래 걸려서)은 늘 두고, 나머지 풀어 둔 내 MR 곡은
+// 최근에 고른 것(usedAt 숫자가 큰 것)부터 합친 크기가 budget(바이트) 안이면 두고, 넘는 곡부터 그보다 오래된 곡은 모두 놓을 곡으로 돌려준다.
+// budget이 0·없음이면 모두 놓는다. 크기 = 길이 × 채널 수 × 4바이트 (AudioBuffer는 float32)
+function songBuffersToFree(songs, keep, budget, usedAt) {
+  const k = new Set((keep || []).filter(Boolean));
+  const list = (songs || []).filter(s => s && s.buffer && !s.demo && !k.has(s) && !k.has(s.id));
+  const max = Number(budget) > 0 ? Number(budget) : 0;
+  if (!max) return list;
+  const at = s => { const n = typeof usedAt === 'function' ? Number(usedAt(s)) : 0; return Number.isFinite(n) ? n : 0; };
+  const bytes = b => Math.max(0, Number(b.length) || 0) * Math.max(1, Number(b.numberOfChannels) || 1) * 4;
+  const out = []; let used = 0, over = false;
+  for (const s of list.slice().sort((x, y) => at(y) - at(x))) {
+    if (!over && used + bytes(s.buffer) <= max) used += bytes(s.buffer); else { over = true; out.push(s); }
+  }
+  return out;
+}
+// 최근 것만 두는 Map (CR-251 YT-r1, 녹음 미리듣기 캐시): 넣은 것을 맨 뒤로, max개를 넘으면 가장 오래 안 쓴 것부터 뺀다
+function lruSet(map, key, value, max) {
+  map.delete(key); map.set(key, value);
+  while (map.size > Math.max(1, max | 0)) map.delete(map.keys().next().value);
+  return map;
+}
+// 옛 폰 리모컨 받아 오기 (server.py /api/remote/poll, CR-251 YT-r12): 검은 서버 창을 껐다 켜면 명령 번호가 0부터 다시 시작한다.
+// prev = 화면이 가진 { since, boot }, res = 서버 답 { last, boot }. 서버 표(boot)가 바뀌었거나 번호가 줄었으면 restarted:
+// 그 답의 명령은 실행하지 않고 since = 0으로 돌려 다음 번에 새 서버의 명령을 처음부터 받는다 (화면은 상태도 다시 올림)
+function remotePollNext(prev, res) {
+  const p = prev || {}, r = res || {}, since = Number.isInteger(p.since) && p.since >= 0 ? p.since : 0;
+  const last = Number.isInteger(r.last) && r.last >= 0 ? r.last : since;
+  const boot = typeof r.boot === 'string' && r.boot ? r.boot : (p.boot || null);
+  const restarted = (!!p.boot && !!boot && boot !== p.boot) || last < since;
+  return { since: restarted ? 0 : last, boot, restarted };
+}
 // TV 대기 화면 내 폰 리모컨 QR 주소 (CR-228 ④ L6): 노래방을 연 곳과 같은 곳의 remote.html.
 // 방 이름·코드·계정은 넣지 않는다 (`?`·`#`·사용자 이름 없음). 방 이름은 폰이 허브 열쇠 칸에서 읽는다
 function myRemoteUrl(href) {
@@ -1059,6 +1115,15 @@ const SMALL_BITRATE = 128000;      // AAC-LC 128kbps 스테레오 (4분 곡 약 
 // 눈에 안 보이는 글자: 제어 글자(0~1F, 7F~9F), 소프트 하이픈, 폭 없는 공백·방향 표시(200B~200F, 2028~202E, 2060~206F), BOM(FEFF)
 const INVISIBLE_CHARS = new RegExp('[' + [[0x00, 0x1f], [0x7f, 0x9f], [0xad, 0xad], [0x200b, 0x200f], [0x2028, 0x202e], [0x2060, 0x206f], [0xfeff, 0xfeff]]
   .map(([a, b]) => String.fromCharCode(a) + '-' + String.fromCharCode(b)).join('') + ']', 'g');
+// 녹음 저장 알림 글 (CR-251 YT-r11 = YT-16): 녹음 백업(설정 "녹음도 Drive에 백업하기")이 꺼져 있으면 이 기기에만 있다고, 켜는 곳과 같이 알린다
+// (백업은 저절로 켜지 않는다: 4분 녹음에 약 23MB라 켜는 것은 사람이)
+function recSavedText(title, len, backupOn) {
+  return `녹음 저장됨 · ${title} (${len})${backupOn ? '' : ' · 이 기기에만 있어요 · 백업 켜기: 설정 › 곡 창고'} · 박자가 어긋나면 '싱크·믹스 조절'에서 고치세요`;
+}
+// 녹음 줄 "백업 안 됨" 표 (CR-251 YT-16): 녹음 백업이 꺼져 있고 Drive에도 아직 없는 녹음 (Drive에 올라간 녹음은 fileId가 있다)
+function recBackupMissing(rec, backupOn) {
+  return !backupOn && !!rec && !rec.fileId;
+}
 // 녹음 파일 이름: 곡이름_YYYYMMDD-HHMM.확장자 (시각 = 녹음한 시각, 이 기기 시간). 한글 그대로.
 // 풀어 쓴 한글(NFD) → 한 글자로(NFC), 눈에 안 보이는 제어 글자 빼기, \ / : * ? " < > | → _, 앞뒤 공백·점 빼기, 제목 50자, 빈 제목은 "녹음"
 function recFileName(title, createdAt, ext) {

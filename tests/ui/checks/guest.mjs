@@ -5,7 +5,7 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import { PC, PHONE, PHONE_L, TV, READY_DEMO, openPage, seedSong, txt, visible, isHidden, count, marks, sawToast, sleep, enterTVNoFs } from './_lib.mjs';
+import { PC, PHONE, PHONE_L, TV, READY_DEMO, openPage, seedSong, txt, visible, isHidden, count, marks, sawToast, sawFlash, sleep, enterTVNoFs } from './_lib.mjs';
 import { wav } from '../fixtures.mjs';
 import { FAKE_HUB_HOST, FAKE_HUB_KEY, hubCode, fakeMail, makeFakeRealtime } from '../fakehub.mjs';
 export const areas = ['X'];
@@ -46,6 +46,8 @@ export default async function guest(ctx) {
   await R.attach(host, hb);
   await host.s('Page.addScriptToEvaluateOnNewDocument', { source: CONS });
   await host.goto(ctx.base + '/index.html', READY_DEMO, 150000);
+  // CR-251 YT-06: 127.0.0.1(http)로 연 방장은 QR 바탕을 공개 Pages 주소로 바꾼다 → 점검은 손님 폰을 가짜 서버로 열려고 바탕을 비워 둔다 (공개 주소로는 안 감, X4에서 모양만 봄)
+  await host.eval(`window.__pub = GUEST_PUBLIC_BASE; GUEST_PUBLIC_BASE = ''`);
   const openGuest = async (b, url, ready = JOIN_READY, ms = 15000) => {
     const p = await openPage({ ...ctx, adv: false }, PHONE, null, null, b);   // 손님 폰에는 점검 도구의 고급 켜기(nb-advanced·__ui-adv)를 넣지 않는다 — X7 "손님 폰 저장 0"을 그대로 재려고
     await R.attach(p, b);
@@ -109,7 +111,7 @@ export default async function guest(ctx) {
     await host.until(`!$('#hubLoginBtn').disabled && !/로그인 중|맞추는 중/.test($('#hubMsg').textContent)`, 20000);
     ok('X3', await host.eval('hubOn()'), '허브 연결 있음');
     await host.click('#cloudClose'); await sleep(200);
-    ok('X3', await host.eval(`!$('#guestCard').hidden && !$('#guestCardBtn').hidden && $('#guestCardQr').hidden`), 'TV 대기 카드 [손님 QR 켜기] 단추 (설정 창을 닫으면 다시 그림)');
+    ok('X3', await host.eval(`!$('#guestCard').hidden && !$('#guestCardBtn').hidden && $('#guestCardQr').hidden && $('#guestCardClose').hidden`), 'TV 대기 카드 [손님 QR 켜기] 단추 (설정 창을 닫으면 다시 그림 · 닫힌 방은 [방 닫기] 없음)');
   });
 
   // X3·X4·X1: 방 열기
@@ -128,6 +130,9 @@ export default async function guest(ctx) {
     const shape = await host.eval(`(()=>{const u=new URL(Guest.url);return {path:u.pathname, same:u.origin===location.origin, q:Guest.url.includes('?'), hash:/^#r=nbr-[A-Za-z0-9_-]{43}&c=nbhub1\\.[A-Za-z0-9_-]+$/.test(u.hash), roomBits:(Guest.room.length-4)*6}})()`);
     ok('X4', shape.path.endsWith('/guest.html') && shape.same && !shape.q && shape.hash, `주소 모양: …/guest.html#r=…&c=… · ? ${shape.q ? '있음' : '없음'}`);
     ok('X4', shape.roomBits >= 256, `방 이름 난수 ${shape.roomBits}비트 (base64url 43자)`);
+    // CR-251 YT-06: 이 방장은 http 127.0.0.1 (PC 바로가기와 같음) → 진짜 QR 바탕은 공개 https 주소 (앱에 든 값 그대로 계산만, 그 주소로 가지는 않음)
+    const pub = await host.eval(`(()=>{const u=new URL(guestUrl(location.href, Guest.room, hubCodeMake(Hub.conf.u, Hub.conf.k), window.__pub)); return {proto:u.protocol, host:u.host, path:u.pathname, hash:/^#r=nbr-[A-Za-z0-9_-]{43}&c=nbhub1\\./.test(u.hash), here:location.protocol+'//'+location.hostname}})()`);
+    ok('X4', pub.proto === 'https:' && pub.host === 'yl4315.github.io' && pub.path === '/yt-noraebang/guest.html' && pub.hash, `localhost 방장 → QR 주소 https: ${pub.here} → ${pub.proto}//${pub.host}${pub.path}#r=…&c=…`);
     const j = R.joins[R.joins.length - 1] || {};
     ok('X4', j.private === false && j.self === false && j.presence === false && j.pg === 0, `방장 채널: 공개 broadcast (private ${j.private} · self ${j.self} · presence ${j.presence} · 표 변경 ${j.pg})`);
     ok('X4', R.badKey === 0 && R.badUrl === 0, `Realtime 주소 wss·/realtime/v1/websocket·vsn 2.0.0 · 공개 키만 (틀림 ${R.badUrl}·${R.badKey})`);
@@ -215,9 +220,11 @@ export default async function guest(ctx) {
   });
 
   // X6: 지금 곡 + 키 (G4)
-  await step('지금 곡 (G4): 방장이 시작 → 제목·진행 · 키 ♯·원래 키 (−2~+2)', ['X2', 'X6'], async () => {
+  await step('지금 곡 (G4): 방장이 시작 → 손님 차례 알림 · 제목·진행 · 키 ♯·원래 키 (−2~+2)', ['X2', 'X5', 'X6'], async () => {
+    const mkTurn = await marks(host);
     await host.eval('startNext()');
     ok('X6', await host.until(`state.playing && state.song && state.song.title==='QA 손님 첫곡'`, 15000), '방장 재생: ' + await host.eval('state.song && state.song.title'));
+    ok('X5', await sawFlash(host, /QA손님하나님 차례예요/, mkTurn, 5000), '손님 예약 곡이 시작되면 TV에 "QA손님하나님 차례예요" (CR-251 YT-r14)');
     await A.p.tap('.tabs [data-tab="tabNow"]');
     ok('X6', await A.p.until(`$('#nowTitle').textContent==='QA 손님 첫곡' && !$('#nowProgBox').hidden && !$('#keyUp').disabled`, 6000), 'A 지금 곡: ' + await txt(A.p, '#nowTitle'));
     ok('X6', /QA 손님 둘째곡/.test(await txt(A.p, '#nextBox')), '다음 곡: ' + await txt(A.p, '#nextBox'));
@@ -356,6 +363,7 @@ export default async function guest(ctx) {
       await host.emulate(TV); await sleep(400);
       await host.eval('applyAdv(false)'); await sleep(150);
       tv = await measure();
+      tv.close = await visible(host, '#guestCardClose');     // CR-251 YT-19: 카드에 [방 닫기]
       await shot(host, 'x-guest-tv-card-1920.png');
       await host.eval('applyAdv(true)'); await sleep(150);
       tvAdv = await measure();
@@ -386,16 +394,24 @@ export default async function guest(ctx) {
       `TV 1920: 점수 ${tv && tv.lines}줄 시계 옆 ${tv && tv.bestBeside} · 카드가 덮는 넓이 점수 ${tv && over(tv.card, tv.best)} · 사용자 줄 ${tv && over(tv.card, tv.user)} · QR ${tv && tv.qr.w}px = 그림 ${qpx}px × ${tv && tv.qr.w / qpx} (무대 ${tv && tv.stage}px의 16% = ${tv && qrWant(tv.stage)}px 안쪽 배수)`);
     ok('X3', tvAdv && tvAdv.tipFull === 'none' && tvAdv.tipShort !== 'none' && over(tvAdv.card, tvAdv.user) === 0 && over(tvAdv.card, tvAdv.best) === 0,
       `TV 1920 고급 켬: 팁 ${tvAdv && tvAdv.tipFull === 'none' ? '한 줄(짧은 글)' : '예전 3줄'} · 카드가 덮는 넓이 사용자 줄 ${tvAdv && over(tvAdv.card, tvAdv.user)} · 점수 ${tvAdv && over(tvAdv.card, tvAdv.best)}`);
+    ok('X3', tv && tv.close, `TV 1920 손님 카드에 [방 닫기] ${tv && tv.close ? '보임' : '안 보임'} (CR-251 YT-19)`);
     ok('X3', over(pc.card, pc.user) === 0 && over(pc.card, pc.best) === 0 && qrOk(pc, pc.stage), `PC 1280 (점수 없음): 카드가 덮는 넓이 사용자 줄 ${over(pc.card, pc.user)} · 점수 ${over(pc.card, pc.best)} · QR ${pc.qr.w}px = ${qpx}px × ${pc.qr.w / qpx} (무대 ${pc.stage}px, 최소 96px)`);
     await host.eval(`$('#guestTvQr').click()`); await sleep(150);
     ok('X3', await host.eval(`$('#guestCard').hidden && !$('#tvIdle').classList.contains('guest-on') && localStorage.getItem('nb-guest-tv')==='0'`), 'TV에 QR 끄기 → 카드 숨김 (nb-guest-tv=0)');
     await host.eval(`$('#guestTvQr').click()`); await sleep(150);
     ok('X3', await visible(host, '#guestCard') && await host.eval(`localStorage.getItem('nb-guest-tv')===null`), '다시 켬');
     await A.p.tap('.tabs [data-tab="tabFind"]');
-    const mk_ = await marks(A.p);
-    await tapReserve(A, 'QA 손님 둘째곡');
-    ok('X5', await sawToast(A.p, /예약했어요 · 바로 시작해요/, mk_, 6000), 'TV 대기 중 손님 예약: ' + await txt(A.p, '#toast'));
-    ok('X5', await host.until(`state.playing && state.song.title==='QA 손님 둘째곡'`, 15000), '방장 TV에서 바로 시작');
+    const mk_ = await marks(A.p), mkT = await marks(host);
+    let turn = false;
+    try {
+      await host.emulate(TV); await sleep(300);      // CR-251 YT-24 사진: TV 1920에서 손님 곡이 바로 시작 → "QA손님하나님 차례예요"
+      await tapReserve(A, 'QA 손님 둘째곡');
+      ok('X5', await sawToast(A.p, /예약했어요 · 바로 시작해요/, mk_, 6000), 'TV 대기 중 손님 예약: ' + await txt(A.p, '#toast'));
+      ok('X5', await host.until(`state.playing && state.song.title==='QA 손님 둘째곡'`, 15000), '방장 TV에서 바로 시작');
+      turn = await sawFlash(host, /QA손님하나님 차례예요/, mkT, 5000);
+      if (turn) await shot(host, 'cr251-tv-1920-guest-turn.png');
+    } finally { await host.emulate(PC); await sleep(200); }
+    ok('X5', turn, 'TV 대기 중 손님 예약이 바로 시작돼도 "QA손님하나님 차례예요" (CR-251 YT-24)');
   });
 
   // X8: 방 닫기 → G6a · 옛 QR → G6b · 새 QR = 새 방 · 허브 연결 끊으면 방도 닫힘
@@ -430,6 +446,21 @@ export default async function guest(ctx) {
     await host.click('#guestNewBtn');
     const r3 = await roomOpen();
     ok('X8', r3.okOpen && r3.tag !== r2.tag && await A.p.until(`/방이 닫혔어요/.test($('#msgBig').textContent)`, 5000), '[새 QR 만들기] → 새 방 · 옛 손님은 "방이 닫혔어요"');
+    // CR-251 YT-19: 손님 0명으로 2시간 → 저절로 닫힘 (시계는 흉내: 0명이 된 시각을 2시간 앞으로) · TV 카드 [방 닫기] → 닫힘 · 카드 [손님 QR 켜기] → 새 방
+    const idle0 = await host.until(`Guest.on && Guest.guests.size===0 && Guest.empty>0`, 3000), mkI = await marks(host);
+    await host.eval(`Guest.empty = Date.now() - GUEST_IDLE_MS - 1000`);
+    const auto = await host.until(`!Guest.on && /손님이 2시간 동안 없어서/.test($('#guestMsg').textContent)`, 4000);
+    ok('X8', idle0 && auto && await sawToast(host, /손님이 2시간 동안 없어서 손님 방을 닫았어요/, mkI, 2000) && await waitNode(() => R.subs(host) === 0, 3000),
+      `손님 0명으로 2시간 → 방이 저절로 닫힘 · 알림 "${await host.eval(`$('#guestMsg').textContent`)}" · 방 채널에서 나감`);
+    await host.click('#guestOpenBtn');
+    const r4 = await roomOpen();
+    await closeDialogs();
+    const cardClose = r4.okOpen && await host.until(`!$('#guestCardClose').hidden`, 3000);
+    await host.eval(`$('#guestCardClose').click()`);
+    ok('X8', cardClose && await host.until(`!Guest.on && !$('#guestCardBtn').hidden && $('#guestCardClose').hidden`, 4000), 'TV 카드 [방 닫기] → 방 닫힘 · 카드는 [손님 QR 켜기]로');
+    await host.eval(`$('#guestCardBtn').click()`);
+    const r5 = await roomOpen();
+    ok('X8', r5.okOpen && r5.tag !== r4.tag, 'TV 카드 [손님 QR 켜기] → 새 방');
     await closeDialogs();
     await host.eval('hubDisconnect()');
     ok('X8', await host.until(`!Guest.on`, 4000) && await host.eval(`$('#guestCard').hidden`), '허브 연결 끊기 → 방도 닫힘 · TV 카드 없음');

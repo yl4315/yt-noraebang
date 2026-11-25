@@ -75,8 +75,14 @@ const MyPhone = (() => {
       } else if ((status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') && !welcomed) { drop(); show('err'); }
     });
   }
-  // PC가 답이 없거나 껐음: 그 방 이름은 끝 (PC는 켤 때마다 새 이름을 쓴다)
+  // PC가 껐음(closed)·다시 붙어도 답이 없음: 그 방 이름은 끝 (PC는 켤 때마다 새 이름을 쓴다)
   function gone() { dead = room || dead; drop(); st = null; pending.clear(); show('off'); }
+  // 30초 소식이 없음 (폰 화면이 꺼졌다 켜짐·잠깐 끊김, CR-251 YT-r4): 끝난 방으로 적지 않고 열쇠 칸을 다시 읽어 붙는다.
+  // PC가 그대로면 같은 방에 다시 이어지고, PC가 새로 열었으면 새 방으로. 다시 붙어도 답(welcome)이 없으면 그때 gone()
+  async function lost() {
+    await drop(); st = null; pending.clear(); show('wait');
+    checkAt = 0; return connect(false);
+  }
 
   /* ---------------- 보내기 ---------------- */
   function put(o) {
@@ -143,7 +149,7 @@ const MyPhone = (() => {
     const now = Date.now();
     for (const [seq, p] of pending) if (now - p.at > ACK_MS) { pending.delete(seq); ui.toast('노래방이 답하지 않아요. 잠시 뒤 다시 눌러 주세요'); }
     if (welcomed && ready) {
-      if (now - lastAt > LOST_MS) return gone();
+      if (now - lastAt > LOST_MS) return lost();
       if (now - aliveAt > HELLO_MS) hello();
       if (stSig && stSig !== songSig && !parts && now - askAt > ASK_MS) { askAt = now; hello(); }
       return;
@@ -156,7 +162,7 @@ const MyPhone = (() => {
     setInterval(tick, 1000);
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState !== 'visible') return;
-      if (welcomed && ready) { if (Date.now() - lastAt > LOST_MS) gone(); else hello(); }
+      if (welcomed && ready) { if (Date.now() - lastAt > LOST_MS) lost(); else hello(); }
       else if (view !== 'wait') connect(false);
     });
   }

@@ -1,0 +1,129 @@
+// CR-251 검토 고침 (YT-r1·r12 …) 순수 로직 테스트: node --test tests/
+// core.test.js·load-core.js와 따로 둔다 (같은 때 다른 가지가 그 두 파일을 고칠 수 있어서). 불러오는 방법은 load-core.js와 같다
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const vm = require('node:vm');
+
+function load(names) {
+  const ctx = vm.createContext({ console, Blob, TextEncoder, TextDecoder, DataView, Uint8Array, URLSearchParams, URL, crypto: globalThis.crypto, atob, btoa });
+  for (const f of ['util.js', 'core.js']) {
+    const file = path.join(__dirname, '..', 'js', f);
+    vm.runInContext(fs.readFileSync(file, 'utf8'), ctx, { filename: file });
+  }
+  return vm.runInContext(`({ ${names.join(', ')} })`, ctx);
+}
+const plain = x => JSON.parse(JSON.stringify(x));
+const C = load(['remotePollNext']);
+
+test('옛 폰 리모컨 받아 오기 (YT-r12): 서버를 껐다 켜면 번호를 0으로 돌리고, 그 답의 명령은 실행하지 않는다', () => {
+  // 처음: 표를 기억하고 번호를 따라감
+  assert.deepEqual(plain(C.remotePollNext({ since: 0, boot: null }, { last: 3, boot: 'aaaa0001' })), { since: 3, boot: 'aaaa0001', restarted: false });
+  assert.deepEqual(plain(C.remotePollNext({ since: 3, boot: 'aaaa0001' }, { last: 5, boot: 'aaaa0001' })), { since: 5, boot: 'aaaa0001', restarted: false });
+  // 다시 켬: 번호가 줄었음 (옛 서버라 표가 없어도)
+  assert.deepEqual(plain(C.remotePollNext({ since: 57, boot: null }, { last: 2 })), { since: 0, boot: null, restarted: true });
+  // 다시 켬: 표가 바뀜 (번호가 더 커도)
+  assert.deepEqual(plain(C.remotePollNext({ since: 1, boot: 'aaaa0001' }, { last: 4, boot: 'bbbb0002' })), { since: 0, boot: 'bbbb0002', restarted: true });
+  // 다시 켠 뒤 처음부터 받기 → 다음 번은 보통
+  assert.deepEqual(plain(C.remotePollNext({ since: 0, boot: 'bbbb0002' }, { last: 4, boot: 'bbbb0002' })), { since: 4, boot: 'bbbb0002', restarted: false });
+  // 이상한 답은 번호를 그대로
+  assert.deepEqual(plain(C.remotePollNext({ since: 7, boot: 'aaaa0001' }, { last: 'x' })), { since: 7, boot: 'aaaa0001', restarted: false });
+  assert.deepEqual(plain(C.remotePollNext(null, null)), { since: 0, boot: null, restarted: false });
+});
+
+test('소리 메모리 비우기 (YT-r1): 지금 곡·다음 예약 곡·녹음 중인 곡·데모를 뺀, 소리를 풀어 둔 곡만 놓을 곡으로', () => {
+  const { songBuffersToFree } = load(['songBuffersToFree']);
+  const buf = {}, a = { id: 'a', buffer: buf }, b = { id: 'b', buffer: buf }, c = { id: 'c', buffer: buf }, d = { id: 'demo', demo: true, buffer: buf }, e = { id: 'e', buffer: null };
+  const ids = (list) => list.map(s => s.id).join(',');
+  assert.equal(ids(songBuffersToFree([a, b, c, d, e], [a])), 'b,c');               // 데모·안 풀린 곡은 빼고
+  assert.equal(ids(songBuffersToFree([a, b, c, d, e], [a, 'b'])), 'c');            // 다음 예약 곡은 id로
+  assert.equal(ids(songBuffersToFree([a, b, c, d, e], [a, 'b', c])), '');          // 녹음 중인 곡
+  assert.equal(ids(songBuffersToFree([a, b], [a, undefined, false, null])), 'b');  // 예약이 비었음·녹음 안 함
+  assert.equal(ids(songBuffersToFree(null, null)), '');
+});
+
+test('소리 메모리 비우기 크기 한도 (YT-08 보완): 최근에 고른 곡부터 한도 안이면 두고, 넘는 곡부터 오래된 곡은 놓음', () => {
+  const { songBuffersToFree } = load(['songBuffersToFree']);
+  const MB = 2 ** 20, buf = mb => ({ length: mb * MB / 8, numberOfChannels: 2 });   // 2채널 × 4바이트 → mb MB
+  const a = { id: 'a', buffer: buf(80) }, b = { id: 'b', buffer: buf(80) }, c = { id: 'c', buffer: buf(80) }, d = { id: 'd', buffer: buf(10) };
+  const demo = { id: 'demo', demo: true, buffer: buf(80) }, cur = { id: 'cur', buffer: buf(80) };
+  const used = new Map([[a, 4], [b, 3], [c, 2], [d, 1]]), at = s => used.get(s) || 0;
+  const ids = (list) => list.map(s => s.id).sort().join(',');
+  const all = [a, b, c, d, demo, cur];
+  assert.equal(ids(songBuffersToFree(all, [cur], 160 * MB, at)), 'c,d');              // a·b(160MB)까지 두고, 넘는 c와 그보다 오래된 d(작아도)는 놓음
+  assert.equal(ids(songBuffersToFree(all, [cur], 1000 * MB, at)), '');                // 한도 안이면 하나도 안 놓음 (짧은 곡 몇 개는 다시 풀지 않게)
+  assert.equal(ids(songBuffersToFree(all, [cur], 79 * MB, at)), 'a,b,c,d');           // 가장 최근 곡도 한도보다 크면 놓음
+  assert.equal(ids(songBuffersToFree(all, [cur, 'a'], 160 * MB, at)), 'd');            // 다음 예약 곡은 한도와 따로 늘 둠
+  assert.equal(ids(songBuffersToFree(all, [cur], 0, at)), 'a,b,c,d');                  // 한도 0 = 모두 놓음 (전과 같음)
+  assert.equal(ids(songBuffersToFree(all, [cur], 160 * MB)), 'c,d');                   // 고른 차례를 모르면 목록 순서대로
+  assert.equal(ids(songBuffersToFree(all, [cur], 160 * MB, () => NaN)), 'c,d');        // 이상한 차례 값도 목록 순서대로
+});
+
+test('최근 것만 두는 Map (YT-r1, 녹음 미리듣기 캐시): 넣거나 다시 쓰면 맨 뒤로, max개를 넘으면 가장 오래 안 쓴 것부터 뺀다', () => {
+  const { lruSet } = load(['lruSet']);
+  const m = new Map();
+  lruSet(m, 'r1', 1, 2); lruSet(m, 'r2', 2, 2); lruSet(m, 'r3', 3, 2);
+  assert.deepEqual([...m.keys()], ['r2', 'r3']);
+  lruSet(m, 'r2', 2, 2); lruSet(m, 'r4', 4, 2);                                   // r2를 다시 썼으니 r3이 빠짐
+  assert.deepEqual([...m.keys()], ['r2', 'r4']);
+  assert.equal(m.get('r4'), 4);
+  lruSet(m, 'r5', 5, 0);                                                           // 0·이상한 값이어도 1개는 둔다
+  assert.deepEqual([...m.keys()], ['r5']);
+});
+
+test('녹음 저장 알림 (YT-r11 = YT-16): 녹음 백업이 꺼져 있으면 "이 기기에만 있어요 · 백업 켜기", 켜져 있으면 예전 글 그대로', () => {
+  const { recSavedText } = load(['recSavedText']);
+  assert.equal(recSavedText('곡', '0:05', false), "녹음 저장됨 · 곡 (0:05) · 이 기기에만 있어요 · 백업 켜기: 설정 › 곡 창고 · 박자가 어긋나면 '싱크·믹스 조절'에서 고치세요");
+  assert.equal(recSavedText('곡', '0:05', true), "녹음 저장됨 · 곡 (0:05) · 박자가 어긋나면 '싱크·믹스 조절'에서 고치세요");
+});
+
+test('녹음 줄 "백업 안 됨" 표 (YT-16): 백업이 꺼져 있고 Drive에 없는 녹음만', () => {
+  const { recBackupMissing } = load(['recBackupMissing']);
+  assert.equal(recBackupMissing({ id: 'a' }, false), true);
+  assert.equal(recBackupMissing({ id: 'a', fileId: 'f1' }, false), false);   // 이미 Drive에 있음
+  assert.equal(recBackupMissing({ id: 'a' }, true), false);                  // 백업 켬 (다음 동기화 때 올라감)
+  assert.equal(recBackupMissing(null, false), false);
+});
+
+test('손님 차례 알림 (YT-r14): 이름이 있으면 "OO님 차례예요", 이름 없는 손님은 "손님 차례예요", 손님 예약이 아니면 빈 글', () => {
+  const { guestTurnText } = load(['guestTurnText']);
+  assert.equal(guestTurnText('민지'), '민지님 차례예요');
+  assert.equal(guestTurnText('  민지 '), '민지님 차례예요');
+  assert.equal(guestTurnText('손님'), '손님 차례예요');
+  assert.equal(guestTurnText(''), '');
+  assert.equal(guestTurnText(null), '');
+});
+
+test('손님 QR 바탕 주소 (YT-06): localhost·사설 IP·http 방장 → QR 주소는 공개 https 주소, 공개 https는 그대로, pub가 없으면 예전 그대로', () => {
+  const { guestUrl, hubCodeMake, guestRoomName } = load(['guestUrl', 'hubCodeMake', 'guestRoomName']);
+  const code = hubCodeMake('https://' + 'qafakehub' + '0'.repeat(11) + '.supabase.co', 'sb_publishable_' + 'qa'.repeat(12));
+  const room = guestRoomName(), tail = 'guest.html#r=' + room + '&c=' + code;
+  const PUB = 'https://yl4315.github.io/yt-noraebang/';
+  for (const local of ['http://localhost:5173/', 'http://127.0.0.1:5173/index.html?tv=1', 'http://192.168.0.5:5173/', 'https://192.168.0.5/',
+    'https://10.1.2.3/nb/', 'https://172.20.1.1/', 'https://169.254.3.4/', 'https://mypc:8443/', 'https://nb.local/', 'https://[::1]:8443/', 'https://[fd12::3]/',
+    'http://example.test/yt-noraebang/']) {
+    const u = guestUrl(local, room, code, PUB);
+    assert.equal(u, PUB + tail, local);
+    assert.equal(new URL(u).protocol, 'https:', local);
+  }
+  // 공개 https 주소는 그대로 (Pages·다른 https 사이트)
+  assert.equal(guestUrl('https://yl4315.github.io/yt-noraebang/index.html', room, code, PUB), PUB + tail);
+  assert.equal(guestUrl('https://example.test/nb/index.html#x', room, code, PUB), 'https://example.test/nb/' + tail);
+  assert.equal(guestUrl('https://172.32.0.1/', room, code, PUB), 'https://172.32.0.1/' + tail);   // 172.16~31만 사설
+  // pub가 없거나 https가 아니면 예전 그대로 · 틀린 값은 그대로 null
+  assert.equal(guestUrl('http://127.0.0.1:5173/', room, code), 'http://127.0.0.1:5173/' + tail);
+  assert.equal(guestUrl('http://127.0.0.1:5173/', room, code, 'http://127.0.0.1:9/'), 'http://127.0.0.1:5173/' + tail);
+  assert.equal(guestUrl('file:///C:/x/index.html', room, code, PUB), null);
+  assert.equal(guestUrl('http://localhost:5173/', 'nbr-짧음', code, PUB), null);
+});
+
+test('손님 방 저절로 닫기 (YT-19): 손님 0명으로 2시간이면 닫음, 손님이 오면 시계를 되돌림', () => {
+  const { guestIdleStep } = load(['guestIdleStep']);
+  const H2 = 2 * 3600e3, t0 = 1_000_000;
+  assert.deepEqual(plain(guestIdleStep(0, 0, t0, H2)), { emptySince: t0, close: false });             // 지금 0명이 됨
+  assert.deepEqual(plain(guestIdleStep(t0, 0, t0 + H2 - 1, H2)), { emptySince: t0, close: false });   // 2시간 안
+  assert.deepEqual(plain(guestIdleStep(t0, 0, t0 + H2, H2)), { emptySince: t0, close: true });        // 2시간 → 닫음
+  assert.deepEqual(plain(guestIdleStep(t0, 2, t0 + H2 * 3, H2)), { emptySince: 0, close: false });    // 손님이 있으면 안 닫음 · 시계 0
+  assert.deepEqual(plain(guestIdleStep(0, 0, t0 + H2 * 3, H2)), { emptySince: t0 + H2 * 3, close: false });   // 손님이 다 나간 때부터 다시 셈
+});

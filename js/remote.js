@@ -3,7 +3,7 @@
 
 /* ================= 휴대폰 리모컨 (같은 와이파이) ================= */
 // 이 PC에서 server.py로 열었을 때만 켜진다. 휴대폰은 remote.html에서 명령을 보내고, 이 화면이 받아서 실행한다.
-const Remote = { on: false, since: 0, info: null, last: '' };
+const Remote = { on: false, since: 0, boot: null, info: null, last: '', polling: false };
 async function remoteInit() {
   if (!/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) return;
   try {
@@ -15,12 +15,18 @@ async function remoteInit() {
   setInterval(remotePoll, 600); setInterval(remotePush, 1000);
 }
 async function remotePoll() {
+  if (Remote.polling) return;      // 앞 요청이 끝나기 전에는 또 묻지 않는다 (CR-251 YT-r12)
+  Remote.polling = true;
   try {
     const r = await fetch('/api/remote/poll?since=' + Remote.since, { cache: 'no-store' });
     if (!r.ok) return;
-    const { cmds, last } = await r.json(); Remote.since = last;
-    for (const c of cmds) { try { remoteRun(c); } catch (e) { console.warn('remote', e); } }
-  } catch {}
+    const { cmds, last, boot } = await r.json();
+    // 서버를 껐다 켬(번호가 0부터 다시): 번호를 맞추고 상태를 바로 다시 올린다. 이 답의 명령은 다음 번에 처음부터 받는다 (core.js remotePollNext)
+    const nx = typeof remotePollNext === 'function' ? remotePollNext(Remote, { last, boot }) : { since: last, boot: null, restarted: false };
+    Remote.since = nx.since; Remote.boot = nx.boot;
+    if (nx.restarted) { Remote.last = ''; return; }
+    for (const c of cmds || []) { try { remoteRun(c); } catch (e) { console.warn('remote', e); } }
+  } catch {} finally { Remote.polling = false; }
 }
 function remoteState() {
   const s = state.song;
@@ -36,7 +42,8 @@ function remoteState() {
 async function remotePush() {
   const body = JSON.stringify(remoteState());
   if (body === Remote.last) return;
-  try { const r = await fetch('/api/remote/state', { method: 'POST', body, headers: { 'Content-Type': 'application/json' } }); if (r.ok) Remote.last = body; } catch {}
+  // 못 올렸으면 기억을 비워, 서버가 다시 켜지면 같은 상태라도 다시 올린다 (CR-251 YT-r12)
+  try { const r = await fetch('/api/remote/state', { method: 'POST', body, headers: { 'Content-Type': 'application/json' } }); Remote.last = r.ok ? body : ''; } catch { Remote.last = ''; }
 }
 function remoteRun(c) {
   const a = c.args || {}, qi = id => state.queue.indexOf(id);
@@ -59,18 +66,19 @@ function remoteRun(c) {
     case 'rec': return setArmed(!state.armed);
   }
 }
-// QR 그림 (cdnjs qrcode-generator 1.4.4): 옛 리모컨 QR과 TV 대기 화면 내 폰 리모컨 QR(myremote.js, CR-228 ④)이 같이 쓴다.
-// 한 번만 불러온다 (못 불러오면 다음에 다시)
-let qrLib = null;
+// QR 그림 (앱 안 사본 js/vendor/toqr-0.1.1.mjs, CR-251 YT-r16 — 전에는 cdnjs에 기대서 인터넷이 안 되면 QR이 안 나왔다):
+// 옛 리모컨 QR과 TV 대기 화면 내 폰 리모컨 QR(myremote.js, CR-228 ④)이 같이 쓴다. 한 번만 불러온다 (못 불러오면 다음에 다시)
+let qrLib = null, qrMake = null;
 function qrLoad() {
-  return (qrLib ||= new Promise((res, rej) => {
-    const sc = document.createElement('script'); sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js';
-    sc.onload = res; sc.onerror = rej; document.head.append(sc);
-  }).catch(e => { qrLib = null; throw e; }));
+  return (qrLib ||= import(new URL('js/vendor/toqr-0.1.1.mjs', document.baseURI).href)
+    .then(m => { qrMake = m.toQR; }).catch(e => { qrLib = null; throw e; }));
 }
 function qrImage(text, alt) {
-  const q = qrcode(0, 'M'); q.addData(text); q.make();
-  const img = new Image(); img.src = q.createDataURL(4, 2); img.alt = alt; img.className = 'qr';
+  const m = qrMake(text, 0), n = Math.round(Math.sqrt(m.length)), cell = 4, quiet = 2;   // 0 = M · 칸 4px · 둘레 2칸
+  const cv = document.createElement('canvas'); cv.width = cv.height = (n + quiet * 2) * cell;
+  const g = cv.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, cv.width, cv.height); g.fillStyle = '#000';
+  for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) if (m[y * n + x]) g.fillRect((x + quiet) * cell, (y + quiet) * cell, cell, cell);
+  const img = new Image(); img.src = cv.toDataURL('image/png'); img.alt = alt; img.className = 'qr';
   return img;
 }
 function renderRemoteInfo() {
