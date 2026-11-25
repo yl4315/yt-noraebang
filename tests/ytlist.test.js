@@ -64,7 +64,7 @@ function fakeDom() {
 /* ---------- 불러오기 ---------- */
 const NAMES = ['YT_LIST_MAX', 'YT_KY_CHANNEL', 'YT_LIST_HOST', 'YT_LIST_WHY', 'YT_LIST_ERR', 'parseYouTubeListId', 'ytRankOfficial', 'ytWithChannelIds', 'ytListPlan',
   'ytListItemsPage', 'ytVideosRead', 'ytListJoin', 'ytApiErrorKind', 'ytListView', 'ytListDoneText',
-  'YtList', 'ytListBox', 'ytListFetchKey', 'ytListFetchPlayer', 'ytListRead', 'ytListOpen', 'ytListClose', 'ytListPlanOf', 'ytListAdd', 'ytListCommit', 'ytListCard', 'ytListFocus',
+  'YtList', 'ytListBox', 'ytListFetchKey', 'ytListFetchPlayer', 'ytListRead', 'ytListOpen', 'ytListClose', 'ytListPlanOf', 'ytListAdd', 'ytListCommit', 'ytListCard', 'ytListFocus', 'ytListPick',
   'parseYtSearch', 'ytTitleParts', 'nextSongNumbers'];
 // dom: 가짜 DOM을 줄지 · fakeYt: tests/ui/fake-yt.js를 같이 불러올지 · extra: 컨텍스트에 더할 이름 (state·persistSong 등)
 function load({ dom = true, fakeYt = false, extra = {} } = {}) {
@@ -592,6 +592,18 @@ test('카드: ytCard 모양 · 스위치 · 큰 단추 · TV 리모컨 화살표
   e = D.key('Enter'); btn.dispatchEvent(e); assert.equal(e.sp, true); assert.equal(e.dp, false);
   const c = new D.Ev('click'); btn.dispatchEvent(c); same(got.act, ['add']);
   assert.equal(M.ytListFocus(li), true); assert.equal(D.doc.activeElement, sw);
+});
+
+test('카드 화살표: 스위치(줄 오른쪽)와 단추(왼쪽 아래)처럼 45도 밖이어도 ↑↓는 차례대로 앞·뒤 칸 · 끝이면 그대로', () => {
+  const { L: M } = load({ dom: false });
+  const pts = [{ x: 300, y: 100 }, { x: 60, y: 160 }];   // 0 스위치 · 1 [곡 목록에 다 넣기] (화면 점검 폰 390·PC 1280 자리와 같은 모양)
+  assert.equal(M.ytListPick(pts, 0, 'ArrowDown'), 1);
+  assert.equal(M.ytListPick(pts, 1, 'ArrowUp'), 0);
+  assert.equal(M.ytListPick(pts, 0, 'ArrowUp'), 0);     // 맨 위 ↑ → 그대로 (카드가 검색 칸으로 보냄)
+  assert.equal(M.ytListPick(pts, 1, 'ArrowDown'), 1);   // 맨 아래 ↓ → 그대로
+  assert.equal(M.ytListPick(pts, 0, 'ArrowLeft'), 1);   // ←→는 화면 자리 그대로 (pickByArrow)
+  assert.equal(M.ytListPick([{ x: 60, y: 100 }, { x: 60, y: 160 }, { x: 60, y: 220 }], 0, 'ArrowDown'), 1);   // 세로로 줄 서면 pickByArrow 그대로
+  assert.equal(M.ytListPick([{ x: 0, y: 0 }], -1, 'ArrowDown'), 0);
 });
 
 test('카드: 다시 그린 뒤 둘 곳(focus) · 넣는 중 단추는 막힘(화살표에서 빠짐) · 못 넣는 목록은 단추 없음', () => {

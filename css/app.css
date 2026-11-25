@@ -682,6 +682,7 @@ body:has(#tv:not([hidden])) .yt-box{z-index:20;border-radius:0}
 .yt-guide-btns .btn{min-height:40px}
 .yt-qr-slot{margin:0 .6em .6em;min-height:0}
 /* CR-244 재생목록 넣기: 미리 보기 카드는 .yt-card 모양 그대로 · 스위치는 손님 칸 스위치(.guest-sw) 그대로 · 단추 48 (TV 리모컨) */
+.yt-c-list{word-break:keep-all;overflow-wrap:break-word;text-wrap:pretty}   /* 한국어 낱말 가운데서 줄이 끊기지 않게 ("돼/요" 막음) */
 .yt-c-list .yt-guide-btns .btn{min-height:48px}
 .yt-c-list .yt-list-sw{min-height:48px;padding:2px 0;border-top:0}
 .yt-c-list.yt-c-list-busy .yt-card-h{color:var(--muted);font-weight:600}

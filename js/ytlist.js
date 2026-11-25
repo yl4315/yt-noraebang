@@ -386,7 +386,7 @@ function ytListCard(ul, v, on = {}) {
       e.preventDefault(); e.stopPropagation();
       const i = items.indexOf(t);
       const pts = items.map(x => { const r = x.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; });
-      const j = pickByArrow(pts, i, k);
+      const j = ytListPick(pts, i, k);
       if ((j === i || j < 0) && k === 'ArrowUp' && typeof on.onExit === 'function') on.onExit();
       else if (items[j]) items[j].focus();
       return;
@@ -401,4 +401,12 @@ function ytListCard(ul, v, on = {}) {
   return li;
 }
 // 카드의 첫 스위치·단추로 (검색 칸에서 ↓, yt.js ytSearchKey)
+// 카드 안 화살표: 화면 자리로 고르고(core.js pickByArrow), ↑↓에 그 방향 칸이 없으면 차례대로 앞·뒤 칸.
+// 스위치는 줄 오른쪽 끝·단추는 왼쪽 아래라 45도 밖이어서 ↓가 스위치에 멈췄다 (CR-244 2단계 화면 점검). 더 없으면 그대로(i)
+function ytListPick(pts, i, k) {
+  const n = Array.isArray(pts) ? pts.length : 0;
+  let j = typeof pickByArrow === 'function' ? pickByArrow(pts, i, k) : i;
+  if ((j === i || j < 0) && (k === 'ArrowDown' || k === 'ArrowUp') && i >= 0) { const t = i + (k === 'ArrowDown' ? 1 : -1); j = t >= 0 && t < n ? t : i; }
+  return j;
+}
 function ytListFocus(li) { const f = li && [...li.querySelectorAll('input,button')].find(x => !x.disabled); if (f) f.focus(); return !!f; }
