@@ -92,6 +92,7 @@ npm run test:ui                  # 화면 자동 점검: 헤드리스 Edge가 �
 | `js/myremote.js` | 내 폰 리모컨 PC 쪽(CR-228 ③): 설정 고급 "내 폰 리모컨 (허브)" 칸, 켤 때마다 새 방 + 허브 열쇠 칸 `remote_room`, 폰 명령 → `remoteRun`, 상태 → 폰 (`guesthost.js` 다음) |
 | `js/vendor/toqr-0.1.1.mjs` | **남의 라이브러리 그대로** (toqr, MIT, `block-calendar` node_modules 사본). 손님 QR 그림만 `import()`로 씀. 고치지 않는다 |
 | `js/autosync.js` | 무대 [자동 맞추기](LRCLIB `/api/get` → 검색), 싱크 한 줄, [자동 맞춤 · 확인해 주세요] (코드 이름·id는 옛 `sync` 그대로) |
+| `js/ytlist.js` | 유튜브 재생목록 넣기 (CR-244): 목록 링크 읽기·계획(`ytListPlan`)·카드 글(`ytListView`)은 DOM 없이(단위 시험 `tests/ytlist.test.js`), 목록 읽기(열쇠 길 `ytListFetchKey` · 열쇠 없는 길 `ytListFetchPlayer`)·곡 목록에 넣기(`ytListAdd`)·카드 DOM(`ytListCard`). `yt.js` 바로 앞 |
 | `js/yt.js` | 유튜브 곡 (CR-030): 공식 IFrame 플레이어, 검색 창 [유튜브 노래방 검색] 탭(링크·열쇠 검색·열어 찾기), 폰 [공유] 받기, 재생 못 함·눌러서 시작 안내, TV 유튜브 띠. `main.js` 바로 앞 |
 | `js/main.js` | 메인 루프, 앱 시작 (항상 마지막) |
 | `remote.html` · `js/myphone.js` | 휴대폰 리모컨 화면 (따로 동작, `remote.webmanifest`로 홈 화면 아이콘). `server.py`가 답하면 옛 길(코드), 아니면(Pages) 허브 길 `js/myphone.js`(CR-228 ③). `haptics.js`·`core.js`·supabase-js·`myphone.js` 순서, `util.js`는 안 씀 |
@@ -154,7 +155,14 @@ npm run test:ui                  # 화면 자동 점검: 헤드리스 Edge가 �
 - 퍼가기를 막은 영상(오류 101·150, `core.js ytErrToApp`, CR-251 ①): `#ytErr`에 큰 `[유튜브 앱으로 열기]`(`.yt-err-app`, 새 창 `ytWatchUrl`, 키보드 PC는 `.for-keys` 글 "유튜브에서 열기") + 한 줄 `#ytErrNote`(녹음·점수·예약곡 이어 부르기는 안 됨). TV 화면(`#tv` 보임)은 링크를 숨기고 `#ytErrTv`: "TV 유튜브 앱에서 이 곡 찾기" + 찾을 말(`ytAppFindWords` = 제목 가수 노래방) + 영상 링크 QR(`guestQrMake` = 앱 안 toqr 사본, `qrFitPx` 96 아래로 안 줄임). TV에 들어가거나 나오면 `ytFrame`이 안내를 그 화면 것으로 다시 그린다. 그 밖의 오류(100·2·5·153·offline·api)는 예전 그대로 작은 `[유튜브에서 열기]`.
 - 3초 뒤 다음 예약곡(V7)은 그대로. 큰 단추를 누르면 `cancelNext()` (유튜브 앱에서 부르는 동안 뒤에서 다음 곡이 시작되지 않게, 예약 목록은 그대로). 넘어가면 안내는 사라진다. 못 튼 곡을 다시 고르면 다시 올려서(`ytSelect`: `Yt.err`가 있으면 `Yt.loaded`를 비움) 안내가 다시 나온다. 무대(`.stage`)는 `overflow:clip` — `.lights`(inset -20%) 때문에 `hidden`만이면 `scrollIntoView`·focus가 무대를 옆으로 밀어 가운데 안내가 폰에서 잘렸다. 좁은 무대(폭 300 아래, 글자 130% 폰)는 `@container`로 카드 여백을 줄여 곡 머리(번호·제목)와 겹치지 않게 한다.
 - 설정 › 더 보기 (고급) › 유튜브 곡 › **프리미엄 계정으로 틀기 (이 기기만)** (`#ytWww`, CR-251 ②): 기본 꺼짐, 값은 이 기기 localStorage `nb-yt-www`(`'1'`)에만 — 백업 파일·Drive·허브·손님 폰에 넣지 않는다. 바꾸면 `ytSetWww` → `ytRebuild`: 플레이어를 `destroy`하고 `Yt.player`·`ready`·`playerP`·`loaded`를 비운 뒤 host `ytHostFor(켜짐)`으로 다시 만든다 (`Yt.gen`으로 늦게 온 옛 플레이어 알림은 버림). 지금 곡이 유튜브 곡이면 멈춘 뒤 같은 자리에 멈춘 채로 다시 올린다 (자동 재생 안 함). 켤 때 알림 "유튜브 로그인 정보(쿠키)를 써요. 광고가 그대로면 끄세요". **광고를 막거나 숨기거나 건너뛰는 코드는 넣지 않는다** (프리미엄이 광고를 없애는지는 유튜브와 그 계정에 달림).
-- 화면 점검은 `tests/ui/fake-yt.js`(가짜 플레이어)·`checks/youtube.mjs`. 열쇠는 `run.mjs`의 가짜 글자만 쓴다.
+- **재생목록 넣기** (`js/ytlist.js`, CR-244): 유튜브 탭 검색 칸에 목록 링크(`parseYouTubeListId`: `playlist?list=` · `watch?v=…&list=`)가 오면 `renderYtTab`이 미리 보기 카드(`ytListShow` → `ytListCard`)를 그린다. [곡 목록에 다 넣기]는 곡 목록에만 넣고 **예약하지 않는다**. 곡 목록에 있는 곡은 건너뛰고, 한 번에 앞 200곡(`YT_LIST_MAX`)까지. 내 목록(WL·LL…)·자동 믹스(RD…)는 "넣을 수 없어요" 카드, 영상 링크에 붙은 자동 믹스·내 목록은 카드 없이 영상 줄만.
+  - 열쇠 길: Data API `playlistItems`(50개씩 200개까지) + `videos`(status·snippet) = 많아야 8번. 퍼가기 막힌 곡은 "M곡은 노래방 안에서 못 틀어요 (유튜브 앱에서는 돼요)" + 기본 빼고 [그 곡도 넣기] 스위치. 지운·비공개 곡은 뺀다. 403·400·429면 `Yt.keyBlocked` → 열쇠 없는 길. 막힌 곡을 피해 가는 방법은 넣지 않는다 (유튜브 앱으로만).
+  - 열쇠 없는 길: 목록마다 **새 플레이어**를 검색 목록 바로 뒤 보이는 칸(`.yt-list-box`, 200 넘게)에 만들어 `cuePlaylist({list})` → `getPlaylist()`로 영상 번호만 읽고 바로 `destroy` (틀지 않음 · 같은 플레이어에 둘째 목록을 올리면 첫 목록이 남는다 11-24 ⓪). host는 `ytHostFor(Yt.www)` (CR-251 설정). 제목은 틀 때 `getVideoData`로 (첫 곡만 미리).
+  - 카드 상태는 `YtList.st` 하나 (같은 목록이면 다시 읽지 않음, 읽은 목록은 이 화면 동안 `YtList.cache`). 못 읽은 목록은 [다시 해 보기]나 인터넷이 다시 될 때만 새로 읽는다 (다시 그릴 때마다 읽지 않게). 넣은 뒤에는 알림 글이 카드에 남고 [다 넣었어요](막힘). 유튜브 탭을 떠나면 `ytListClose`.
+  - 리모컨: 검색 칸 ↓(줄이 없거나 맨 끝 줄) → 카드, 카드 안 ↑↓ (`pickByArrow`), 맨 위에서 ↑ → 검색 칸. 줄이 없을 때 검색 칸 Enter는 [곡 목록에 다 넣기]로 옮기기만 (바로 넣지 않음).
+  - 폰 [공유]로 목록 링크가 오면 (`sp.id` 없음) 검색 창 유튜브 탭을 열고 검색 칸에 깨끗한 목록 링크(`si` 같은 꼬리 뺌)를 넣는다. 영상 확인 창은 안 뜬다.
+- 열쇠 검색 결과 순서: `ytRankOfficial(ytWithChannelIds(…))` = 금영 공식 채널(`YT_KY_CHANNEL`) 영상만 앞으로, 나머지(TJ 포함)는 받은 순서 그대로 (CR-244, 순서만).
+- 화면 점검은 `tests/ui/fake-yt.js`(가짜 플레이어 · 재생목록은 `window.__ytLists`)·`checks/youtube.mjs`·`checks/ytlist.mjs`(V14~V17, 열쇠 길 Data API는 `run.mjs`가 가로채 `ctx.ytListApi` 가짜 답). 열쇠는 `run.mjs`의 가짜 글자만 쓴다.
 
 ## 곡 넣기 자동화 (`js/bulk.js`)
 
@@ -231,7 +239,7 @@ npm run test:ui                  # 화면 자동 점검: 헤드리스 Edge가 �
 - 예약 목록의 손님 이름은 `guestNickAt(i)`(karaoke.js `renderQueue`·`renderQueueList`가 `typeof`로 부름). 방이 닫혀 있으면 ''.
 - 이 기기 설정: `nb-guest-tv`(`'0'` = TV에 QR 안 보임) · `nb-guest-key`(`'0'` = 손님 키 바꾸기 끔). 기본은 둘 다 켬이라 키를 안 만든다.
 - TV 대기 카드 `#guestCard`: 방이 열려 있으면 QR(`#tvIdle.guest-on`이면 옛 리모컨 안내 `#remoteInfo`는 숨김), 닫혀 있으면 허브가 있을 때만 [손님 QR 켜기]. 카드가 보이면 점수 칸은 시계 옆(`.idle-right>.best` 1행 2열)·팁은 고급이어도 한 줄, QR은 `max(96px,16cqw)` (디자인 확인 CR-228 #1~#3). QR 이미지는 1칸 = 1px로 그리고(`guestQrMake` → `Guest.qrPx`), 보이는 크기는 `guestQrFit`가 그 배수로 내린다 (core.js `qrFitPx`, 카드는 최소 96px라 모자라면 한 배 위로, 창 `#guestQrImg`는 220px 안). 낮은 화면(높이 480px 이하)에서는 카드가 한 줄 `#guestCardMini` "손님 QR: 설정 › 손님"만 (CR-228 L1). 카드 바탕은 `--panel` (L8). `server.py` 휴대폰 리모컨(N1~N21)은 그대로.
-- 손님 화면 CSP는 `guest.html` `<meta>`에 따로: `default-src 'none'`, 스크립트·스타일은 `'self'`, 바깥은 `https://*.supabase.co`·`wss://*.supabase.co`만. `sw.js`는 손님 파일도 저장하지만 허브 요청은 저장하지 않는다 (`SHELL` 지금 v19).
+- 손님 화면 CSP는 `guest.html` `<meta>`에 따로: `default-src 'none'`, 스크립트·스타일은 `'self'`, 바깥은 `https://*.supabase.co`·`wss://*.supabase.co`만. `sw.js`는 손님 파일도 저장하지만 허브 요청은 저장하지 않는다 (`SHELL` 지금 v20).
 - 알려진 한계: 공개 broadcast라 방 이름을 아는 손님은 방장 답(`h`)을 흉내 낼 수 있다 (다른 손님 화면에 가짜 `closed`·목록). 손님 화면은 `textContent`로만 넣어서 스크립트는 못 넣는다.
 
 ## 내 폰 리모컨 (`js/myremote.js` · `js/myphone.js`, CR-228 ③)
