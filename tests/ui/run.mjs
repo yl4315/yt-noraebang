@@ -119,9 +119,9 @@ async function stopServer(pr) {
 }
 
 /* ---------------- 밖으로 나가는 요청: 허용 / 가짜 답 / 막기 ---------------- */
-const ALLOW = /^(fonts\.googleapis\.com|fonts\.gstatic\.com|cdnjs\.cloudflare\.com)$/;
-// 가로챌 바깥 주소: 허용(글꼴·QR), 가짜 답(가사 서버), 막음(Google 로그인·Drive). 그 밖은 Edge가 이름 찾기부터 실패한다 (edge.mjs)
-const ROUTED = ['fonts.googleapis.com', 'fonts.gstatic.com', 'cdnjs.cloudflare.com', 'lrclib.net', 'accounts.google.com', 'www.googleapis.com', 'oauth2.googleapis.com', 'apis.google.com',
+const ALLOW = /^(fonts\.googleapis\.com|fonts\.gstatic\.com)$/;
+// 가로챌 바깥 주소: 허용(글꼴 — QR은 CR-251부터 앱 안 toqr라 cdnjs 0), 가짜 답(가사 서버), 막음(Google 로그인·Drive). 그 밖은 Edge가 이름 찾기부터 실패한다 (edge.mjs)
+const ROUTED = ['fonts.googleapis.com', 'fonts.gstatic.com', 'lrclib.net', 'accounts.google.com', 'www.googleapis.com', 'oauth2.googleapis.com', 'apis.google.com',
   'www.youtube.com', 'www.youtube-nocookie.com', 'i.ytimg.com', FAKE_HUB_HOST];
 // 유튜브 (CR-030): IFrame API는 가짜(fake-yt.js), 열쇠 검색(googleapis /youtube/v3/search)은 ctx.ytRules 가짜 답, 썸네일은 회색 그림. 진짜 유튜브에 닿지 않는다.
 // 검색 열쇠는 가짜(YT_FAKE_KEY)만 쓰고, 기록에는 열쇠 글자를 남기지 않는다 ("가짜 열쇠"·"없음"만)
@@ -175,7 +175,7 @@ function makeRouter(page) {
       return { fulfill: { status: 200, body: YT_THUMB, headers: { 'content-type': 'image/svg+xml' } } };
     }
     if (ALLOW.test(u.hostname)) {
-      // 글꼴·QR 라이브러리: 점검이 한 번만 받아 두고 탭마다 그대로 준다 (인터넷이 느려도 화면이 멈추지 않게, 10초 넘으면 없이 간다)
+      // 글꼴: 점검이 한 번만 받아 두고 탭마다 그대로 준다 (인터넷이 느려도 화면이 멈추지 않게, 10초 넘으면 없이 간다)
       const r = await cachedFetch(p.request.url, p.request.headers);
       ctx.netLog.push({ kind: '허용', url: u.origin + u.pathname, status: r.status });
       return { fulfill: { status: r.status, body: r.body, headers: { 'content-type': r.type, 'access-control-allow-origin': '*' } } };
@@ -224,8 +224,9 @@ async function probeConditions(page) {
   conds.O = (await page.eval('navigator.onLine')) === false; if (!conds.O) condWhy.O = '인터넷 끊김 흉내가 navigator.onLine을 바꾸지 못했어요';
   await page.offline(false); await sleep(200);
   try {
-    const w = await page.eval(`fetch('https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js',{cache:'no-store'}).then(r=>r.ok,()=>false)`, 15000);
-    conds.W = !!w; if (!w) condWhy.W = 'QR 라이브러리(cdnjs)에 닿지 않아요 (인터넷)';
+    // QR 그림은 앱 안 사본(js/vendor/toqr-0.1.1.mjs, CR-251)이라 인터넷 없이 된다: 그 파일을 불러올 수 있는지만 본다
+    const w = await page.eval(`import(new URL('js/vendor/toqr-0.1.1.mjs', document.baseURI).href).then(m=>typeof m.toQR==='function',()=>false)`, 15000);
+    conds.W = !!w; if (!w) condWhy.W = 'QR 그림(앱 안 사본 toqr)을 불러오지 못했어요';
   } catch (e) { conds.W = false; condWhy.W = e.message; }
   log(`조건: ${Object.entries(conds).map(([k, v]) => `${k}=${v ? '됨' : '안 됨'}`).join(' ')}`);
 }

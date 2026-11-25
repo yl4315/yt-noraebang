@@ -25,7 +25,7 @@ npm run test:ui                  # 화면 자동 점검: 헤드리스 Edge가 �
   - 이 점검은 같이 쓰는 탭에서 맨 마지막에 돌고 넣은 것을 지운다.
 - 점검 도구는 npm 패키지 없이 CDP로 Edge를 움직인다 (`tests/ui/edge.mjs`).
 - 끝 정리는 **이번 점검이 켠 Edge 프로필만** 끄고 지운다 (`run.mjs` `myProfiles`). 같은 PC에서 다른 가지(worktree)의 점검이 동시에 돌 수 있어서, 이름 앞부분(`yt-ui-edge-`, 옛 이름 `yt-ui-check-edge-`)으로 모두 끄지 않는다.
-- 시험 서버 `tests/ui/serve.py`는 `server.PIN_FILE`을 임시 폴더로 바꾸고 127.0.0.1에만 켠다 (저장소 `.remote.json`을 안 건드림). 밖으로 나가는 요청은 글꼴·QR 라이브러리만 허용, `lrclib.net`(`/api/search`·`/api/get`)은 가짜 답, Google은 막음.
+- 시험 서버 `tests/ui/serve.py`는 `server.PIN_FILE`을 임시 폴더로 바꾸고 127.0.0.1에만 켠다 (저장소 `.remote.json`을 안 건드림). 밖으로 나가는 요청은 글꼴만 허용 (QR은 앱 안 toqr라 cdnjs 0, 조건 W = 그 파일을 불러올 수 있는지), `lrclib.net`(`/api/search`·`/api/get`)은 가짜 답, Google은 막음.
 - 허브(CR-227)는 `tests/ui/fakehub.mjs`의 **메모리 가짜 허브**로만 본다: 만든 주소(`qafakehub…`)·가짜 공개 키·점검이 만든 가짜 계정. 로그인·`hub_push`·`hub_pull`·`hub_secret`을 키트 규칙대로 흉내 낸다. 진짜 허브에 요청하면 공통 점검이 실패한다. `checks/hub.mjs`는 새 Edge에 기기 둘(127.0.0.1·localhost = 다른 저장소)을 열고, 끝에서 두 번째로 돈다.
 - 손님 방(CR-228)은 `fakehub.mjs`의 `makeFakeRealtime`(가짜 Realtime: 페이지의 `WebSocket`을 바꿔 끼우고 CDP 바인딩으로 Node의 메모리 broadcast에 잇는다, Phoenix vsn 2.0.0 글·이진 틀)으로만 본다. `checks/guest.mjs`가 맨 마지막: 새 Edge 셋(방장 PC · 손님 폰 A · 손님 폰 B, 저장소가 따로)에 방장 1 + 손님 2, 가짜 손님은 Node가 방에 직접 보낸다(`R.inject`). 방 이름·연결 코드는 점검 기록·결과표에도 쓰지 않는다(개수만 셈). 손님 주소로 갈 때 `p.goto` 대신 `Page.navigate`(실패 글에 주소가 남지 않게).
 - 내 폰 리모컨(CR-228 ③)은 `checks/myremote.mjs`(손님 점검 다음, 맨 마지막): 새 Edge 둘(노래방 PC · 내 폰, 둘 다 정적 서버 = Pages처럼 `server.py` 없음)에 같은 가짜 허브·가짜 Realtime. 폰은 같은 주소의 노래방 앱에서 가짜 계정으로 로그인한 뒤 `remote.html`. 가짜 폰은 Node가 방에 직접 보낸다(`R.injectRoom`). 방 이름은 기록·결과표에 쓰지 않는다(개수만 셈). `server.py` 주소의 `remote.html`이 옛 코드 화면 그대로인지도 본다.
@@ -201,7 +201,7 @@ npm run test:ui                  # 화면 자동 점검: 헤드리스 Edge가 �
 - 키 두 층: 사용자별 키(`me().keys`)가 이기고, 없으면 허브를 쓸 때만 곡 기본 키(`keyOf`).
 - 허브 코드가 없으면(`nb-hub` 없음) 요청·타이머 0, 지금과 똑같이 돈다 (W12). 허브 함수를 다른 파일에서 부를 때는 `typeof … === 'function'`.
 - 허브 열쇠 칸(YouTube 검색 열쇠)은 `hubYoutubeKey()` 읽기 하나: 로그인 뒤 한 번 읽어 **메모리에만**, `ytSetKey`(CR-030 `yt.js`)가 있으면 넘긴다. 로그아웃·끊기에서 지운다.
-- **CSP** (`index.html` `<meta>`): `script-src`·`connect-src`만 정한다. 새 바깥 주소(스크립트·fetch)를 쓰면 여기에 더한다. 지금: Google 로그인·Drive, cdnjs(QR은 CR-251 YT-r16부터 앱 안 toqr이라 지금은 안 씀 · 허용만 남음. 이 줄은 A 가지도 고칠 수 있어 데스크가 합칠 때 뺀다), YouTube, LRCLIB, `*.supabase.co`(허브·손님 방 Realtime `wss`). 손님 화면 `guest.html`은 따로 CSP (아래 "손님 방"). 허브·LRCLIB·사용자 글은 `textContent`로만 넣는다.
+- **CSP** (`index.html` `<meta>`): `script-src`·`connect-src`만 정한다. 새 바깥 주소(스크립트·fetch)를 쓰면 여기에 더한다. 지금: Google 로그인·Drive, YouTube, LRCLIB, `*.supabase.co`(허브·손님 방 Realtime `wss`). 손님 화면 `guest.html`은 따로 CSP (아래 "손님 방"). 허브·LRCLIB·사용자 글은 `textContent`로만 넣는다. cdnjs는 CR-251 마무리에서 뺐다 (QR은 YT-r16부터 앱 안 사본 `js/vendor/toqr-0.1.1.mjs`).
 
 ## 자동 맞추기 (`js/autosync.js`, CR-227 1단계 · 화면 말은 CR-236에서 "싱크" → "맞추기·시각")
 
