@@ -404,7 +404,7 @@ test('카드 글: 재생목록 N곡 · 있는 곡 건너뜀 · 못 트는 곡 + 
   const v = L.ytListView({ phase: 'ready', plan, keyUsed: true });
   same(v, { cls: 'yt-c-list-ready', head: '재생목록 4곡', lines: [
     { text: '곡 목록에 있는 1곡은 건너뛰어요' },
-    { text: '1곡은 노래방 안에서 못 틀어요 (유튜브 앱에서는 돼요)', toggle: { text: '그 곡도 넣기', on: false } },
+    { text: '1곡은 노래방에서 안 틀어져요 (유튜브 앱에서는 돼요)', toggle: { text: '그 곡도 넣기', on: false } },
   ], btn: { text: '곡 목록에 다 넣기', act: 'add', primary: true, disabled: false }, small: '예약은 안 해요' });
   const on = L.ytListView({ phase: 'ready', plan: L.ytListPlan([item(3, { embeddable: false })], [], { includeBlocked: true }), keyUsed: true });
   assert.equal(on.lines[0].toggle.on, true); assert.equal(on.btn.disabled, false);
@@ -428,8 +428,8 @@ test('카드 글: 열쇠 없음 · 200곡 넘음 · 넣을 곡 없음 · 넣는 
   assert.equal(L.ytListView({ phase: 'error', kind: '???' }).lines[0].text, L.YT_LIST_ERR.other);
 });
 
-test('끝 알림: N곡 넣었어요 · 있던 K곡 건너뜀 · 못 트는 M곡 뺌', () => {
-  assert.equal(L.ytListDoneText({ added: 12, have: 3, blocked: 2 }), '12곡 넣었어요 · 있던 3곡 건너뜀 · 못 트는 2곡 뺌');
+test('끝 알림: N곡 넣었어요 · 있던 K곡 건너뜀 · 안 틀어지는 M곡 뺌', () => {
+  assert.equal(L.ytListDoneText({ added: 12, have: 3, blocked: 2 }), '12곡 넣었어요 · 있던 3곡 건너뜀 · 안 틀어지는 2곡 뺌');
   assert.equal(L.ytListDoneText({ added: 5 }), '5곡 넣었어요');
   assert.equal(L.ytListDoneText({ added: 200, over: 40 }), '200곡 넣었어요 · 뒤 40곡은 안 넣음 (한 번에 200곡까지)');
   assert.match(L.ytListDoneText({ added: 3, fail: 1 }), /1곡은 이 기기에 저장하지 못했어요/);
@@ -462,13 +462,13 @@ test('넣기: ytAdd와 같은 곡 모양 · 번호는 뒤로 차례대로 · 저
   same([b.no, b.title, b.artist], [10009, '유튜브 영상 ' + ID(4), '']);
   same(saved, [{ id: ID(1), meta: true, quiet: true }, { id: ID(4), meta: true, quiet: true }]);
   assert.equal(render.n, 1); assert.equal(persist.n, 1);
-  same(ctx.__toasts, [['2곡 넣었어요 · 있던 1곡 건너뜀 · 못 트는 1곡 뺌', 5000]]);
+  same(ctx.__toasts, [['2곡 넣었어요 · 있던 1곡 건너뜀 · 안 틀어지는 1곡 뺌', 5000]]);
   same(ctx.__haptic, ['success']);
   same(ctx.Yt.meta.get(ID(1)), { title: '[KY 금영노래방] 좋은 날 - 아이유', channel: 'KY Karaoke' });
   // 같은 계획을 또 누르면 (그 사이 들어간 곡) 다 건너뛴다
   const again = await M.ytListAdd(plan);
   assert.equal(again.songs.length, 0); assert.equal(render.n, 1);
-  assert.equal(ctx.__toasts[1][0], '0곡 넣었어요 · 있던 3곡 건너뜀 · 못 트는 1곡 뺌');
+  assert.equal(ctx.__toasts[1][0], '0곡 넣었어요 · 있던 3곡 건너뜀 · 안 틀어지는 1곡 뺌');
 });
 
 test('넣기: 저장 실패한 곡 수를 알림에 · [그 곡도 넣기]를 켜면 "뺌"이 없다', async () => {
@@ -547,11 +547,11 @@ test('카드 상태: 다 넣은 뒤 알림 글을 카드에 남긴다 (done) →
   await wait(20);
   assert.equal(st.done, '');
   await M.ytListCommit();
-  assert.equal(st.done, '1곡 넣었어요 · 있던 1곡 건너뜀 · 못 트는 1곡 뺌');
+  assert.equal(st.done, '1곡 넣었어요 · 있던 1곡 건너뜀 · 안 틀어지는 1곡 뺌');
   const v = M.ytListView({ ...st, plan: M.ytListPlanOf(st) });
   same(v, { cls: 'yt-c-list-ready yt-c-list-done', head: '재생목록 3곡', lines: [
-    { text: '1곡 넣었어요 · 있던 1곡 건너뜀 · 못 트는 1곡 뺌' },
-    { text: '1곡은 노래방 안에서 못 틀어요 (유튜브 앱에서는 돼요)', toggle: { text: '그 곡도 넣기', on: false } },
+    { text: '1곡 넣었어요 · 있던 1곡 건너뜀 · 안 틀어지는 1곡 뺌' },
+    { text: '1곡은 노래방에서 안 틀어져요 (유튜브 앱에서는 돼요)', toggle: { text: '그 곡도 넣기', on: false } },
   ], btn: { text: '다 넣었어요', act: 'add', primary: false, disabled: true }, small: '곡 목록에서 골라 예약해요' });
   st.includeBlocked = true;
   const v2 = M.ytListView({ ...st, plan: M.ytListPlanOf(st) });
@@ -573,7 +573,7 @@ test('카드: ytCard 모양 · 스위치 · 큰 단추 · TV 리모컨 화살표
   const li = M.ytListCard(ul, v, { onToggle: x => got.toggle.push(x), onAct: a => got.act.push(a), onExit: () => got.exit++ });
   assert.equal(li.className, 'yt-card yt-c-list yt-c-list-ready'); assert.equal(li.getAttribute('role'), 'group');
   assert.equal(li.querySelector('.yt-card-h').textContent, '재생목록 2곡');
-  same(li.querySelectorAll('.yt-card-l').map(x => x.textContent), ['1곡은 노래방 안에서 못 틀어요 (유튜브 앱에서는 돼요)']);
+  same(li.querySelectorAll('.yt-card-l').map(x => x.textContent), ['1곡은 노래방에서 안 틀어져요 (유튜브 앱에서는 돼요)']);
   const sw = li.querySelector('input'), btn = li.querySelector('button');
   assert.equal(sw.parentNode.className, 'guest-sw yt-list-sw'); assert.equal(sw.type, 'checkbox'); assert.equal(sw.getAttribute('role'), 'switch'); assert.equal(sw.checked, false);
   assert.equal(sw.parentNode.querySelector('b').textContent, '그 곡도 넣기');

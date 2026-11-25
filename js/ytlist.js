@@ -127,9 +127,9 @@ function ytApiErrorKind(status, json) {
 const YT_LIST_ERR = {
   notfound: '재생목록을 찾지 못했어요 · 지워졌거나 비공개 목록일 수 있어요',
   private: '비공개 재생목록이라 읽을 수 없어요 · 공개나 일부 공개 목록 링크를 붙여 주세요',
-  empty: '비공개 목록이거나, 노래방에서 못 트는 영상만 있는 목록일 수 있어요',
-  timeout: '비공개 목록이거나, 노래방에서 못 트는 영상만 있는 목록일 수 있어요',
-  player: '비공개 목록이거나, 노래방에서 못 트는 영상만 있는 목록일 수 있어요',
+  empty: '비공개 목록이거나, 노래방에서 안 틀어지는 영상만 있는 목록일 수 있어요',
+  timeout: '비공개 목록이거나, 노래방에서 안 틀어지는 영상만 있는 목록일 수 있어요',
+  player: '비공개 목록이거나, 노래방에서 안 틀어지는 영상만 있는 목록일 수 있어요',
   api: '유튜브 플레이어를 불러오지 못했어요 · 인터넷 연결을 확인해 주세요',
   net: '유튜브에 닿지 않았어요 · 인터넷 연결을 확인하고 다시 해 봐요',
   offline: '인터넷이 끊겨 있어요 · 인터넷이 되면 다시 해 봐요',
@@ -147,12 +147,12 @@ function ytListView(st, { limit = YT_LIST_MAX } = {}) {
   // 다 넣은 뒤 (넣을 곡이 더 없음): 넣은 알림 글을 카드에 남기고 단추는 [다 넣었어요](막힘). 못 트는 곡이 남았으면 스위치는 그대로
   if (st.done && ph === 'ready' && !p.add.length) {
     lines.push({ text: st.done });
-    if (p.blocked.length) lines.push({ text: `${p.blocked.length}곡은 노래방 안에서 못 틀어요 (유튜브 앱에서는 돼요)`, toggle: { text: '그 곡도 넣기', on: !!p.includeBlocked } });
+    if (p.blocked.length) lines.push({ text: `${p.blocked.length}곡은 노래방에서 안 틀어져요 (유튜브 앱에서는 돼요)`, toggle: { text: '그 곡도 넣기', on: !!p.includeBlocked } });
     return { cls: 'yt-c-list-ready yt-c-list-done', head: `재생목록 ${p.n}곡`, lines,
       btn: { text: '다 넣었어요', act: 'add', primary: false, disabled: true }, small: '곡 목록에서 골라 예약해요' };
   }
   if (p.have.length) lines.push({ text: `곡 목록에 있는 ${p.have.length}곡은 건너뛰어요` });
-  if (p.blocked.length) lines.push({ text: `${p.blocked.length}곡은 노래방 안에서 못 틀어요 (유튜브 앱에서는 돼요)`, toggle: { text: '그 곡도 넣기', on: !!p.includeBlocked } });
+  if (p.blocked.length) lines.push({ text: `${p.blocked.length}곡은 노래방에서 안 틀어져요 (유튜브 앱에서는 돼요)`, toggle: { text: '그 곡도 넣기', on: !!p.includeBlocked } });
   if (p.cut) lines.push({ text: `앞 ${limit}곡만 넣어요` });
   if (p.gone) lines.push({ text: `지웠거나 비공개인 ${p.gone}곡은 빼요` });
   if (!p.add.length) lines.push({ text: '새로 넣을 곡이 없어요' });
@@ -165,7 +165,7 @@ function ytListView(st, { limit = YT_LIST_MAX } = {}) {
 function ytListDoneText({ added = 0, have = 0, blocked = 0, over = 0, fail = 0, limit = YT_LIST_MAX } = {}) {
   const parts = [`${added}곡 넣었어요`];
   if (have) parts.push(`있던 ${have}곡 건너뜀`);
-  if (blocked) parts.push(`못 트는 ${blocked}곡 뺌`);
+  if (blocked) parts.push(`안 틀어지는 ${blocked}곡 뺌`);
   if (over) parts.push(`뒤 ${over}곡은 안 넣음 (한 번에 ${limit}곡까지)`);
   if (fail) parts.push(`${fail}곡은 이 기기에 저장하지 못했어요 · 저장 공간을 확인해 주세요`);
   return parts.join(' · ');
