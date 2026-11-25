@@ -293,13 +293,14 @@ export default async function youtube(ctx) {
         const r=c.getBoundingClientRect(), s=st.getBoundingClientRect(), ar=a.getBoundingClientRect();
         return {shown:!c.hidden, link:!a.hidden && ar.width>0, app:a.classList.contains('yt-err-app'), primary:a.classList.contains('primary'), small:a.classList.contains('small'), label:a.innerText.trim(), href:a.href, target:a.target,
           bh:Math.round(ar.height), bw:Math.round(ar.width), clip:a.scrollWidth>a.clientWidth+1, note:!n.hidden && n.getBoundingClientRect().height>0, nt:n.textContent, tv:!document.querySelector('#ytErrTv').hidden,
+          head: r.top >= st.querySelector('.song-head').getBoundingClientRect().bottom - 1,   // 위 곡 머리(번호·제목)와 안 겹침
           inside: r.top>=s.top-1 && r.bottom<=s.bottom+1 && r.left>=s.left-1 && r.right<=s.right+1, ch:Math.round(r.height), sh:Math.round(s.height), cw:Math.round(r.width), sw:Math.round(s.width)}})()`);
       const sel1 = await selYt(p, ID.B);
       await p.until(`Yt.err===150 && !document.querySelector('#ytErr').hidden`, 4000);
       await sleep(250);
       const a = await card(), h1 = await noHScroll(p);
-      ok('V7', sel1 && a.shown && a.link && a.app && a.primary && !a.small && a.label === '유튜브 앱으로 열기' && a.href === 'https://www.youtube.com/watch?v=' + ID.B && a.target === '_blank' && a.bh >= 48 && !a.clip && a.note && /녹음·점수·예약곡 이어 부르기는 안 돼요/.test(a.nt) && !a.tv && a.inside && h1,
-        `폰 390: 큰 [${a.label}] ${a.bw}×${a.bh} 새 창 ${a.href.replace('https://www.youtube.com', '')} · 한 줄 "${a.nt}" · 카드 ${a.cw}×${a.ch} 무대 ${a.sw}×${a.sh} 안 ${a.inside} · 가로 스크롤 ${h1 ? '없음' : '있음!'}`);
+      ok('V7', sel1 && a.shown && a.link && a.app && a.primary && !a.small && a.label === '유튜브 앱으로 열기' && a.href === 'https://www.youtube.com/watch?v=' + ID.B && a.target === '_blank' && a.bh >= 48 && !a.clip && a.note && /녹음·점수·예약곡 이어 부르기는 안 돼요/.test(a.nt) && !a.tv && a.inside && a.head && h1,
+        `폰 390: 큰 [${a.label}] ${a.bw}×${a.bh} 새 창 ${a.href.replace('https://www.youtube.com', '')} · 한 줄 "${a.nt}" · 카드 ${a.cw}×${a.ch} 무대 ${a.sw}×${a.sh} 안 ${a.inside} · 곡 머리와 겹침 ${a.head ? '없음' : '있음!'} · 가로 스크롤 ${h1 ? '없음' : '있음!'}`);
       await p.eval(`(()=>{ const t=document.querySelector('#toast'); if(t) t.hidden=true; return true })()`);   // 디자인 사진: 곡 넣기 알림 없이
       await shot('cr251-blocked-phone-390x844.png');
       // 예약곡이 있을 때: 3초 안내가 도는 중에 큰 단추를 누르면 다음 곡으로 넘어가지 않는다 (예약은 그대로). 링크 열기는 막고 누름만 본다
@@ -324,7 +325,7 @@ export default async function youtube(ctx) {
       await p.until(`Yt.err===150 && !document.querySelector('#ytErr').hidden`, 4000);
       await sleep(250);
       const d = await card(), h2 = await noHScroll(p);
-      ok('V7', d.shown && d.app && d.note && d.inside && !d.clip && h2, `글자 130%: 카드 ${d.cw}×${d.ch} 무대 ${d.sw}×${d.sh} 안 ${d.inside} · [${d.label}] ${d.bw}×${d.bh} 잘림 ${d.clip ? '있음!' : '없음'} · 가로 스크롤 ${h2 ? '없음' : '있음!'}`);
+      ok('V7', d.shown && d.app && d.note && d.inside && d.head && !d.clip && h2, `글자 130%: 카드 ${d.cw}×${d.ch} 무대 ${d.sw}×${d.sh} 안 ${d.inside} · 곡 머리와 겹침 ${d.head ? '없음' : '있음!'} · [${d.label}] ${d.bw}×${d.bh} 잘림 ${d.clip ? '있음!' : '없음'} · 가로 스크롤 ${h2 ? '없음' : '있음!'}`);
       await shot('cr251-blocked-phone-130pct.png');
       await stopAll(p);
       await p.emulate(PC);

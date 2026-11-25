@@ -666,6 +666,8 @@ body:has(#tv:not([hidden])) .yt-box{z-index:20;border-radius:0}
 #ytErrQrTip{color:var(--muted);font-size:.85em;line-height:1.35}
 .yt-err-qr{width:var(--qr-px,6.5em);height:var(--qr-px,6.5em);image-rendering:pixelated;background:#fff;border-radius:.3em;flex:none}
 .yt-err:has(#ytErrTv:not([hidden])){width:min(92%,36em)}
+/* 좁은 무대(글자 130% 폰 등, 무대 폭 300 아래): 안내 카드를 조금 줄여 위 곡 머리(번호·제목)와 겹치지 않게 (CR-251) */
+@container (max-width:300px){.yt-err{padding:10px 12px;gap:5px}.yt-err .btn.yt-err-app{min-height:48px}}
 /* 곡 검색 창: [내 MR 보관함 | 유튜브 노래방 검색] (높이 48) */
 .seg{display:flex;background:var(--room);border-radius:var(--radius-sm,8px);padding:2px;min-height:48px;flex:none}
 .seg-b{flex:1;border:0;border-radius:6px;background:none;color:var(--muted);font:600 1em var(--ui);white-space:nowrap;min-height:44px;padding:0 .6em}
