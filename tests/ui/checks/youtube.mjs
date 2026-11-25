@@ -443,6 +443,20 @@ export default async function youtube(ctx) {
         return {tag:t ? t.textContent : '', tip:t ? t.title : '', rs:!!rs && rs.blocked===true, my:!!my && my.blocked===true, other:!!other && !('blocked' in other), lib:!SONG_FIELDS.includes('ytBlocked'), still:state.songs.includes(s)}})()`);
       ok('V19', sel && marked && s0 === s1 && rec === 101 && ui.tag === '노래방에서 안 틀어짐' && /예약하면 차례에 건너뛰어요/.test(ui.tip) && ui.rs && ui.my && ui.other && ui.lib && ui.still && bWas === 150,
         `오류 101 → 곡에 기억 ${marked} (저장소 ${rec}) · 다른 칸·고친 시각 그대로 ${s0 === s1} · 곡 목록 표시 "${ui.tag}" · 리모컨 곡 목록 blocked ${ui.rs}·내 폰 리모컨 ${ui.my} · 다른 곡엔 칸 없음 ${ui.other} · Drive 곡 칸(SONG_FIELDS)에 없음 ${ui.lib} · 곡 그대로 ${ui.still} · 오류 150 곡(B)도 기억 ${bWas}`);
+      // 막힌 곡 줄 모양 (CR-251 디자인 보기 권함): 막힌 곡 가수 줄에만 has-yblk · 가수 이름은 말줄임 없이 다 보임 · 꼬리표는 가수 줄 안에 다 보임
+      // · 꼬리표는 자리가 모자랄 때만 이름 밑 둘째 줄 (이름 + 꼬리표들 + 사이 6px이 가수 줄 폭에 들어가면 한 줄, 넘으면 둘째 줄. 소수점 폭으로 재고, 차이 0.5px 안은 어느 쪽이든 됨).
+      // PC·TV 화면도 곡 목록은 왼쪽 300px 칸이라 모자라서 둘째 줄로 간다. 목록이 넓은 한 칸 화면(980 이하, 예: 768)은 한 줄 그대로. 시험 가수 이름은 짧아서 늘 다 보여야 한다
+      const rowsFit = `(()=>{const rows=[...document.querySelectorAll('#songList li.song')], bl=rows.filter(li=>li.querySelector('.stag.yblk'));
+        const r=bl.map(li=>{const a=li.querySelector('.a'), an=a.querySelector('.an'), t=a.querySelector('.stag.yblk'), tags=[...a.querySelectorAll('.stag')], nr=an.getBoundingClientRect(), tr=t.getBoundingClientRect(), ar=a.getBoundingClientRect();
+          const need=nr.width + tags.reduce((w,x)=>w + x.getBoundingClientRect().width + 6, 0), fits=need <= ar.width - 0.5, over=need >= ar.width + 0.5, below=tr.top >= nr.bottom - 1;
+          return {an:an.textContent, full:an.scrollWidth <= an.clientWidth + 1 && nr.width > 0, tagIn:tr.width > 0 && tr.left >= ar.left - 1 && tr.right <= ar.right + 1 && tr.bottom <= ar.bottom + 1 && t.scrollWidth <= t.clientWidth + 1, fits, below, rule:fits ? !below : over ? below : true, need:need.toFixed(1), aw:ar.width.toFixed(1)}});
+        return {n:bl.length, cls:rows.every(li=>!!li.querySelector('.a.has-yblk') === !!li.querySelector('.stag.yblk')), full:r.every(x=>x.full), tagIn:r.every(x=>x.tagIn), rule:r.every(x=>x.rule), one:r.every(x=>x.fits && !x.below),
+          lines:r.map(x=>x.below ? 2 : 1), names:r.map(x=>x.an), room:r.map(x=>x.need + '/' + x.aw)}})()`;
+      const rowsText = (w, r) => `${w} 막힌 곡 ${r.n}줄: has-yblk는 막힌 곡에만 ${r.cls} · 가수 이름 다 보임 ${r.full ? '예' : '아니요 (잘림!)'} (${r.names.join('·')}) · 꼬리표 가수 줄 안 ${r.tagIn} · 꼬리표 줄 ${r.lines.join('·')} (2 = 이름 밑 둘째 줄) · 필요 폭/가수 줄 폭 ${r.room.join('·')} · 모자랄 때만 둘째 줄 ${r.rule}`;
+      const pcRows = await p.eval(rowsFit);
+      ok('V19', pcRows.n >= 1 && pcRows.cls && pcRows.full && pcRows.tagIn && pcRows.rule, rowsText('PC 1280 (곡 목록 왼쪽 300px 칸)', pcRows));
+      await p.eval(`(()=>{ const li=${rowOf}; li.scrollIntoView({block:'center'}); const t=document.querySelector('#toast'); if(t) t.hidden=true; return true })()`);
+      await shot('cr251-yt01-list-mark-pc.png');
       // 폰 390 곡 목록 사진 (표시가 줄 안에 다 보이는지)
       await p.emulate({ name: '390x844', width: 390, height: 844, mobile: true, touch: true });
       await sleep(400);
@@ -456,7 +470,14 @@ export default async function youtube(ctx) {
       const vp = await p.eval(`({w:document.documentElement.scrollWidth, iw:innerWidth, sc:visualViewport ? visualViewport.scale : 1, box:(()=>{const r=document.querySelector('#ytBox').getBoundingClientRect(); return Math.round(r.right)})()})`);
       const fit = vp.w <= 391 && vp.iw <= 391 && Math.abs(vp.sc - 1) < 0.01;
       ok('V19', ph.inRow && !ph.clip && hs && fit, `폰 390 곡 줄: 표시 ${ph.w}px (가수 줄 ${ph.aw}px 안 ${ph.inRow}) · 글 잘림 ${ph.clip ? '있음!' : '없음'} · 줄 높이 ${ph.h} · 가로 스크롤 ${hs ? '없음' : '있음!'} · 문서 폭 ${vp.w}·화면 폭 ${vp.iw}·배율 ${vp.sc}${fit ? '' : ' (줄어 보임!)'} · 숨은 플레이어 오른쪽 끝 ${vp.box}`);
+      const phRows = await p.eval(rowsFit);
+      ok('V19', phRows.n >= 1 && phRows.cls && phRows.full && phRows.tagIn && phRows.rule, rowsText('폰 390', phRows));
       await shot('cr251-yt01-list-mark-390.png');
+      // 목록이 넓은 한 칸 화면 (980 이하 → 곡 목록이 화면 폭 전부): 꼬리표가 이름과 같은 줄 그대로
+      await p.emulate({ name: '768x1024', width: 768, height: 1024 });
+      await sleep(300);
+      const wdRows = await p.eval(`(()=>{ renderSongs(); return true })()`).then(() => p.eval(rowsFit));
+      ok('V19', wdRows.n >= 1 && wdRows.cls && wdRows.full && wdRows.tagIn && wdRows.rule && wdRows.one, rowsText('넓은 목록 768', wdRows) + ` · 모두 한 줄 ${wdRows.one}`);
       await p.emulate(PC);
       await sleep(300);
       // ② 예약 차례: 틀지 않고 바로 건너뜀 (플레이어에 올리지 않음) → 다음 예약곡

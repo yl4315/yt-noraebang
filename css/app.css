@@ -83,6 +83,7 @@ select{background:var(--btn-bg);border:1px solid var(--btn-line);border-radius:v
 .song .a .an{min-width:0;overflow:hidden;text-overflow:ellipsis}
 .song .a .stag{flex:none}
 .stag.yblk,.ov-row .nm small.yblk,#idleQueue small.yblk{color:var(--danger-ink)}   /* 노래방에서 안 틀어지는 유튜브 곡 (CR-251 YT-01) */
+.song .a.has-yblk{flex-wrap:wrap;column-gap:6px;row-gap:2px}.song .a.has-yblk .stag{margin-left:0}   /* 막힌 곡 줄만: 자리가 모자라면 꼬리표가 가수 이름 밑 둘째 줄로 (margin 대신 gap이라 둘째 줄 첫 꼬리표가 왼쪽에 붙음). 목록이 넓으면 한 줄 그대로 (PC는 목록 칸이 300px라 둘째 줄, CR-251 디자인 보기 권함). :has() 대신 songs.js가 붙이는 클래스 */
 .song .acts{display:flex;gap:2px}
 .icon-btn{background:none;border:0;color:var(--muted);padding:4px;border-radius:6px;display:inline-flex}
 @media (hover:hover){.icon-btn:hover{color:var(--ink);background:var(--line)}}
