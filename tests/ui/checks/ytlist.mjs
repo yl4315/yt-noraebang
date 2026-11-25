@@ -175,14 +175,14 @@ export default async function ytlist(ctx) {
       ok('V14', hw.length === 1 && hw[0] === 'https://www.youtube.com', `설정을 켠 채 목록 플레이어 host ${hw.join()} (끄면 nocookie — 위 첫 목록)`);
     });
 
-    await step('열쇠 길: playlistItems·videos로 제목·퍼가기 됨을 미리 → "2곡은 노래방 안에서 못 틀어요 (유튜브 앱에서는 돼요)" 기본 빼고 [그 곡도 넣기] 스위치 · 지운·비공개 곡은 뺌 · 리모컨 ↑↓ · 한도(403)면 열쇠 없는 길 · 230개 = 8번 · 열쇠 글자 없음', ['V15'], async () => {
+    await step('열쇠 길: playlistItems·videos로 제목·퍼가기 됨을 미리 → "2곡은 노래방에서 안 틀어져요 (유튜브 앱에서는 돼요)" 기본 빼고 [그 곡도 넣기] 스위치 · 지운·비공개 곡은 뺌 · 리모컨 ↑↓ · 한도(403)면 열쇠 없는 길 · 230개 = 8번 · 열쇠 글자 없음', ['V15'], async () => {
       await p.eval(`ytSetKey(${q(KEY)}); Yt.keyBlocked=false; ytSetTab('yt', true)`);
       const m0 = await marks(p), c0 = await cues(p, PL.K), lg = ctx.ytListLog.length;
       await setInput(p, `https://www.youtube.com/playlist?list=${PL.K}`);
       await p.until(`!!document.querySelector('#searchList .yt-c-list-ready')`, 10000);
       const c = await card(p);
       const calls = ctx.ytListLog.slice(lg);
-      ok('V15', c.head === '재생목록 5곡' && c.lines.join('|') === '곡 목록에 있는 1곡은 건너뛰어요|2곡은 노래방 안에서 못 틀어요 (유튜브 앱에서는 돼요)|지웠거나 비공개인 2곡은 빼요' &&
+      ok('V15', c.head === '재생목록 5곡' && c.lines.join('|') === '곡 목록에 있는 1곡은 건너뛰어요|2곡은 노래방에서 안 틀어져요 (유튜브 앱에서는 돼요)|지웠거나 비공개인 2곡은 빼요' &&
         c.sw && !c.sw.on && c.sw.label === '그 곡도 넣기' && c.btn?.text === '곡 목록에 다 넣기' && !c.btn.disabled &&
         calls.map(x => x.kind).join() === 'playlistItems,videos' && calls.every(x => x.key === '가짜 열쇠' && x.status === 200) && (await cues(p, PL.K)) === c0,
         `카드 "${c.head}" · ${c.lines.join(' / ')} · 스위치 [${c.sw?.label}] ${c.sw?.on ? '켜짐!' : '꺼짐'} · 부른 것 ${calls.map(x => x.kind + '(' + x.key + ')').join(', ')} · 플레이어 안 씀`);
@@ -201,12 +201,12 @@ export default async function ytlist(ctx) {
       const off = await p.eval(`({on:document.querySelector('#searchList .yt-list-sw input').checked, add:ytListPlanOf(YtList.st).add.length})`);
       ok('V15', on.on && on.add === 4 && on.f && !off.on && off.add === 2, `[그 곡도 넣기] 켜면 넣을 곡 ${on.add} (스위치에 그대로 ${on.f}) · 끄면 ${off.add}`);
       await p.click('#searchList .yt-c-list [data-k="add"]');
-      const t = await sawToast(p, /^2곡 넣었어요 · 있던 1곡 건너뜀 · 못 트는 2곡 뺌$/, m0, 6000);
+      const t = await sawToast(p, /^2곡 넣었어요 · 있던 1곡 건너뜀 · 안 틀어지는 2곡 뺌$/, m0, 6000);
       const k1 = await songOf(p, vid('k', 1)), k3 = await songOf(p, vid('k', 3)), k2 = await songOf(p, vid('k', 2)), k5 = await songOf(p, vid('k', 5));
       await p.until(`!!document.querySelector('#searchList .yt-c-list-done')`, 4000);
       const d = await card(p);
       ok('V15', t && k1 && k3 && !k2 && !k5 && /QA 재생목록 01/.test(k1.title) && k1.title !== '유튜브 영상 ' + vid('k', 1) && !k1.queued && d.sw && !d.sw.on && d.btn?.text === '다 넣었어요',
-        `알림 "2곡 넣었어요 · 있던 1곡 건너뜀 · 못 트는 2곡 뺌" ${t} · 제목 "${k1?.title}" · 못 트는 곡·지운 곡 안 넣음 · 다 넣은 뒤에도 스위치 남음 ${!!d.sw}`);
+        `알림 "2곡 넣었어요 · 있던 1곡 건너뜀 · 안 틀어지는 2곡 뺌" ${t} · 제목 "${k1?.title}" · 못 트는 곡·지운 곡 안 넣음 · 다 넣은 뒤에도 스위치 남음 ${!!d.sw}`);
       // 한도(403) → Yt.keyBlocked · 열쇠 없는 길(가짜 플레이어)로 같은 목록
       const lq = ctx.ytListLog.length;
       await setInput(p, `https://www.youtube.com/playlist?list=${PL.Q}`);
@@ -244,8 +244,8 @@ export default async function ytlist(ctx) {
       const c = await card(p), h = await noHScroll(p), vw = await p.eval('innerWidth');
       ok('V14', c.btn && c.btn.box.h >= 44 && c.btn.box.w >= 44 && c.box.l >= 0 && c.box.r <= vw && h,
         `폰 390: [${c.btn?.text}] ${c.btn?.box.w}×${c.btn?.box.h} · 카드 ${c.box.l}~${c.box.r} (화면 ${vw}) · 가로 스크롤 ${h ? '없음' : '있음!'}`);
-      ok('V15', c.sw && c.sw.row.h >= 44 && c.lines.includes('2곡은 노래방 안에서 못 틀어요 (유튜브 앱에서는 돼요)') && !c.sw.on,
-        `폰 390: 안내 "${c.lines.find(x => /못 틀어요/.test(x))}" · [그 곡도 넣기] 줄 ${c.sw?.row.w}×${c.sw?.row.h} (누르는 곳 = 줄 전체)`);
+      ok('V15', c.sw && c.sw.row.h >= 44 && c.lines.includes('2곡은 노래방에서 안 틀어져요 (유튜브 앱에서는 돼요)') && !c.sw.on,
+        `폰 390: 안내 "${c.lines.find(x => /안 틀어져요/.test(x))}" · [그 곡도 넣기] 줄 ${c.sw?.row.w}×${c.sw?.row.h} (누르는 곳 = 줄 전체)`);
       await shot('cr244-phone390-preview.png');
       await p.eval('ytSetKey(null)');
       await stopAll(p);
