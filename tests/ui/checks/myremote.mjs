@@ -309,8 +309,11 @@ export default async function myremote(ctx) {
     const off = await host.until(`!My.on && !My.busy && !$('#myRemoteOn').checked`, 6000);
     const seen = await ph.until(VIEW(H_OFF), 8000);
     const st = await ph.eval(`({p:$('#hubP').textContent, retry:!$('#hubRetry').hidden, open:!$('#hubOpen').hidden, connHid:$('#conn').hidden})`);
-    ok('X9', off && slot() === undefined && await host.eval(`localStorage.getItem('nb-myremote')===null && $('#myRemoteSub').textContent==='꺼짐 · 노래방을 띄운 PC에서 켜요'`),
-      `끄면: 열쇠 칸 ${slot() === undefined ? '비움' : '남음'} · 기억 지움 · "${await txt(host, '#myRemoteSub')}"`);
+    // PC는 끌 때 "closed"를 먼저 보내고 → 채널을 뗀 뒤 → 열쇠 칸을 비운다 (myClose). 폰이 "꺼져 있어요"를 띄운 바로 그때는 칸이 아직 남아 있을 수 있어
+    // (보통 10~20ms 뒤 비움), 칸이 비워질 때까지 5초 기다린다. 다시 켜기도 칸 비우기가 끝난 뒤에 눌러서, 늦은 비우기가 새 방 칸을 지우는 겹침을 막는다
+    const cleared = await waitNode(() => slot() === undefined, 5000);
+    ok('X9', off && cleared && await host.eval(`localStorage.getItem('nb-myremote')===null && $('#myRemoteSub').textContent==='꺼짐 · 노래방을 띄운 PC에서 켜요'`),
+      `끄면: 열쇠 칸 ${cleared ? '비움' : '남음 (5초 넘게)'} · 기억 지움 · "${await txt(host, '#myRemoteSub')}"`);
     ok('L6', off && await host.eval(`$('#remoteInfo').hidden && !$('#remoteInfo').childElementCount`), '끄면 TV 대기 화면 내 폰 리모컨 QR 바로 숨김 (새로 고침 없이)');
     ok('X11', seen && /\[폰\s리모컨\s받기\]를\s켜\s주세요/.test(st.p) && st.retry && !st.open && st.connHid, `폰: "${H_OFF}" · [다시 해 보기] · 연결 점 ${st.connHid ? '숨김' : '보임'}`);
     await shot(ph, 'x-my-phone-off.png');
