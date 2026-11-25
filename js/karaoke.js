@@ -72,6 +72,7 @@ async function startNext() {
     const s = songById(state.queue.shift()); saveQueue(); renderQueue();
     if (!s) continue;
     hideScore(); closeOverlays();
+    if (typeof ytAutoStart === 'function') ytAutoStart(s);   // 유튜브 곡이 인터넷 탓에 못 틀면 3초 뒤 다음 곡 (yt.js ytNetFail, CR-251 YT-07)
     await selectSong(s);
     if (state.song === s && songReady(s)) {
       state.offset = 0; await play();

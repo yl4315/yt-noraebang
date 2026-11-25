@@ -1,5 +1,5 @@
 // CR-030: 유튜브 곡 (V 구역). 검색 창 탭 둘 · 링크 붙여넣기 · 폰 [공유] 받기 · 유튜브에서 열어 찾기 · 열쇠 검색 · IFrame 재생·조작 ·
-// 재생 못 하는 영상 안내(CR-251: 101·150 큰 단추·TV QR) · 프리미엄 계정으로 틀기 설정(V13) · 곡 목록·예약·♡·차트 · 가사(LRCLIB)·싱크 편집 · 키·녹음 끔 · 눌러서 시작 · TV 띠.
+// 재생 못 하는 영상 안내(CR-251: 101·150 큰 단추·TV QR) · 인터넷 탓에 못 튼 예약곡 건너뛰기(V14) · 프리미엄 계정으로 틀기 설정(V13) · 곡 목록·예약·♡·차트 · 가사(LRCLIB)·싱크 편집 · 키·녹음 끔 · 눌러서 시작 · TV 띠.
 // 진짜 유튜브에 닿지 않는다: IFrame API는 tests/ui/fake-yt.js(가짜 플레이어), 열쇠 검색은 ctx.ytRules 가짜 답, 썸네일은 회색 그림 (run.mjs 길 가로채기).
 // 열쇠는 가짜(ctx.ytFakeKey)만 쓰고, 화면·저장소·기록에 그 글자가 없는지도 본다. window.open(유튜브 결과 열기)은 막고 주소만 적는다.
 // 만든 유튜브 곡·예약·♡·부른 횟수는 끝에 지운다.
@@ -356,6 +356,61 @@ export default async function youtube(ctx) {
       await stopAll(p);
       await p.emulate(PC);
       await sleep(300);
+    });
+
+    await step('인터넷 탓에 못 튼 예약곡 (CR-251 YT-07): 예약 차례로 시작한 유튜브 곡이 인터넷 끊김·플레이어 시간 초과로 못 틀면 "못 틀어서 건너뛰어요" + 3초 뒤 다음 곡 · 늦게 준비된 플레이어는 버림 · 손으로 고른 곡은 안내만', ['V14'], async () => {
+      await stopAll(p); await clearQueue(p);
+      const card = () => p.eval(`({shown:!document.querySelector('#ytErr').hidden, h:document.querySelector('#ytErrHead').textContent, w:document.querySelector('#ytErrWhy').textContent,
+        next:!document.querySelector('#nextCard').hidden, nt:document.querySelector('#nextTitle').textContent, skip:Yt.errSkip, song:state.song && state.song.id, playing:state.playing})`);
+      // ① 인터넷 끊김: 예약 [유튜브 A, 데모] → A 차례에 끊김 안내 + 건너뜀 → 3초 뒤 데모 재생
+      await p.offline(true);
+      await p.eval(`(()=>{ const a=findYtSong(state.songs, ${q(ID.A)}); state.queue.push(a.id, 'demo'); saveQueue(); renderQueue(); startNext(); return true })()`);
+      const s1 = await p.until(`!document.querySelector('#ytErr').hidden && state.song && state.song.ytId===${q(ID.A)} && !document.querySelector('#nextCard').hidden`, 5000);
+      const t1 = Date.now(), c1 = await card();
+      ok('V14', s1 && /인터넷이 끊겨서/.test(c1.h) && /못 틀어서 건너뛰어요/.test(c1.w) && c1.next && c1.skip && !c1.playing,
+        `끊김: "${c1.h}" · "${c1.w}" · 다음 곡 카드 ${c1.next ? '"' + c1.nt + '"' : '없음!'}`);
+      await shot('cr251-yt07-offline-skip-pc.png');
+      const n1 = await p.until(`state.song && state.song.id==='demo' && state.playing`, 9000);
+      const dt1 = (Date.now() - t1) / 1000;
+      ok('V14', n1 && dt1 >= 1.5 && dt1 <= 6, `3초 뒤 다음 예약곡(데모, 인터넷 없이 됨) 재생 ${n1} (${dt1.toFixed(1)}초) · 예약 ${await p.eval('state.queue.length')}곡 남음`);
+      await stopAll(p); await clearQueue(p);
+      await p.offline(false);
+      await sleep(200);
+      // ② 플레이어 시간 초과 (느린 인터넷 흉내: 가짜 플레이어가 1.5초 뒤에야 준비, 앱은 0.4초만 기다림)
+      await p.eval(`(async()=>{ await selectSong(songById('demo')); ytRebuild(); window.__ytReadyMs=1500; Yt.readyMs=400; return true })()`);
+      const d0 = await p.eval(`window.__ytFake.calls.filter(c=>c[0]==='destroy').length`);
+      await p.eval(`(()=>{ const a=findYtSong(state.songs, ${q(ID.A)}); state.queue.push(a.id, 'demo'); saveQueue(); renderQueue(); startNext(); return true })()`);
+      const s2 = await p.until(`!document.querySelector('#ytErr').hidden && state.song && state.song.ytId===${q(ID.A)} && !document.querySelector('#nextCard').hidden`, 5000);
+      const c2 = await card();
+      ok('V14', s2 && /플레이어를 불러오지 못했어요/.test(c2.h) && /못 틀어서 건너뛰어요/.test(c2.w) && c2.next && c2.skip,
+        `시간 초과: "${c2.h}" · "${c2.w}" · 다음 곡 카드 ${c2.next}`);
+      const n2 = await p.until(`state.song && state.song.id==='demo' && state.playing`, 9000);
+      await sleep(1700);   // 늦은 준비(1.5초)가 온 뒤
+      const late = await p.eval(`({ready:Yt.ready, player:!!Yt.player, destroyed:window.__ytFake.calls.filter(c=>c[0]==='destroy').length - ${d0}})`);
+      ok('V14', n2 && !late.ready && !late.player && late.destroyed >= 1,
+        `3초 뒤 다음 곡 ${n2} · 늦게 준비된 플레이어: 준비됨 ${late.ready ? '켜짐!' : '꺼짐'} · 남은 플레이어 ${late.player ? '있음!' : '없음'} · 버림(destroy) ${late.destroyed}번`);
+      await stopAll(p); await clearQueue(p);
+      await p.eval(`(()=>{ window.__ytReadyMs=30; Yt.readyMs=15000; return true })()`);
+      const again = await selYt(p, ID.A);
+      const c3 = await p.eval(`({err:Yt.err, st:Yt.st, ready:Yt.ready, loaded:Yt.loaded, hid:document.querySelector('#ytErr').hidden})`);
+      await p.eval('play()');
+      const pl3 = await p.until(`state.playing && Yt.st===1`, 5000);
+      ok('V14', again && c3.err == null && c3.st === 5 && c3.ready && c3.hid && pl3, `그다음 새 플레이어: 올려 둠(5) ${c3.st === 5} · 준비됨 ${c3.ready} · 안내 숨음 ${c3.hid} · 재생 ${pl3}`);
+      await stopAll(p);
+      // ③ 손으로 고른 곡: 예약곡이 있어도 안내만 (건너뛰지 않음)
+      await p.eval(`(()=>{ state.queue.push('demo'); saveQueue(); renderQueue(); return true })()`);
+      await p.offline(true);
+      await p.eval(`selectSong(findYtSong(state.songs, ${q(ID.A)}))`);
+      await p.until(`!document.querySelector('#ytErr').hidden`, 3000);
+      await p.eval('play()');
+      await sleep(3600);
+      const c4 = await card();
+      ok('V14', c4.shown && /인터넷이 끊겨서/.test(c4.h) && /다시 되면/.test(c4.w) && !/건너뛰어요/.test(c4.w) && !c4.next && !c4.skip && c4.song !== 'demo',
+        `손으로 고른 곡: "${c4.w}" · 다음 곡 카드 ${c4.next ? '보임!' : '없음'} · 3.6초 뒤에도 그 곡 ${c4.song !== 'demo'}`);
+      await p.offline(false);
+      const back = await p.until(`document.querySelector('#ytErr').hidden`, 6000);
+      ok('V14', back, `인터넷이 다시 되면 안내 사라짐 ${back}`);
+      await stopAll(p); await clearQueue(p);
     });
 
     await step('가사: 영상 길이를 알면 LRCLIB 싱크 가사 자동(제목·가수·길이 3초 안), 싱크 편집기 열림·2배속까지', ['V9'], async () => {

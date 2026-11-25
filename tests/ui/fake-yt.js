@@ -1,7 +1,7 @@
 // 가짜 유튜브 IFrame API (CR-030 화면 점검 전용). 점검이 https://www.youtube.com/iframe_api 요청을 가로채 이 파일을 준다 → 진짜 유튜브에 닿지 않는다.
 // 진짜 API처럼: new YT.Player(el, { events: { onReady, onStateChange, onError } }), cueVideoById·playVideo·pauseVideo·seekTo·getCurrentTime·
 // getDuration·getVideoData·setPlaybackRate. 상태 -1 시작 전 · 0 끝 · 1 재생 · 2 일시정지 · 3 버퍼링 · 5 올려 둠. 올려 둔 영상에 seekTo를 하면 재생이 시작된다 (진짜와 같음).
-// 점검이 정하는 것: window.__ytVideos[id] = { title, author, dur(초), err(오류 번호) } · window.__ytBlockAutoplay = true면 사람이 누르지 않은 재생은 무시
+// 점검이 정하는 것: window.__ytVideos[id] = { title, author, dur(초), err(오류 번호) } · window.__ytReadyMs = 플레이어 준비까지 ms(기본 30, 느린 인터넷 흉내) · window.__ytBlockAutoplay = true면 사람이 누르지 않은 재생은 무시
 // (폰 크롬 흉내: 1초 안에 진짜 누름·키(isTrusted)가 없었던 playVideo는 막힘. 점검의 eval은 누름으로 치지 않는다).
 // 부른 것은 window.__ytFake.calls에 적는다.
 (() => {
@@ -20,7 +20,7 @@
       host.replaceWith(f);
       Object.assign(this, { el: f, o, st: -1, t: 0, at: 0, rate: 1, id: null });
       log.players.push(this); log.host = o.host || null; log.vars = o.playerVars || null;
-      setTimeout(() => o.events?.onReady?.({ target: this }), 30);
+      setTimeout(() => o.events?.onReady?.({ target: this }), window.__ytReadyMs ?? 30);
     }
     _emit(st) { this.st = st; this._paint(); this.o.events?.onStateChange?.({ data: st, target: this }); }
     _paint() { this.el.querySelector('.fy-s').textContent = this.id ? `${this.id} · ${NAMES[this.st] || this.st}` : ''; }

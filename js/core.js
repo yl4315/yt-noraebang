@@ -455,6 +455,24 @@ const ytErrToApp = code => code === 101 || code === 150;
 // www.youtube.com (그 브라우저의 유튜브 로그인 쿠키를 씀). 값은 이 기기 localStorage에만 — 백업 파일·Drive·허브·손님 폰에 안 간다
 const YT_WWW_KEY = 'nb-yt-www';
 const ytHostFor = www => www ? 'https://www.youtube.com' : 'https://www.youtube-nocookie.com';
+// 못 트는 유튜브 곡 안내 두 줄 { head, why } (yt.js ytShowErr). code = 플레이어 오류 번호 · 'offline'(인터넷 끊김) · 'api'(플레이어를 못 불러옴).
+// skip (CR-251 YT-07): 예약곡이 저절로 이어지던 중이라 3초 뒤 다음 예약곡으로 넘어간다 → 인터넷 탓 두 가지는 "못 틀어서 건너뛰어요"
+// (영상 오류는 skip이어도 글이 같다: 그때도 예전부터 다음 곡 카드가 3초를 센다)
+const YT_ERR_WHY = {
+  2: '영상 주소가 잘못됐어요', 5: '이 브라우저에서 틀 수 없는 영상이에요', 100: '지워졌거나 비공개인 영상이에요',
+  101: '올린 사람이 다른 곳에서 틀지 못하게 막았어요', 150: '올린 사람이 다른 곳에서 틀지 못하게 막았어요',
+  153: '유튜브가 이 화면 주소를 확인하지 못했어요',
+};
+function ytErrLines(code, skip) {
+  const head = code === 'offline' ? '인터넷이 끊겨서 유튜브 곡을 틀 수 없어요'
+    : code === 'api' ? '유튜브 플레이어를 불러오지 못했어요' : '이 영상은 노래방에서 틀 수 없어요';
+  const why = skip && (code === 'offline' || code === 'api') ? '못 틀어서 건너뛰어요 · 인터넷이 되면 이 곡을 다시 골라 주세요'
+    : code === 'offline' ? '인터넷이 다시 되면 곡을 다시 골라 주세요'
+    : code === 'api' ? '인터넷 연결을 확인하고 곡을 다시 골라 주세요' : (YT_ERR_WHY[code] || `유튜브 오류 (${code})`);
+  return { head, why };
+}
+// 인터넷 탓에 못 튼 유튜브 곡을 건너뛸까 (CR-251 YT-07): 예약 차례로 저절로 시작한 그 곡(auto)이 지금 곡이고, 싱크 편집 중이 아니고, 다음 예약곡이 있을 때만
+const ytNetSkips = (auto, song, sync, queued) => !!song && auto === song && !sync && queued > 0;
 // TV 유튜브 앱에서 찾을 말: "제목 가수 노래방" (ytSearchQuery와 같은 규칙). 제목을 모르는 곡("유튜브 영상 <번호>")이면 ''
 function ytAppFindWords(title, artist) {
   const t = String(title ?? '').replace(/\s+/g, ' ').trim();
