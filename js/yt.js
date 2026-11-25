@@ -484,6 +484,7 @@ function ytSetTab(tab, quiet) {
   ytHint();
   const foot = $('#searchFoot'); if (foot) foot.hidden = yt;
   const yfoot = $('#searchFootYt'); if (yfoot) yfoot.hidden = !yt;
+  if (!yt && typeof ytListClose === 'function') ytListClose();   // 재생목록 카드·읽는 플레이어는 유튜브 탭에서만 (CR-244)
   if (!quiet) { runSearch(); inp.focus(); }
 }
 function ytHint() {
@@ -529,10 +530,42 @@ function ytShareCard(ul) {
   ytCard(ul, 'yt-c-share', '폰 유튜브 앱에서 [공유] → 노래방',
     ['① 유튜브 앱에서 노래방 영상을 열어요', '② [공유]를 눌러요', '③ 목록에서 ‘노래방’을 골라요'], [], '노래방을 폰 홈 화면에 설치했을 때만 목록에 나와요');
 }
+/* 재생목록 링크 (CR-244, js/ytlist.js): 링크에 list=가 있으면 미리 보기 카드 → [곡 목록에 다 넣기]. 예약은 안 한다.
+   영상 링크에 목록이 붙어 있으면(watch?v=…&list=…) 영상 줄은 그대로 두고 그 아래에 카드. 영상 링크에 붙은 자동 믹스·내 목록은 카드 없이 영상만 */
+let ytListWant = null;   // 다시 그린 뒤 카드 안에서 둘 곳 ('sw'·'add'·'retry')
+const ytListCardEl = () => $('#searchList .yt-c-list');
+function ytListRedraw(focus) { if (!ytTabOn()) return; ytListWant = focus || null; renderYtTab(); }
+function ytListShow(ul, lst, focus) {
+  if (!lst.ok) return ytListCard(ul, ytListView({ phase: 'bad', why: lst.why }), { onExit: () => $('#searchInput').focus() });
+  // 목록 플레이어 칸은 #searchList 바로 뒤 (목록을 다시 그려도 iframe이 안 지워짐). 읽을 때만 생기고 다 읽으면 없어진다
+  const st = ytListOpen(lst.id, { box: () => ytListBox($('#searchList')), host: ytHostFor(Yt.www), onChange: () => ytListRedraw() });
+  const live = st.phase === 'ready' || st.phase === 'adding';
+  return ytListCard(ul, ytListView({ ...st, plan: live ? ytListPlanOf(st) : null }), {
+    onToggle: on => { if (YtList.st === st) st.includeBlocked = on; ytListRedraw('sw'); },
+    onAct: a => {
+      if (a === 'add') ytListCommit(() => ytListRedraw('add'));
+      else { ytListOpen(lst.id, { box: () => ytListBox($('#searchList')), host: ytHostFor(Yt.www), onChange: () => ytListRedraw(), retry: true }); ytListRedraw(); }
+    },
+    onExit: () => $('#searchInput').focus(),
+    focus,
+  });
+}
 function renderYtTab() {
-  const ul = $('#searchList'), inp = $('#searchInput'), q = inp.value.trim(); ul.textContent = '';
+  const ul = $('#searchList'), inp = $('#searchInput'), q = inp.value.trim();
+  const ae = document.activeElement, inCard = !!ae && ae !== inp && ul.contains(ae) && !!ae.closest('.yt-c-list');
+  const fk = ytListWant || (inCard ? ae.dataset.k || null : null); ytListWant = null;
+  ul.textContent = '';
   Yt.rows = []; ytHint();
   const key = ytHasKey(), id = parseYouTubeId(q);
+  const lst = typeof parseYouTubeListId === 'function' ? parseYouTubeListId(q) : null;
+  const showList = !!lst && (!id || lst.ok);
+  if (!(showList && lst.ok) && typeof ytListClose === 'function' && YtList.st) ytListClose();
+  const listCard = () => {
+    const li = ytListShow(ul, lst, fk);
+    if (fk && li && !li.contains(document.activeElement)) { if (!ytListFocus(li)) inp.focus(); }   // 막힌 단추(넣는 중·다 넣음)에 있었으면 카드 첫 칸이나 검색 칸으로
+    return li;
+  };
+  if (showList && !id) { listCard(); return; }
   if (id) {
     const have = findYtSong(state.songs, id), m = Yt.meta.get(id);
     if (have) Yt.rows.push({ song: have, act: top => reserve(have, top) });
@@ -582,12 +615,15 @@ function renderYtTab() {
     li.ondblclick = () => r.act(false);
     ul.append(li);
   });
+  if (showList) listCard();
   if (key && !id) ytInfo(ul, '유튜브 검색은 하루 한도가 있어요', [['링크로 넣기', 'ghost', () => { inp.value = ''; renderYtTab(); inp.focus(); toast('위 칸에 유튜브 링크를 붙여 넣어 주세요'); }, 'ytLinkBtn']]);
   ul.children[Yt.sel]?.scrollIntoView({ block: 'nearest' });
 }
 // 검색 칸의 키 (karaoke.js가 유튜브 탭일 때 먼저 부름). 처리했으면 true
 function ytSearchKey(e) {
   const inp = $('#searchInput'), q = inp.value.trim();
+  const card = ytListCardEl();
+  if (e.key === 'ArrowDown' && card && (!Yt.rows.length || Yt.sel >= Yt.rows.length - 1) && ytListFocus(card)) { e.preventDefault(); return true; }   // 재생목록 카드로
   if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
     if (!Yt.rows.length) return false;
     e.preventDefault(); Yt.sel = clamp(Yt.sel + (e.key === 'ArrowDown' ? 1 : -1), 0, Yt.rows.length - 1); renderYtTab(); return true;
@@ -596,6 +632,7 @@ function ytSearchKey(e) {
   e.preventDefault();
   const r = Yt.rows[Yt.sel];
   if (r) { r.act(e.shiftKey); return true; }
+  if (card) { const b = [...card.querySelectorAll('button')].find(x => !x.disabled); if (b) b.focus(); else ytListFocus(card); return true; }   // 바로 넣지 않고 [곡 목록에 다 넣기]로
   if (!q || looksLikeLink(q)) return true;
   if (ytHasKey()) ytKeySearch(q); else ytOpenSearch(q);
   return true;
@@ -613,7 +650,13 @@ async function ytKeySearch(q) {
     const res = await fetch(url, { signal: ctrl.signal, credentials: 'omit', referrerPolicy: 'no-referrer-when-downgrade' });
     if (res.status === 403 || res.status === 400 || res.status === 429) { Yt.keyBlocked = true; toast('유튜브 검색 한도가 찼어요 · 링크·[공유]로 넣어 주세요'); }
     else if (!res.ok) Yt.searchErr = `유튜브 검색 오류(${res.status})예요. 잠시 후 다시 찾거나 [유튜브에서 열어 찾기]`;
-    else Yt.cache.set(query, parseYtSearch(await res.json()));
+    else {
+      const j = await res.json();
+      let list = parseYtSearch(j);
+      // 금영 공식 채널 영상을 앞으로 (순서만, 빼는 것 없음. TJ·그 밖은 받은 순서 그대로) — CR-244 ②
+      if (typeof ytRankOfficial === 'function' && typeof ytWithChannelIds === 'function') list = ytRankOfficial(ytWithChannelIds(list, j));
+      Yt.cache.set(query, list);
+    }
   } catch { Yt.searchErr = '유튜브 검색이 안 됐어요. 잠시 후 다시 찾거나 [유튜브에서 열어 찾기]'; }
   finally { clearTimeout(timer); Yt.busy = null; if (ytTabOn()) renderYtTab(); }
 }
@@ -623,8 +666,17 @@ async function ytKeySearch(q) {
 function ytHandleShare() {
   const sp = shareParams(location.search);
   if (!sp) return;
+  const raw = new URLSearchParams(location.search);
   try { history.replaceState(history.state, '', location.pathname + stripShareParams(location.search) + location.hash); } catch {}
-  if (!sp.id) { toast('유튜브 링크가 아니에요'); return; }
+  if (!sp.id) {
+    // 재생목록 공유 (CR-244): 유튜브 탭을 열고 검색 칸에 목록 링크(si= 같은 꼬리는 뺌) → 미리 보기 카드
+    const lst = typeof parseYouTubeListId === 'function' ? ['url', 'text', 'title'].map(k => parseYouTubeListId(raw.get(k) || '')).find(Boolean) : null;
+    if (lst && typeof openSearch === 'function') {
+      openSearch('yt');
+      if (!$('#searchOv').hidden) { $('#searchInput').value = 'https://www.youtube.com/playlist?list=' + encodeURIComponent(lst.id); renderYtTab(); return; }
+    }
+    toast('유튜브 링크가 아니에요'); return;
+  }
   Yt.share = sp;
   const have = findYtSong(state.songs, sp.id), p = ytTitleParts(sp.title, '');
   $('#ytShareTitle').textContent = have ? `${have.no}번 ${have.title}` : (p.title ? p.title + (p.artist ? ' · ' + p.artist : '') : ytPlaceholder(sp.id));
@@ -640,6 +692,7 @@ $('#ytTap').onclick = ytTapStart;
 $('#searchTabMr').onclick = () => ytSetTab('mr');
 $('#searchTabYt').onclick = () => ytSetTab('yt');
 $('#ytAddBtn').onclick = () => { if (typeof openSearch === 'function') openSearch('yt'); };
+addEventListener('online', () => { if (typeof YtList === 'object' && YtList.st && YtList.st.kind === 'offline') ytListRedraw(); });   // 끊겼던 재생목록 카드를 다시 읽기
 
 /* ---------------- 설정 › 더 보기 (고급) › 유튜브 곡 › 프리미엄 계정으로 틀기 (이 기기만, CR-251 ②) ----------------
    켜면 이 기기에서만 플레이어 host를 www.youtube.com으로 바꾸고 플레이어를 다시 만든다 (그 브라우저의 유튜브 로그인 쿠키를 씀 →
