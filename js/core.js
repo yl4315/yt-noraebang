@@ -1118,7 +1118,7 @@ const INVISIBLE_CHARS = new RegExp('[' + [[0x00, 0x1f], [0x7f, 0x9f], [0xad, 0xa
 // 녹음 저장 알림 글 (CR-251 YT-r11 = YT-16): 녹음 백업(설정 "녹음도 Drive에 백업하기")이 꺼져 있으면 이 기기에만 있다고, 켜는 곳과 같이 알린다
 // (백업은 저절로 켜지 않는다: 4분 녹음에 약 23MB라 켜는 것은 사람이)
 function recSavedText(title, len, backupOn) {
-  return `녹음 저장됨 · ${title} (${len})${backupOn ? '' : ' · 이 기기에만 있어요 · 백업 켜기: 설정 › 곡 창고'} · 박자가 어긋나면 '싱크·믹스 조절'에서 고치세요`;
+  return `녹음 저장됨 · ${title} (${len})${backupOn ? '' : ' · 이 기기에만 있어요 · 백업 켜기: 설정 › 곡 창고'} · 박자가 어긋나면 '싱크·믹스 조절'에서 고칠 수 있어요`;
 }
 // 녹음 줄 "백업 안 됨" 표 (CR-251 YT-16): 녹음 백업이 꺼져 있고 Drive에도 아직 없는 녹음 (Drive에 올라간 녹음은 fileId가 있다)
 function recBackupMissing(rec, backupOn) {

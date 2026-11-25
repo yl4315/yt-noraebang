@@ -542,7 +542,7 @@ export default async function youtube(ctx) {
       const m0 = await marks(p);
       await p.click('#ytWww');
       const rebuilt = await p.until(`__ytFake.players.length>${s0.n} && Yt.loaded===${q(ID.A)} && Yt.st===5 && Yt.ready`, 6000);
-      const tip = await sawToast(p, /유튜브 로그인 정보\(쿠키\)를 써요\. 광고가 그대로면 끄세요/, m0, 3000);
+      const tip = await sawToast(p, /유튜브 로그인 정보\(쿠키\)를 써요\. 광고가 계속 나오면 다시 꺼 주세요/, m0, 3000);
       await sleep(200);
       const s1 = await p.eval(`({ls:localStorage.getItem('nb-yt-www'), host:__ytFake.host, n:__ytFake.players.length, destroyed:__ytFake.calls.slice(${s0.calls}).some(c=>c[0]==='destroy'), oldDead:__ytFake.players[${s0.n - 1}].dead===true,
         playing:state.playing, want:Yt.wantPlay, plays:__ytFake.calls.slice(${s0.calls}).filter(c=>c[0]==='play').length, off:state.offset, sub:document.querySelector('#ytWwwSub').textContent, checked:document.querySelector('#ytWww').checked,

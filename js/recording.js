@@ -53,7 +53,7 @@ async function saveTake(t) {
   renderRecs();
   const backupOn = lsGet('nb-recbackup') === '1';   // 녹음 백업이 꺼져 있으면 "이 기기에만 있어요 · 백업 켜기" (CR-251 YT-r11 = YT-16)
   toast(typeof recSavedText === 'function' ? recSavedText(rec.title, fmt(rec.duration), backupOn)
-    : `녹음 저장됨 · ${rec.title} (${fmt(rec.duration)}) · 박자가 어긋나면 '싱크·믹스 조절'에서 고치세요`, backupOn ? 4500 : 6000);
+    : `녹음 저장됨 · ${rec.title} (${fmt(rec.duration)}) · 박자가 어긋나면 '싱크·믹스 조절'에서 고칠 수 있어요`, backupOn ? 5000 : 7000);   // 폰에서 2~3줄이라 조금 길게 (디자인실 CR-251)
 }
 async function setArmed(on) {
   if (ytSong()) { flash('유튜브 곡은 녹음하지 않아요 · 내 MR 곡에서만 돼요'); updateTransportUI(); return; }   // 영상 소리가 섞인 파일을 남기지 않음 (CR-030). 켜 둔 녹음은 다음 내 MR 곡에서 그대로

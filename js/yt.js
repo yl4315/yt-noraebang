@@ -655,7 +655,7 @@ function ytSetWww(on) {
   Yt.www = on; lsSet(YT_WWW_KEY, on ? '1' : null);
   ytWwwUI();
   ytRebuild();
-  toast(on ? '유튜브 로그인 정보(쿠키)를 써요. 광고가 그대로면 끄세요' : '유튜브 기본 플레이어로 돌아왔어요 (로그인 정보를 안 써요)', 5000);
+  toast(on ? '유튜브 로그인 정보(쿠키)를 써요. 광고가 계속 나오면 다시 꺼 주세요' : '유튜브 기본 플레이어로 돌아왔어요 (로그인 정보를 안 써요)', 5000);
 }
 $('#ytWww').onchange = e => ytSetWww(e.target.checked);
 ytWwwUI();
